@@ -46,3 +46,6 @@ dist
 .github/prompts/*.local.prompt.md
 .agents/skills/.local/
 .github/skills/.local/
+
+# Sirius IDE: local backup of the removed upstream Copilot extension (kept on disk, not versioned)
+extensions/copilot.disabled/

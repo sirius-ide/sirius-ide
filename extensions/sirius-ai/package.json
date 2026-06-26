@@ -1,0 +1,278 @@
+{
+	"name": "sirius-ai",
+	"displayName": "Sirius AI",
+	"description": "Multi-model AI assistant for Sirius IDE — supports Google Gemini, Anthropic Claude, OpenAI GPT, and local Ollama models. Features: Thinking mode, Tool use, Image generation, Inline chat.",
+	"version": "2.0.0",
+	"publisher": "sirius",
+	"license": "MIT",
+	"engines": {
+		"vscode": "*"
+	},
+	"categories": [
+		"AI",
+		"Chat",
+		"Machine Learning"
+	],
+	"activationEvents": [
+		"onStartupFinished"
+	],
+	"main": "./out/extension.js",
+	"contributes": {
+		"chatParticipants": [
+			{
+				"id": "sirius.ai",
+				"name": "sirius",
+				"fullName": "Sirius AI",
+				"description": "Multi-model AI coding assistant with thinking and tools",
+				"isSticky": true
+			}
+		],
+		"commands": [
+			{
+				"command": "sirius.ai.openChat",
+				"title": "Sirius: Open AI Chat",
+				"icon": "$(star-full)"
+			},
+			{
+				"command": "sirius.ai.setApiKey",
+				"title": "Sirius: Set API Key"
+			},
+			{
+				"command": "sirius.ai.selectModel",
+				"title": "Sirius: Select AI Model"
+			},
+			{
+				"command": "sirius.ai.toggleThinking",
+				"title": "Sirius: Toggle Thinking Mode"
+			},
+			{
+				"command": "sirius.ai.setThinkingEffort",
+				"title": "Sirius: Set Thinking Effort Level"
+			},
+			{
+				"command": "sirius.ai.generateImage",
+				"title": "Sirius: Generate Image (Imagen)"
+			},
+			{
+				"command": "sirius.ai.explainSelection",
+				"title": "Sirius: Explain Selected Code"
+			},
+			{
+				"command": "sirius.ai.fixErrors",
+				"title": "Sirius: Fix Errors in Selection"
+			},
+			{
+				"command": "sirius.ai.writeTests",
+				"title": "Sirius: Write Tests for Selection"
+			},
+			{
+				"command": "sirius.ai.refactor",
+				"title": "Sirius: Refactor Selection"
+			}
+		],
+		"menus": {
+			"editor/context": [
+				{
+					"command": "sirius.ai.explainSelection",
+					"when": "editorHasSelection",
+					"group": "sirius@1"
+				},
+				{
+					"command": "sirius.ai.fixErrors",
+					"when": "editorHasSelection",
+					"group": "sirius@2"
+				},
+				{
+					"command": "sirius.ai.writeTests",
+					"when": "editorHasSelection",
+					"group": "sirius@3"
+				},
+				{
+					"command": "sirius.ai.refactor",
+					"when": "editorHasSelection",
+					"group": "sirius@4"
+				}
+			]
+		},
+		"configuration": {
+			"title": "Sirius AI",
+			"properties": {
+				"sirius.ai.defaultProvider": {
+					"type": "string",
+					"default": "gemini",
+					"enum": [
+						"gemini",
+						"anthropic",
+						"openai",
+						"ollama"
+					],
+					"enumDescriptions": [
+						"Google Gemini (Recommended — generous free tier)",
+						"Anthropic Claude (Best coding — API key or Claude Max subscription)",
+						"OpenAI GPT (Strong general purpose)",
+						"Local Ollama Models (Free, private, offline)"
+					],
+					"description": "Default AI model provider"
+				},
+				"sirius.ai.defaultModel": {
+					"type": "string",
+					"default": "gemini-3.5-flash",
+					"description": "Default model to use for AI chat"
+				},
+				"sirius.ai.gemini.apiKey": {
+					"type": "string",
+					"default": "",
+					"description": "Google Gemini API key (get from ai.google.dev)"
+				},
+				"sirius.ai.gemini.models": {
+					"type": "array",
+					"default": [
+						"gemini-3.5-flash",
+						"gemini-3.1-pro",
+						"gemini-3.1-flash-lite",
+						"gemini-3.1-flash-image",
+						"gemini-3-pro-image"
+					],
+					"description": "Available Gemini models"
+				},
+				"sirius.ai.anthropic.apiKey": {
+					"type": "string",
+					"default": "",
+					"description": "Anthropic API key (get from console.anthropic.com). Works with both pay-per-use API keys and Claude Max subscription keys."
+				},
+				"sirius.ai.anthropic.models": {
+					"type": "array",
+					"default": [
+						"claude-opus-4-8",
+						"claude-opus-4-6",
+						"claude-sonnet-4-6",
+						"claude-haiku-4-5-20251001"
+					],
+					"description": "Available Anthropic models"
+				},
+				"sirius.ai.openai.apiKey": {
+					"type": "string",
+					"default": "",
+					"description": "OpenAI API key (get from platform.openai.com)"
+				},
+				"sirius.ai.openai.models": {
+					"type": "array",
+					"default": [
+						"gpt-4.1",
+						"gpt-4.1-mini",
+						"gpt-4.1-nano",
+						"o4-mini",
+						"o3"
+					],
+					"description": "Available OpenAI models"
+				},
+				"sirius.ai.ollama.endpoint": {
+					"type": "string",
+					"default": "http://localhost:11434",
+					"description": "Ollama server endpoint"
+				},
+				"sirius.ai.ollama.models": {
+					"type": "array",
+					"default": [
+						"deepseek-coder-v3",
+						"llama4",
+						"codestral",
+						"qwen3",
+						"mistral"
+					],
+					"description": "Available Ollama models (auto-detected when server is running)"
+				},
+				"sirius.ai.thinking.enabled": {
+					"type": "boolean",
+					"default": true,
+					"description": "Enable thinking/reasoning mode for supported models (Claude Opus, Sonnet, Gemini 3.5)"
+				},
+				"sirius.ai.thinking.effort": {
+					"type": "string",
+					"default": "high",
+					"enum": [
+						"low",
+						"medium",
+						"high",
+						"max",
+						"ultra_code"
+					],
+					"enumDescriptions": [
+						"Low — Fastest, simple tasks",
+						"Medium — Balanced, everyday coding",
+						"High — Thorough reasoning (recommended)",
+						"Max — Deep analysis for hard problems",
+						"Ultra Code — Maximum depth for advanced engineering"
+					],
+					"description": "How deeply the AI should reason before responding"
+				},
+				"sirius.ai.maxTokens": {
+					"type": "number",
+					"default": 16384,
+					"description": "Maximum tokens in AI response"
+				},
+				"sirius.ai.temperature": {
+					"type": "number",
+					"default": 0.7,
+					"minimum": 0,
+					"maximum": 2,
+					"description": "AI response creativity (0 = deterministic, 2 = very creative)"
+				},
+				"sirius.ai.streamResponses": {
+					"type": "boolean",
+					"default": true,
+					"description": "Stream AI responses token by token"
+				},
+				"sirius.ai.inlineCompletions": {
+					"type": "boolean",
+					"default": false,
+					"description": "Enable AI-powered inline code completions (experimental)"
+				}
+			}
+		},
+		"viewsContainers": {
+			"activitybar": [
+				{
+					"id": "sirius-ai",
+					"title": "Sirius AI",
+					"icon": "$(star-full)"
+				}
+			]
+		},
+		"views": {
+			"sirius-ai": [
+				{
+					"type": "webview",
+					"id": "sirius.ai.chatView",
+					"name": "AI Chat"
+				}
+			]
+		},
+		"keybindings": [
+			{
+				"command": "sirius.ai.openChat",
+				"key": "ctrl+shift+i",
+				"mac": "cmd+shift+i"
+			},
+			{
+				"command": "sirius.ai.selectModel",
+				"key": "ctrl+shift+m",
+				"mac": "cmd+shift+m"
+			},
+			{
+				"command": "sirius.ai.toggleThinking",
+				"key": "ctrl+shift+t",
+				"mac": "cmd+shift+t"
+			}
+		]
+	},
+	"scripts": {
+		"compile": "tsc -p ./tsconfig.json",
+		"watch": "tsc -watch -p ./tsconfig.json"
+	},
+	"dependencies": {},
+	"devDependencies": {
+		"@types/vscode": "^1.116.0",
+		"typescript": "^5.8.0"
+	}
+}
