@@ -1,0 +1,20 @@
+{
+	"name": "theme-sirius-star",
+	"displayName": "Sirius Star Theme",
+	"description": "The signature dark theme for Sirius IDE — deep space with brilliant star accents",
+	"version": "1.0.0",
+	"publisher": "sirius",
+	"license": "MIT",
+	"categories": ["Themes"],
+	"engines": { "vscode": "*" },
+	"contributes": {
+		"themes": [
+			{
+				"id": "Sirius Star Dark",
+				"label": "Sirius Star Dark",
+				"uiTheme": "vs-dark",
+				"path": "./themes/sirius-star-dark.json"
+			}
+		]
+	}
+}
