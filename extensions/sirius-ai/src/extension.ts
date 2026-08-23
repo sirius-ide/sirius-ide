@@ -5,17 +5,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { SiriusSecretStore } from './auth/secretStore';
 import { ModelRouter } from './providers/modelRouter';
 import { SiriusChatViewProvider } from './chat/chatPanel';
 import { SiriusInlineChatProvider } from './inline/inlineChatProvider';
 
 let modelRouter: ModelRouter;
 
-export function activate(context: vscode.ExtensionContext) {
+export async function activate(context: vscode.ExtensionContext) {
 	console.log('★ Sirius AI is activating...');
 
+	// ─── Core: Credentials ───────────────────────────────────────────────
+	// Provider keys live in the OS keyring. Creating the store also sweeps any
+	// key an earlier version left sitting in settings.json in plaintext.
+	const secrets = await SiriusSecretStore.create(context);
+
 	// ─── Core: Model Router ──────────────────────────────────────────────
-	modelRouter = new ModelRouter();
+	modelRouter = new ModelRouter(secrets);
 
 	// ─── Chat Panel (Sidebar) ────────────────────────────────────────────
 	const chatProvider = new SiriusChatViewProvider(context.extensionUri, modelRouter);

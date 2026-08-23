@@ -4,8 +4,26 @@
  *  Licensed under the MIT License.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
+import { SiriusSecretStore } from '../auth/secretStore';
 import { IAIProvider, SiriusModel, ChatRequest, ChatChunk, ProviderType, ImageGenRequest, ImageGenResult } from '../types';
+
+/** A single part of a Gemini candidate's content. */
+interface GeminiPart {
+	text?: string;
+	thought?: boolean;
+	inlineData?: { data: string; mimeType?: string };
+}
+
+/** The subset of Gemini's generateContent response that this provider reads. */
+interface GeminiGenerateResponse {
+	candidates?: Array<{ content?: { parts?: GeminiPart[] } }>;
+	usageMetadata?: {
+		promptTokenCount?: number;
+		candidatesTokenCount?: number;
+		totalTokenCount?: number;
+		thoughtsTokenCount?: number;
+	};
+}
 
 export class GeminiProvider implements IAIProvider {
 	readonly id: ProviderType = 'gemini';
@@ -78,8 +96,10 @@ export class GeminiProvider implements IAIProvider {
 		}
 	];
 
+	constructor(private readonly secrets: SiriusSecretStore) { }
+
 	private getApiKey(): string {
-		return vscode.workspace.getConfiguration('sirius.ai.gemini').get<string>('apiKey', '');
+		return this.secrets.get('gemini');
 	}
 
 	isConfigured(): boolean {
@@ -240,7 +260,7 @@ export class GeminiProvider implements IAIProvider {
 			return;
 		}
 
-		const result = await response.json() as any;
+		const result = await response.json() as GeminiGenerateResponse;
 		let textContent = '';
 		let thinkingContent = '';
 
@@ -302,7 +322,7 @@ export class GeminiProvider implements IAIProvider {
 			throw new Error(`Imagen API Error (${response.status}): ${error}`);
 		}
 
-		const result = await response.json() as any;
+		const result = await response.json() as GeminiGenerateResponse;
 		const images: Array<{ base64: string; mimeType: string }> = [];
 		let revisedPrompt: string | undefined;
 

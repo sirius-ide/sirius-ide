@@ -122,7 +122,9 @@
 				"sirius.ai.gemini.apiKey": {
 					"type": "string",
 					"default": "",
-					"description": "Google Gemini API key (get from ai.google.dev)"
+					"description": "Google Gemini API key (get one from ai.google.dev)",
+					"markdownDeprecationMessage": "Storing API keys in settings.json is insecure — the file is plaintext, is picked up by Settings Sync and is captured by dotfile backups. Sirius now keeps keys in the system keyring. Any key left here is moved automatically on startup and this setting is cleared. Use the **Sirius: Set API Key** command instead.",
+					"deprecationMessage": "Deprecated: keys are now stored in the system keyring. Run \"Sirius: Set API Key\" instead."
 				},
 				"sirius.ai.gemini.models": {
 					"type": "array",
@@ -138,7 +140,9 @@
 				"sirius.ai.anthropic.apiKey": {
 					"type": "string",
 					"default": "",
-					"description": "Anthropic API key (get from console.anthropic.com). Works with both pay-per-use API keys and Claude Max subscription keys."
+					"description": "Anthropic API key (get one from console.anthropic.com)",
+					"markdownDeprecationMessage": "Storing API keys in settings.json is insecure — the file is plaintext, is picked up by Settings Sync and is captured by dotfile backups. Sirius now keeps keys in the system keyring. Any key left here is moved automatically on startup and this setting is cleared. Use the **Sirius: Set API Key** command instead.",
+					"deprecationMessage": "Deprecated: keys are now stored in the system keyring. Run \"Sirius: Set API Key\" instead."
 				},
 				"sirius.ai.anthropic.models": {
 					"type": "array",
@@ -153,7 +157,9 @@
 				"sirius.ai.openai.apiKey": {
 					"type": "string",
 					"default": "",
-					"description": "OpenAI API key (get from platform.openai.com)"
+					"description": "OpenAI API key (get one from platform.openai.com)",
+					"markdownDeprecationMessage": "Storing API keys in settings.json is insecure — the file is plaintext, is picked up by Settings Sync and is captured by dotfile backups. Sirius now keeps keys in the system keyring. Any key left here is moved automatically on startup and this setting is cleared. Use the **Sirius: Set API Key** command instead.",
+					"deprecationMessage": "Deprecated: keys are now stored in the system keyring. Run \"Sirius: Set API Key\" instead."
 				},
 				"sirius.ai.openai.models": {
 					"type": "array",

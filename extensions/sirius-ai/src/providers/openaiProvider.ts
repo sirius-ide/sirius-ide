@@ -4,8 +4,14 @@
  *  Licensed under the MIT License.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
+import { SiriusSecretStore } from '../auth/secretStore';
 import { IAIProvider, SiriusModel, ChatRequest, ChatChunk, ProviderType } from '../types';
+
+/** The subset of OpenAI's chat-completions response that this provider reads. */
+interface OpenAIChatCompletionResponse {
+	choices?: Array<{ message?: { content?: string } }>;
+	usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
+}
 
 export class OpenAIProvider implements IAIProvider {
 	readonly id: ProviderType = 'openai';
@@ -68,8 +74,10 @@ export class OpenAIProvider implements IAIProvider {
 		}
 	];
 
+	constructor(private readonly secrets: SiriusSecretStore) { }
+
 	private getApiKey(): string {
-		return vscode.workspace.getConfiguration('sirius.ai.openai').get<string>('apiKey', '');
+		return this.secrets.get('openai');
 	}
 
 	isConfigured(): boolean {
@@ -186,7 +194,7 @@ export class OpenAIProvider implements IAIProvider {
 				}
 				yield { content: '', done: true };
 			} else {
-				const result = await response.json() as any;
+				const result = await response.json() as OpenAIChatCompletionResponse;
 				const text = result.choices?.[0]?.message?.content || '';
 				yield {
 					content: text,

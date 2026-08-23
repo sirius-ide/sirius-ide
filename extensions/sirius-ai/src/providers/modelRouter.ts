@@ -6,6 +6,7 @@
 
 import * as vscode from 'vscode';
 import { IAIProvider, SiriusModel, ChatRequest, ChatChunk, ProviderType, ThinkingConfig, ThinkingEffort, ImageGenResult, SIRIUS_SYSTEM_PROMPT } from '../types';
+import { SiriusSecretStore, KEYED_PROVIDERS, PROVIDER_LABELS } from '../auth/secretStore';
 import { GeminiProvider } from './geminiProvider';
 import { AnthropicProvider } from './anthropicProvider';
 import { OpenAIProvider } from './openaiProvider';
@@ -30,11 +31,11 @@ export class ModelRouter {
 	private _onModelChanged = new vscode.EventEmitter<SiriusModel>();
 	readonly onModelChanged = this._onModelChanged.event;
 
-	constructor() {
+	constructor(private readonly secrets: SiriusSecretStore) {
 		this.providers = new Map();
-		this.providers.set('gemini', new GeminiProvider());
-		this.providers.set('anthropic', new AnthropicProvider());
-		this.providers.set('openai', new OpenAIProvider());
+		this.providers.set('gemini', new GeminiProvider(secrets));
+		this.providers.set('anthropic', new AnthropicProvider(secrets));
+		this.providers.set('openai', new OpenAIProvider(secrets));
 		this.providers.set('ollama', new OllamaProvider());
 	}
 
@@ -199,50 +200,70 @@ export class ModelRouter {
 	// ─── API Key Setup ───────────────────────────────────────────────────────
 
 	async setApiKey(): Promise<void> {
-		const providers = ['Google Gemini', 'Anthropic Claude', 'OpenAI GPT', 'Ollama (no key needed)'];
+		type ProviderPick = vscode.QuickPickItem & { provider: ProviderType };
 
-		const selected = await vscode.window.showQuickPick(providers, {
+		const items: ProviderPick[] = KEYED_PROVIDERS.map(provider => ({
+			label: PROVIDER_LABELS[provider],
+			description: this.secrets.has(provider) ? '$(key) key stored' : 'no key set',
+			provider
+		}));
+		items.push({
+			label: PROVIDER_LABELS.ollama,
+			description: 'no key needed — runs locally',
+			provider: 'ollama'
+		});
+
+		const selected = await vscode.window.showQuickPick(items, {
 			title: '🔑 Set API Key',
 			placeHolder: 'Choose a provider to configure...'
 		});
-
 		if (!selected) { return; }
 
-		if (selected.includes('Ollama')) {
+		if (selected.provider === 'ollama') {
+			const config = vscode.workspace.getConfiguration('sirius.ai.ollama');
 			const endpoint = await vscode.window.showInputBox({
 				title: 'Ollama Endpoint',
-				value: 'http://localhost:11434',
-				prompt: 'Enter your Ollama server endpoint'
+				value: config.get<string>('endpoint', 'http://localhost:11434'),
+				prompt: 'Enter your Ollama server endpoint',
+				ignoreFocusOut: true
 			});
 			if (endpoint) {
-				await vscode.workspace.getConfiguration('sirius.ai.ollama')
-					.update('endpoint', endpoint, vscode.ConfigurationTarget.Global);
-				vscode.window.showInformationMessage('✅ Ollama endpoint configured!');
+				await config.update('endpoint', endpoint, vscode.ConfigurationTarget.Global);
+				vscode.window.showInformationMessage('✅ Ollama endpoint configured.');
 			}
 			return;
 		}
 
-		const providerMap: Record<string, string> = {
-			'Google Gemini': 'sirius.ai.gemini',
-			'Anthropic Claude': 'sirius.ai.anthropic',
-			'OpenAI GPT': 'sirius.ai.openai'
-		};
+		const provider = selected.provider;
+		const label = PROVIDER_LABELS[provider];
 
-		const configKey = providerMap[selected];
-		if (!configKey) { return; }
+		if (this.secrets.has(provider)) {
+			const action = await vscode.window.showQuickPick(
+				[
+					{ label: 'Replace key', detail: `Enter a new ${label} key` },
+					{ label: 'Remove key', detail: `Delete the ${label} key from the system keyring` }
+				],
+				{ title: `${label} — a key is already stored`, placeHolder: 'What would you like to do?' }
+			);
+
+			if (!action) { return; }
+			if (action.label === 'Remove key') {
+				await this.secrets.delete(provider);
+				vscode.window.showInformationMessage(`Removed the ${label} key from the system keyring.`);
+				return;
+			}
+		}
 
 		const apiKey = await vscode.window.showInputBox({
-			title: `${selected} API Key`,
+			title: `${label} API Key`,
 			password: true,
-			prompt: `Enter your ${selected} API key`,
-			placeHolder: 'sk-...'
+			prompt: 'Stored in the system keyring — never written to settings.json',
+			ignoreFocusOut: true
 		});
+		if (!apiKey?.trim()) { return; }
 
-		if (apiKey) {
-			await vscode.workspace.getConfiguration(configKey)
-				.update('apiKey', apiKey, vscode.ConfigurationTarget.Global);
-			vscode.window.showInformationMessage(`✅ ${selected} API key saved!`);
-		}
+		await this.secrets.set(provider, apiKey);
+		vscode.window.showInformationMessage(`✅ ${label} key saved to the system keyring.`);
 	}
 
 	// ─── Chat Routing ────────────────────────────────────────────────────────
