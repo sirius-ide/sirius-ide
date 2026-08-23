@@ -4,8 +4,14 @@
  *  Licensed under the MIT License.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
+import { SiriusSecretStore } from '../auth/secretStore';
 import { IAIProvider, SiriusModel, ChatRequest, ChatChunk, ProviderType } from '../types';
+
+/** The subset of Anthropic's Messages response that this provider reads. */
+interface AnthropicMessageResponse {
+	content?: Array<{ type?: string; text?: string; thinking?: string }>;
+	usage?: { input_tokens?: number; output_tokens?: number };
+}
 
 export class AnthropicProvider implements IAIProvider {
 	readonly id: ProviderType = 'anthropic';
@@ -65,8 +71,10 @@ export class AnthropicProvider implements IAIProvider {
 		}
 	];
 
+	constructor(private readonly secrets: SiriusSecretStore) { }
+
 	private getApiKey(): string {
-		return vscode.workspace.getConfiguration('sirius.ai.anthropic').get<string>('apiKey', '');
+		return this.secrets.get('anthropic');
 	}
 
 	isConfigured(): boolean {
@@ -258,7 +266,7 @@ export class AnthropicProvider implements IAIProvider {
 	 * Handle non-streaming response
 	 */
 	private async *_handleNonStream(response: Response): AsyncIterable<ChatChunk> {
-		const result = await response.json() as any;
+		const result = await response.json() as AnthropicMessageResponse;
 		let textContent = '';
 		let thinkingContent = '';
 
