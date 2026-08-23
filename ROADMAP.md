@@ -21,15 +21,40 @@ This is a living document. Status legend: ✅ done · 🔨 in progress · ⬜ pl
 - ⬜ Fix `product.json` defects: `defaultChatAgent.extensionId` is `sirius.ai` but the extension really registers as `sirius.sirius-ai`; `builtInExtensionsEnabledWithAutoUpdates` names a non-existent extension; two Windows AppId GUIDs contain non-hex characters; `webviewContentExternalBaseUrlTemplate` still points at Microsoft's CDN; no `quality` / `updateUrl` / `downloadUrl`
 - ⬜ CI: build Sirius on push (GitHub Actions) and produce Linux/Win/macOS artifacts
 
-## Phase 1 — Cursor-class editing
+## Phase 1 — A correct, secure model layer
 
-The features that make Cursor feel magical, ported to Sirius's multi-model backend.
+Before any of the editing features: the AI layer has to be safe to hand a paid
+API key and actually speak the providers' current APIs.
 
-- ⬜ **Tab / Next-Edit Prediction** — multi-line, whole-edit autocomplete that predicts the *next* change and lets you accept with Tab and jump to the next location. (New: `extensions/sirius-ai/src/inline/nextEditProvider.ts` + an `InlineCompletionItemProvider`.)
-- ⬜ **Cmd-K inline edit** — prompt-to-edit on a selection with an inline diff preview and accept/reject. (Extend `inlineChatProvider.ts`.)
-- ⬜ **Composer (multi-file agent edits)** — a side panel where the agent proposes coordinated edits across many files, shown as a reviewable diff set with one-click **Apply** / **Revert**.
-- ⬜ **@-mention context** — `@file`, `@symbol`, `@folder`, `@docs`, `@web` to scope what the model sees.
-- ⬜ **Apply + checkpoint/rollback** — every agent edit is a checkpoint you can roll back.
+- ✅ **Keys in the system keyring** — `SiriusSecretStore` over VS Code SecretStorage, with automatic migration of any key left in `settings.json` by an earlier build
+- ✅ **Correct Anthropic requests** — `output_config.effort` (not `thinking.effort`), real effort levels, no sampling parameters on models that reject them, current model ids including Opus 5 / Sonnet 5 / Fable 5
+- ✅ **Prompt caching** on the system prompt — cheaper, and cached reads do not count toward the input-tokens-per-minute limit
+- ⬜ **Native tool calling** — replace the ```` ```tool ```` text protocol with real `tool_use` / `tool_result`, and close the loop so results go back to the model (today tools fire once and the model never sees what they returned)
+- ⬜ **Verify Gemini and OpenAI request shapes** the way Anthropic's were verified; their model ids are unverified too
+- ⬜ **One `OpenAICompatibleProvider`** to replace the per-vendor adapters — covers Ollama, LM Studio, vLLM, llama.cpp, OpenRouter, Together, Groq, DeepSeek and Mistral, turning "add a provider" into a config entry
+
+## Phase 1b — Adopt the editor's own AI surfaces
+
+Upstream 1.118 already ships what the original roadmap planned to build by hand:
+`chatEditing` (multi-file edits with accept/reject/checkpoints), `inlineChat`,
+`agentSessions`, MCP, and a language-model tools service. Crucially,
+`vscode.lm.registerLanguageModelChatProvider` is **stable API** at this fork
+point, with a matching `languageModelChatProviders` extension point.
+
+Registering into that seam is how every upstream AI surface starts working
+against Claude, Gemini, GPT and Ollama at once — and it keeps improving on each
+rebase instead of drifting.
+
+- ⬜ **`LanguageModelChatProvider` for each provider** — the single highest-leverage change in the project
+- ⬜ **Retire the bespoke chat webview** (974 lines) in favour of upstream chat and agent mode
+- ⬜ **Route edits through the chat-editing session** instead of `workspace.fs.writeFile`, which today writes to disk with no diff, preview or undo
+- ⬜ Then, free from upstream: Composer-class multi-file edits, @-mentions, checkpoints, MCP tools
+
+## Phase 1c — What is genuinely ours to build
+
+- ⬜ **Tab / next-edit prediction** — the one Cursor feature upstream does not provide. Needs a fill-in-the-middle path, not a chat path, plus debounce, an LRU cache and cancellation. The current inline-completion provider has none of these and is correctly defaulted off.
+- ⬜ **Import from VS Code / Cursor / Windsurf** — settings, extensions and recent workspaces. Antigravity ships importers for all three plus Cider; it is the cheapest removal of the biggest switching barrier.
+- ⬜ **Wire the dead `product.json` hooks** — `generateCommitMessageCommand` and `resolveMergeConflictsCommand` are empty strings, so the SCM commit-message button and merge-conflict action already exist in the workbench and do nothing. One command each.
 
 ## Phase 2 — Codebase intelligence
 
