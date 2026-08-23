@@ -267,12 +267,11 @@
 		]
 	},
 	"scripts": {
-		"compile": "tsc -p ./tsconfig.json",
-		"watch": "tsc -watch -p ./tsconfig.json"
+		"compile": "gulp compile-extension:sirius-ai",
+		"watch": "gulp watch-extension:sirius-ai"
 	},
 	"dependencies": {},
 	"devDependencies": {
-		"@types/vscode": "^1.116.0",
-		"typescript": "^5.8.0"
+		"@types/node": "22.x"
 	}
 }

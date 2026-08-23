@@ -5,7 +5,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { ContextBlock, ContextType } from '../types';
+import { ContextBlock } from '../types';
 
 /**
  * Gathers workspace context to inject into AI chat messages.

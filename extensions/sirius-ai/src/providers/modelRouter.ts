@@ -5,7 +5,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { IAIProvider, SiriusModel, ChatRequest, ChatChunk, ProviderType, ThinkingConfig, ThinkingEffort, ImageGenRequest, ImageGenResult, SIRIUS_SYSTEM_PROMPT } from '../types';
+import { IAIProvider, SiriusModel, ChatRequest, ChatChunk, ProviderType, ThinkingConfig, ThinkingEffort, ImageGenResult, SIRIUS_SYSTEM_PROMPT } from '../types';
 import { GeminiProvider } from './geminiProvider';
 import { AnthropicProvider } from './anthropicProvider';
 import { OpenAIProvider } from './openaiProvider';

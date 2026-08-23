@@ -9,7 +9,6 @@
 
 import * as vscode from 'vscode';
 import { ModelRouter } from '../providers/modelRouter';
-import { SIRIUS_SYSTEM_PROMPT } from '../types';
 
 /**
  * Registers Sirius as a Chat Participant for inline chat (Ctrl+I).
@@ -19,7 +18,7 @@ export class SiriusInlineChatProvider {
 
 	constructor(
 		private readonly modelRouter: ModelRouter
-	) {}
+	) { }
 
 	/**
 	 * Register all inline chat features
