@@ -13,9 +13,12 @@ This is a living document. Status legend: ✅ done · 🔨 in progress · ⬜ pl
 - ✅ `theme-sirius-star` (Sirius Star Dark)
 - ✅ Remove upstream Copilot; make `sirius.ai` the default chat agent
 - ✅ Branch hygiene: `main` mirrors upstream, `sirius` holds the fork
+- ✅ Repair the build pipeline (`npm ci` no longer dies on the removed Copilot dir; `sirius-ai` is registered in the gulp compilations, installed by postinstall, and esbuild-bundled for release; `npm run watch` no longer fans out to Copilot; the gitignored `copilot.disabled` backup can no longer leak into a package)
+- ✅ **First clean build + launch verification of the branded app** — `gulp vscode-linux-x64-min` produces a 720 MB `VSCode-linux-x64`; launching it activates `sirius.sirius-ai` with no extension-host errors and registers the Sirius Star Dark theme
+- ✅ AUR package builds against the pinned Node toolchain instead of the system one (Arch ships Node 26 / npm 12, both rejected by `preinstall`)
 - ⬜ Sirius-owned hygiene/copyright config (replace the Microsoft copyright-header gate with a Sirius header so commits pass `gulp hygiene` cleanly)
-- ⬜ First clean build + launch verification of the branded app
 - ⬜ Replace remaining VS Code branding in resources (icons, app images under `resources/`)
+- ⬜ Fix `product.json` defects: `defaultChatAgent.extensionId` is `sirius.ai` but the extension really registers as `sirius.sirius-ai`; `builtInExtensionsEnabledWithAutoUpdates` names a non-existent extension; two Windows AppId GUIDs contain non-hex characters; `webviewContentExternalBaseUrlTemplate` still points at Microsoft's CDN; no `quality` / `updateUrl` / `downloadUrl`
 - ⬜ CI: build Sirius on push (GitHub Actions) and produce Linux/Win/macOS artifacts
 
 ## Phase 1 — Cursor-class editing

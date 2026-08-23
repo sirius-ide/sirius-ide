@@ -28,21 +28,31 @@ The upstream Microsoft Copilot extension has been removed; `sirius-ai` is the de
 
 ## Building from source
 
-Sirius builds exactly like VS Code. You need [Node.js](https://nodejs.org) (see [.nvmrc](.nvmrc)) and the [VS Code build prerequisites](https://github.com/microsoft/vscode/wiki/How-to-Contribute#prerequisites).
+Sirius builds exactly like VS Code. You need the [VS Code build prerequisites](https://github.com/microsoft/vscode/wiki/How-to-Contribute#prerequisites) and **the exact Node major version pinned in [.nvmrc](.nvmrc)** — the build refuses to run on anything else, and on npm 11.2.0 or newer:
 
 ```bash
+nvm use              # or otherwise put the pinned Node on PATH
 npm install          # install dependencies
 npm run watch        # incremental build (keep running)
 ./scripts/code.sh    # launch Sirius (code.bat on Windows)
 ```
 
-To build the AI extension on its own:
+To build the AI extension on its own (it is part of the normal extension build,
+so this is only needed for a focused edit-compile loop):
 
 ```bash
-cd extensions/sirius-ai
-npm install
-npm run compile
+npm run gulp compile-extension:sirius-ai
+npm run gulp watch-extension:sirius-ai
 ```
+
+### Producing a release build
+
+```bash
+npm run gulp vscode-linux-x64-min    # -> ../VSCode-linux-x64
+```
+
+`sirius-ai` is bundled with esbuild for release builds (`dist/extension.js`) and
+compiled to `out/` by the watch task during development.
 
 ## Roadmap
 
