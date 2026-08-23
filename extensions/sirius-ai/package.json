@@ -99,7 +99,7 @@
 			"properties": {
 				"sirius.ai.defaultProvider": {
 					"type": "string",
-					"default": "gemini",
+					"default": "anthropic",
 					"enum": [
 						"gemini",
 						"anthropic",
@@ -107,17 +107,17 @@
 						"ollama"
 					],
 					"enumDescriptions": [
-						"Google Gemini (Recommended — generous free tier)",
-						"Anthropic Claude (Best coding — API key or Claude Max subscription)",
-						"OpenAI GPT (Strong general purpose)",
-						"Local Ollama Models (Free, private, offline)"
+						"Google Gemini",
+						"Anthropic Claude — strongest coding models",
+						"OpenAI GPT",
+						"Local Ollama models — free, private, offline"
 					],
 					"description": "Default AI model provider"
 				},
 				"sirius.ai.defaultModel": {
 					"type": "string",
-					"default": "gemini-3.5-flash",
-					"description": "Default model to use for AI chat"
+					"default": "claude-opus-5",
+					"description": "Model used for AI chat. Prefer the \"Sirius: Select AI Model\" command, which lists everything the configured providers offer."
 				},
 				"sirius.ai.gemini.apiKey": {
 					"type": "string",
@@ -126,33 +126,12 @@
 					"markdownDeprecationMessage": "Storing API keys in settings.json is insecure — the file is plaintext, is picked up by Settings Sync and is captured by dotfile backups. Sirius now keeps keys in the system keyring. Any key left here is moved automatically on startup and this setting is cleared. Use the **Sirius: Set API Key** command instead.",
 					"deprecationMessage": "Deprecated: keys are now stored in the system keyring. Run \"Sirius: Set API Key\" instead."
 				},
-				"sirius.ai.gemini.models": {
-					"type": "array",
-					"default": [
-						"gemini-3.5-flash",
-						"gemini-3.1-pro",
-						"gemini-3.1-flash-lite",
-						"gemini-3.1-flash-image",
-						"gemini-3-pro-image"
-					],
-					"description": "Available Gemini models"
-				},
 				"sirius.ai.anthropic.apiKey": {
 					"type": "string",
 					"default": "",
 					"description": "Anthropic API key (get one from console.anthropic.com)",
 					"markdownDeprecationMessage": "Storing API keys in settings.json is insecure — the file is plaintext, is picked up by Settings Sync and is captured by dotfile backups. Sirius now keeps keys in the system keyring. Any key left here is moved automatically on startup and this setting is cleared. Use the **Sirius: Set API Key** command instead.",
 					"deprecationMessage": "Deprecated: keys are now stored in the system keyring. Run \"Sirius: Set API Key\" instead."
-				},
-				"sirius.ai.anthropic.models": {
-					"type": "array",
-					"default": [
-						"claude-opus-4-8",
-						"claude-opus-4-6",
-						"claude-sonnet-4-6",
-						"claude-haiku-4-5-20251001"
-					],
-					"description": "Available Anthropic models"
 				},
 				"sirius.ai.openai.apiKey": {
 					"type": "string",
@@ -161,32 +140,10 @@
 					"markdownDeprecationMessage": "Storing API keys in settings.json is insecure — the file is plaintext, is picked up by Settings Sync and is captured by dotfile backups. Sirius now keeps keys in the system keyring. Any key left here is moved automatically on startup and this setting is cleared. Use the **Sirius: Set API Key** command instead.",
 					"deprecationMessage": "Deprecated: keys are now stored in the system keyring. Run \"Sirius: Set API Key\" instead."
 				},
-				"sirius.ai.openai.models": {
-					"type": "array",
-					"default": [
-						"gpt-4.1",
-						"gpt-4.1-mini",
-						"gpt-4.1-nano",
-						"o4-mini",
-						"o3"
-					],
-					"description": "Available OpenAI models"
-				},
 				"sirius.ai.ollama.endpoint": {
 					"type": "string",
 					"default": "http://localhost:11434",
 					"description": "Ollama server endpoint"
-				},
-				"sirius.ai.ollama.models": {
-					"type": "array",
-					"default": [
-						"deepseek-coder-v3",
-						"llama4",
-						"codestral",
-						"qwen3",
-						"mistral"
-					],
-					"description": "Available Ollama models (auto-detected when server is running)"
 				},
 				"sirius.ai.thinking.enabled": {
 					"type": "boolean",
@@ -200,15 +157,15 @@
 						"low",
 						"medium",
 						"high",
-						"max",
-						"ultra_code"
+						"xhigh",
+						"max"
 					],
 					"enumDescriptions": [
-						"Low — Fastest, simple tasks",
-						"Medium — Balanced, everyday coding",
-						"High — Thorough reasoning (recommended)",
-						"Max — Deep analysis for hard problems",
-						"Ultra Code — Maximum depth for advanced engineering"
+						"Low — fastest, simple tasks",
+						"Medium — balanced, everyday coding",
+						"High — thorough reasoning (default)",
+						"Extra high — best for coding and agentic work",
+						"Max — maximum depth, when correctness beats cost"
 					],
 					"description": "How deeply the AI should reason before responding"
 				},

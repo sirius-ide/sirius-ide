@@ -174,8 +174,8 @@ export class GeminiProvider implements IAIProvider {
 			case 'low': return 1024;
 			case 'medium': return 4096;
 			case 'high': return 16384;
-			case 'max': return 32768;
-			case 'ultra_code': return 65536;
+			case 'xhigh': return 32768;
+			case 'max': return 65536;
 			default: return 16384;
 		}
 	}
