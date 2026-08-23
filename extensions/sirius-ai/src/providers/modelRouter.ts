@@ -5,7 +5,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { IAIProvider, SiriusModel, ChatRequest, ChatChunk, ProviderType, ThinkingConfig, ThinkingEffort, ImageGenResult, SIRIUS_SYSTEM_PROMPT } from '../types';
+import { IAIProvider, SiriusModel, ChatRequest, ChatChunk, ChatMessage, ProviderType, ThinkingConfig, ThinkingEffort, ImageGenResult, ToolDefinition, SIRIUS_SYSTEM_PROMPT } from '../types';
 import { SiriusSecretStore, KEYED_PROVIDERS, PROVIDER_LABELS } from '../auth/secretStore';
 import { GeminiProvider } from './geminiProvider';
 import { AnthropicProvider } from './anthropicProvider';
@@ -269,8 +269,9 @@ export class ModelRouter {
 	// ─── Chat Routing ────────────────────────────────────────────────────────
 
 	async *chat(
-		messages: Array<{ role: 'user' | 'assistant'; content: string }>,
-		modelId?: string
+		messages: ChatMessage[],
+		modelId?: string,
+		tools?: ToolDefinition[]
 	): AsyncIterable<ChatChunk> {
 		const config = vscode.workspace.getConfiguration('sirius.ai');
 		const targetModelId = modelId || config.get<string>('defaultModel', 'gemini-3.5-flash');
@@ -293,19 +294,15 @@ export class ModelRouter {
 				? thinkingConfig
 				: undefined;
 
-		const chatMessages = messages.map(m => ({
-			...m,
-			timestamp: Date.now()
-		}));
-
 		const request: ChatRequest = {
-			messages: chatMessages,
+			messages,
 			model: targetModelId,
 			maxTokens,
 			temperature,
 			stream,
 			systemPrompt: SIRIUS_SYSTEM_PROMPT,
-			thinking
+			thinking,
+			tools
 		};
 
 		yield* provider.chat(request);

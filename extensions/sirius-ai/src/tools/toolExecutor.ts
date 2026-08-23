@@ -9,90 +9,122 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { ToolDefinition, ToolCallRequest } from '../types';
 
 // ─── Tool Definitions ────────────────────────────────────────────────────────
-
-export interface ToolCall {
-	name: string;
-	arguments: Record<string, any>;
-}
 
 export interface ToolResult {
 	success: boolean;
 	output: string;
 	/** Optional data for rich rendering (images, links, etc.) */
-	data?: any;
+	data?: unknown;
 }
 
 /**
- * All available tools the AI can use
+ * Every tool the agent can call, described as JSON Schema.
+ *
+ * Each provider wraps these in its own envelope — Anthropic wants
+ * `input_schema`, the OpenAI-shaped APIs want `function.parameters` — but the
+ * schema itself is identical, so it is written once here.
  */
-export const TOOL_DEFINITIONS = [
+export const TOOL_DEFINITIONS: ToolDefinition[] = [
 	{
 		name: 'read_file',
-		description: 'Read the contents of a file in the workspace',
-		parameters: {
-			path: { type: 'string', description: 'Relative path to the file' },
-			startLine: { type: 'number', description: 'Optional start line (1-indexed)', optional: true },
-			endLine: { type: 'number', description: 'Optional end line (1-indexed)', optional: true }
+		description: 'Read the contents of a file in the workspace. Prefer a line range for large files.',
+		inputSchema: {
+			type: 'object',
+			properties: {
+				path: { type: 'string', description: 'Path relative to the workspace root' },
+				startLine: { type: 'number', description: 'First line to read, 1-indexed' },
+				endLine: { type: 'number', description: 'Last line to read, 1-indexed' }
+			},
+			required: ['path']
 		}
 	},
 	{
 		name: 'write_file',
-		description: 'Write or create a file in the workspace',
-		parameters: {
-			path: { type: 'string', description: 'Relative path to the file' },
-			content: { type: 'string', description: 'Content to write to the file' }
+		description: 'Create a file, or replace an existing file entirely. Use edit_file for targeted changes.',
+		inputSchema: {
+			type: 'object',
+			properties: {
+				path: { type: 'string', description: 'Path relative to the workspace root' },
+				content: { type: 'string', description: 'Full contents to write' }
+			},
+			required: ['path', 'content']
 		}
 	},
 	{
 		name: 'edit_file',
-		description: 'Replace specific content in a file',
-		parameters: {
-			path: { type: 'string', description: 'Relative path to the file' },
-			search: { type: 'string', description: 'Exact text to find' },
-			replace: { type: 'string', description: 'Replacement text' }
+		description: 'Replace an exact span of text in a file. The search text must match exactly and appear once.',
+		inputSchema: {
+			type: 'object',
+			properties: {
+				path: { type: 'string', description: 'Path relative to the workspace root' },
+				search: { type: 'string', description: 'Exact text to find' },
+				replace: { type: 'string', description: 'Text to put in its place' }
+			},
+			required: ['path', 'search', 'replace']
 		}
 	},
 	{
 		name: 'search_files',
-		description: 'Search for text across workspace files (like grep)',
-		parameters: {
-			query: { type: 'string', description: 'Search query (text or regex)' },
-			include: { type: 'string', description: 'Glob pattern to include (e.g. "**/*.ts")', optional: true },
-			maxResults: { type: 'number', description: 'Max results (default 20)', optional: true }
+		description: 'Search workspace files for a literal string, like grep.',
+		inputSchema: {
+			type: 'object',
+			properties: {
+				query: { type: 'string', description: 'Text to search for' },
+				include: { type: 'string', description: 'Glob of files to include, e.g. "**/*.ts"' },
+				maxResults: { type: 'number', description: 'Maximum matches to return, default 20' }
+			},
+			required: ['query']
 		}
 	},
 	{
 		name: 'list_directory',
-		description: 'List files and directories at a given path',
-		parameters: {
-			path: { type: 'string', description: 'Relative path to directory (empty for root)' }
+		description: 'List the files and directories at a path in the workspace.',
+		inputSchema: {
+			type: 'object',
+			properties: {
+				path: { type: 'string', description: 'Path relative to the workspace root; empty for the root itself' }
+			},
+			required: []
 		}
 	},
 	{
 		name: 'run_terminal',
-		description: 'Execute a shell command in the integrated terminal',
-		parameters: {
-			command: { type: 'string', description: 'Shell command to execute' },
-			cwd: { type: 'string', description: 'Working directory (relative)', optional: true }
+		description: 'Run a shell command in the integrated terminal. The user is asked to confirm first.',
+		inputSchema: {
+			type: 'object',
+			properties: {
+				command: { type: 'string', description: 'Command to run' },
+				cwd: { type: 'string', description: 'Working directory relative to the workspace root' }
+			},
+			required: ['command']
 		}
 	},
 	{
 		name: 'search_web',
-		description: 'Search the web for information (opens browser or returns search URL)',
-		parameters: {
-			query: { type: 'string', description: 'Search query' }
+		description: 'Open a web search in the default browser.',
+		inputSchema: {
+			type: 'object',
+			properties: {
+				query: { type: 'string', description: 'What to search for' }
+			},
+			required: ['query']
 		}
 	},
 	{
 		name: 'get_diagnostics',
-		description: 'Get current errors and warnings from the workspace',
-		parameters: {
-			file: { type: 'string', description: 'Optional specific file path', optional: true }
+		description: 'Get current errors and warnings reported in the workspace.',
+		inputSchema: {
+			type: 'object',
+			properties: {
+				file: { type: 'string', description: 'Limit results to paths containing this string' }
+			},
+			required: []
 		}
 	}
-] as const;
+];
 
 // ─── Tool Executor ───────────────────────────────────────────────────────────
 
@@ -105,7 +137,7 @@ export class SiriusToolExecutor {
 	/**
 	 * Execute a tool call and return the result
 	 */
-	async execute(tool: ToolCall): Promise<ToolResult> {
+	async execute(tool: ToolCallRequest): Promise<ToolResult> {
 		switch (tool.name) {
 			case 'read_file':
 				return this._readFile(tool.arguments);
@@ -126,44 +158,6 @@ export class SiriusToolExecutor {
 			default:
 				return { success: false, output: `Unknown tool: ${tool.name}` };
 		}
-	}
-
-	/**
-	 * Get the tools description for injection into system prompt
-	 */
-	getToolsSystemPrompt(): string {
-		return `\n\nYou have access to the following tools. To use a tool, respond with a JSON block wrapped in \`\`\`tool tags:
-
-\`\`\`tool
-{"name": "tool_name", "arguments": {"param": "value"}}
-\`\`\`
-
-Available tools:
-${TOOL_DEFINITIONS.map(t => `- **${t.name}**: ${t.description}`).join('\n')}
-
-Use tools when the user asks you to search files, read code, make changes, run commands, or look up information. Always explain what you're doing before using a tool.`;
-	}
-
-	/**
-	 * Parse tool calls from AI response text
-	 */
-	parseToolCalls(text: string): ToolCall[] {
-		const toolCalls: ToolCall[] = [];
-		const regex = /```tool\s*\n([\s\S]*?)```/g;
-		let match;
-
-		while ((match = regex.exec(text)) !== null) {
-			try {
-				const parsed = JSON.parse(match[1].trim());
-				if (parsed.name && parsed.arguments) {
-					toolCalls.push(parsed);
-				}
-			} catch {
-				// Skip malformed tool calls
-			}
-		}
-
-		return toolCalls;
 	}
 
 	// ─── Tool Implementations ────────────────────────────────────────────────

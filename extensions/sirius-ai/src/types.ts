@@ -49,19 +49,60 @@ export interface SiriusModel {
 	deprecated?: boolean;
 }
 
+// ─── Tools ───────────────────────────────────────────────────────────────────
+
+/**
+ * A tool the model may call. `inputSchema` is JSON Schema and is passed to each
+ * provider in whatever wrapper that provider expects.
+ */
+export interface ToolDefinition {
+	name: string;
+	description: string;
+	inputSchema: {
+		type: 'object';
+		properties: Record<string, unknown>;
+		required?: string[];
+	};
+}
+
+/**
+ * A call the model asked for. `id` is provider-assigned and must be echoed back
+ * with the result so the model can match them up.
+ */
+export interface ToolCallRequest {
+	id: string;
+	name: string;
+	arguments: Record<string, unknown>;
+}
+
+/** The outcome of running a tool, returned to the model on the next turn. */
+export interface ToolCallResult {
+	id: string;
+	name: string;
+	content: string;
+	isError?: boolean;
+}
+
+/** Why the model stopped generating. */
+export type StopReason = 'end_turn' | 'tool_use' | 'max_tokens' | 'refusal' | 'error';
+
 // ─── Chat Messages ───────────────────────────────────────────────────────────
 
 /**
  * A single message in a chat conversation
  */
 export interface ChatMessage {
-	role: 'system' | 'user' | 'assistant';
+	role: 'system' | 'user' | 'assistant' | 'tool';
 	content: string;
 	timestamp: number;
 	/** Optional thinking content (model's internal reasoning) */
 	thinking?: string;
 	/** Optional image URL for image generation results */
 	imageUrl?: string;
+	/** Tool calls this assistant turn asked for. */
+	toolCalls?: ToolCallRequest[];
+	/** Results carried by a `tool` message, answering an earlier assistant turn. */
+	toolResults?: ToolCallResult[];
 }
 
 /**
@@ -76,6 +117,8 @@ export interface ChatRequest {
 	systemPrompt?: string;
 	/** Thinking/reasoning configuration */
 	thinking?: ThinkingConfig;
+	/** Tools the model may call this turn. Omitted when tool use is disabled. */
+	tools?: ToolDefinition[];
 }
 
 /**
@@ -90,6 +133,10 @@ export interface ChatChunk {
 	isThinkingBlock?: boolean;
 	/** Image data (base64 or URL) for image generation */
 	imageData?: string;
+	/** Tool calls the model requested. Only set on the final chunk of a turn. */
+	toolCalls?: ToolCallRequest[];
+	/** Why the model stopped. `tool_use` means it is waiting on tool results. */
+	stopReason?: StopReason;
 	usage?: {
 		promptTokens: number;
 		completionTokens: number;

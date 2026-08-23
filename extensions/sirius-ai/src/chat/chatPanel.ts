@@ -8,7 +8,9 @@ import * as vscode from 'vscode';
 import { ModelRouter, PROVIDER_COLORS } from '../providers/modelRouter';
 import { WorkspaceContextEngine } from '../context/contextEngine';
 import { SiriusCodeActions } from '../actions/codeActions';
-import { SiriusToolExecutor } from '../tools/toolExecutor';
+import { SiriusToolExecutor, TOOL_DEFINITIONS } from '../tools/toolExecutor';
+import { SiriusAgentLoop } from '../agent/agentLoop';
+import { ChatMessage, ChatChunk } from '../types';
 
 interface ChatEntry {
 	role: 'user' | 'assistant';
@@ -25,6 +27,9 @@ export class SiriusChatViewProvider implements vscode.WebviewViewProvider {
 	private contextEngine: WorkspaceContextEngine;
 	private codeActions: SiriusCodeActions;
 	private toolExecutor: SiriusToolExecutor;
+	private agentLoop: SiriusAgentLoop;
+	/** Cancels the in-flight agent run, if any. */
+	private _cancelRun?: vscode.CancellationTokenSource;
 
 	constructor(
 		private readonly extensionUri: vscode.Uri,
@@ -33,6 +38,7 @@ export class SiriusChatViewProvider implements vscode.WebviewViewProvider {
 		this.contextEngine = new WorkspaceContextEngine();
 		this.codeActions = new SiriusCodeActions();
 		this.toolExecutor = new SiriusToolExecutor();
+		this.agentLoop = new SiriusAgentLoop(modelRouter, this.toolExecutor);
 	}
 
 	resolveWebviewView(
@@ -101,6 +107,9 @@ export class SiriusChatViewProvider implements vscode.WebviewViewProvider {
 						.update('effort', message.effort, vscode.ConfigurationTarget.Global);
 					break;
 				case 'clearChat':
+					// Abandon any run in flight so its output cannot land in the
+					// cleared conversation.
+					this._cancelRun?.cancel();
 					this.chatHistory = [];
 					break;
 				case 'setApiKey':
@@ -151,83 +160,91 @@ export class SiriusChatViewProvider implements vscode.WebviewViewProvider {
 		const contextStr = this.contextEngine.formatContextBlocks(context);
 		const fullMessage = (cleanText + contextStr).trim();
 
-		// Add user message to history
 		this.chatHistory.push({ role: 'user', content: fullMessage, timestamp: Date.now() });
-
-		// Start streaming
 		this._view.webview.postMessage({ type: 'streamStart' });
 
-		// Build conversation
-		const messages = this.chatHistory.map(m => ({ role: m.role, content: m.content }));
+		// A run is cancelled when the user sends the next message or clears the chat.
+		this._cancelRun?.cancel();
+		const cancellation = new vscode.CancellationTokenSource();
+		this._cancelRun = cancellation;
+
+		const history: ChatMessage[] = this.chatHistory.map(m => ({
+			role: m.role,
+			content: m.content,
+			timestamp: m.timestamp
+		}));
 
 		let fullResponse = '';
 		let thinkingContent = '';
+		let usage: ChatChunk['usage'];
 
 		try {
-			for await (const chunk of this.modelRouter.chat(messages)) {
-				// Handle thinking content
-				if (chunk.thinking) {
-					thinkingContent += chunk.thinking;
-					this._view.webview.postMessage({
-						type: 'thinkingChunk',
-						content: chunk.thinking,
-						isStart: chunk.isThinkingBlock
-					});
-					continue;
-				}
+			for await (const event of this.agentLoop.run(history, {
+				tools: TOOL_DEFINITIONS,
+				token: cancellation.token
+			})) {
+				switch (event.type) {
+					case 'thinking':
+						thinkingContent += event.text;
+						this._view.webview.postMessage({ type: 'thinkingChunk', content: event.text });
+						break;
 
-				if (chunk.content) {
-					fullResponse += chunk.content;
-					this._view.webview.postMessage({ type: 'streamChunk', content: chunk.content });
-				}
+					case 'text':
+						fullResponse += event.text;
+						this._view.webview.postMessage({ type: 'streamChunk', content: event.text });
+						break;
 
-				if (chunk.done) {
-					// Check for tool calls in the response
-					const toolCalls = this.toolExecutor.parseToolCalls(fullResponse);
-					if (toolCalls.length > 0) {
-						await this._executeToolCalls(toolCalls, fullResponse);
-					}
+					case 'toolStart':
+						this._view.webview.postMessage({
+							type: 'toolStart',
+							tool: event.call.name,
+							args: event.call.arguments
+						});
+						break;
 
-					const model = this.modelRouter.getDefaultModel();
-					this.chatHistory.push({
-						role: 'assistant',
-						content: fullResponse,
-						thinking: thinkingContent || undefined,
-						model: model.id,
-						timestamp: Date.now()
-					});
+					case 'toolResult':
+						this._view.webview.postMessage({
+							type: 'toolResult',
+							tool: event.call.name,
+							success: !event.result.isError,
+							output: event.result.content
+						});
+						break;
 
-					this._view.webview.postMessage({
-						type: 'streamEnd',
-						usage: chunk.usage
-					});
+					case 'usage':
+						usage = event.usage;
+						break;
+
+					case 'done':
+						if (event.reason === 'max_iterations') {
+							this._view.webview.postMessage({
+								type: 'streamChunk',
+								content: '\n\n⚠️ Stopped after the maximum number of tool rounds.'
+							});
+						}
+						break;
 				}
 			}
-		} catch (error: any) {
-			this._view.webview.postMessage({ type: 'streamChunk', content: `\n\n⚠️ Error: ${error.message}` });
+
+			const model = this.modelRouter.getDefaultModel();
+			this.chatHistory.push({
+				role: 'assistant',
+				content: fullResponse,
+				thinking: thinkingContent || undefined,
+				model: model.id,
+				timestamp: Date.now()
+			});
+
+			this._view.webview.postMessage({ type: 'streamEnd', usage });
+		} catch (error: unknown) {
+			const message = error instanceof Error ? error.message : String(error);
+			this._view.webview.postMessage({ type: 'streamChunk', content: `\n\n⚠️ Error: ${message}` });
 			this._view.webview.postMessage({ type: 'streamEnd' });
-		}
-	}
-
-	/**
-	 * Execute tool calls found in the AI response
-	 */
-	private async _executeToolCalls(toolCalls: { name: string; arguments: Record<string, any> }[], _responseText: string): Promise<void> {
-		for (const tool of toolCalls) {
-			this._view?.webview.postMessage({
-				type: 'toolStart',
-				tool: tool.name,
-				args: tool.arguments
-			});
-
-			const result = await this.toolExecutor.execute(tool);
-
-			this._view?.webview.postMessage({
-				type: 'toolResult',
-				tool: tool.name,
-				success: result.success,
-				output: result.output
-			});
+		} finally {
+			cancellation.dispose();
+			if (this._cancelRun === cancellation) {
+				this._cancelRun = undefined;
+			}
 		}
 	}
 

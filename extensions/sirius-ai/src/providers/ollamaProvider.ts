@@ -5,7 +5,26 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { IAIProvider, SiriusModel, ChatRequest, ChatChunk, ProviderType } from '../types';
+import { IAIProvider, SiriusModel, ChatRequest, ChatChunk, ChatMessage, ProviderType, ToolCallRequest, StopReason } from '../types';
+
+/** A tool call as Ollama reports it. Ollama assigns no id, so we synthesise one. */
+interface OllamaToolCall {
+	function?: { name?: string; arguments?: Record<string, unknown> };
+}
+
+/** The subset of an Ollama chat response that this provider reads. */
+interface OllamaChatResponse {
+	message?: { content?: string; thinking?: string; tool_calls?: OllamaToolCall[] };
+	done?: boolean;
+	done_reason?: string;
+	prompt_eval_count?: number;
+	eval_count?: number;
+}
+
+/** The subset of /api/tags that this provider reads. */
+interface OllamaTagsResponse {
+	models?: Array<{ name: string; size?: number; details?: { parameter_size?: string; family?: string } }>;
+}
 
 export class OllamaProvider implements IAIProvider {
 	readonly id: ProviderType = 'ollama';
@@ -48,17 +67,14 @@ export class OllamaProvider implements IAIProvider {
 		}
 
 		// Build messages
-		const messages: Array<{ role: string; content: string }> = [];
+		const messages: Array<Record<string, unknown>> = [];
 
 		if (request.systemPrompt) {
 			messages.push({ role: 'system', content: request.systemPrompt });
 		}
+		messages.push(...this._toWireMessages(request.messages));
 
-		for (const msg of request.messages) {
-			messages.push({ role: msg.role, content: msg.content });
-		}
-
-		const body = JSON.stringify({
+		const payload: Record<string, unknown> = {
 			model,
 			messages,
 			stream: request.stream,
@@ -66,7 +82,22 @@ export class OllamaProvider implements IAIProvider {
 				temperature: request.temperature,
 				num_predict: request.maxTokens
 			}
-		});
+		};
+
+		// Ollama takes the OpenAI function envelope. Models that lack the `tools`
+		// capability ignore the field rather than failing.
+		if (request.tools?.length) {
+			payload.tools = request.tools.map(t => ({
+				type: 'function',
+				function: {
+					name: t.name,
+					description: t.description,
+					parameters: t.inputSchema
+				}
+			}));
+		}
+
+		const body = JSON.stringify(payload);
 
 		try {
 			const response = await fetch(`${endpoint}/api/chat`, {
@@ -89,6 +120,7 @@ export class OllamaProvider implements IAIProvider {
 				}
 
 				const decoder = new TextDecoder();
+				const toolCalls: ToolCallRequest[] = [];
 				let buffer = '';
 
 				while (true) {
@@ -100,38 +132,60 @@ export class OllamaProvider implements IAIProvider {
 					buffer = lines.pop() || '';
 
 					for (const line of lines) {
-						if (line.trim()) {
-							try {
-								const parsed = JSON.parse(line);
-								if (parsed.done) {
-									yield {
-										content: parsed.message?.content || '',
-										done: true,
-										usage: {
-											promptTokens: parsed.prompt_eval_count || 0,
-											completionTokens: parsed.eval_count || 0,
-											totalTokens: (parsed.prompt_eval_count || 0) + (parsed.eval_count || 0)
-										}
-									};
-									return;
+						if (!line.trim()) { continue; }
+
+						let parsed: OllamaChatResponse;
+						try {
+							parsed = JSON.parse(line) as OllamaChatResponse;
+						} catch {
+							continue; // Skip malformed JSON
+						}
+
+						// Tool calls can arrive on any chunk, not only the last.
+						const calls = parsed.message?.tool_calls;
+						if (calls?.length) {
+							toolCalls.push(...this._toToolCalls(calls, toolCalls.length));
+						}
+
+						if (parsed.message?.thinking) {
+							yield { content: '', thinking: parsed.message.thinking, done: false };
+						}
+
+						if (parsed.done) {
+							yield {
+								content: parsed.message?.content || '',
+								done: true,
+								stopReason: toolCalls.length > 0 ? 'tool_use' : this._toStopReason(parsed.done_reason),
+								toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
+								usage: {
+									promptTokens: parsed.prompt_eval_count || 0,
+									completionTokens: parsed.eval_count || 0,
+									totalTokens: (parsed.prompt_eval_count || 0) + (parsed.eval_count || 0)
 								}
-								const text = parsed.message?.content || '';
-								if (text) {
-									yield { content: text, done: false };
-								}
-							} catch {
-								// Skip malformed JSON
-							}
+							};
+							return;
+						}
+
+						const text = parsed.message?.content || '';
+						if (text) {
+							yield { content: text, done: false };
 						}
 					}
 				}
-				yield { content: '', done: true };
-			} else {
-				const result = await response.json() as any;
-				const text = result.message?.content || '';
 				yield {
-					content: text,
+					content: '',
 					done: true,
+					stopReason: toolCalls.length > 0 ? 'tool_use' : 'end_turn',
+					toolCalls: toolCalls.length > 0 ? toolCalls : undefined
+				};
+			} else {
+				const result = await response.json() as OllamaChatResponse;
+				const calls = this._toToolCalls(result.message?.tool_calls, 0);
+				yield {
+					content: result.message?.content || '',
+					done: true,
+					stopReason: calls.length > 0 ? 'tool_use' : this._toStopReason(result.done_reason),
+					toolCalls: calls.length > 0 ? calls : undefined,
 					usage: {
 						promptTokens: result.prompt_eval_count || 0,
 						completionTokens: result.eval_count || 0,
@@ -144,14 +198,62 @@ export class OllamaProvider implements IAIProvider {
 		}
 	}
 
+	/**
+	 * Ollama's messages carry tool results on a dedicated `tool` role and echo
+	 * calls back inside the assistant turn.
+	 */
+	private _toWireMessages(messages: ChatMessage[]): Array<Record<string, unknown>> {
+		const wire: Array<Record<string, unknown>> = [];
+
+		for (const message of messages) {
+			if (message.role === 'tool') {
+				for (const result of message.toolResults ?? []) {
+					wire.push({ role: 'tool', tool_name: result.name, content: result.content });
+				}
+				continue;
+			}
+
+			if (message.role === 'assistant' && message.toolCalls?.length) {
+				wire.push({
+					role: 'assistant',
+					content: message.content,
+					tool_calls: message.toolCalls.map(call => ({
+						function: { name: call.name, arguments: call.arguments }
+					}))
+				});
+				continue;
+			}
+
+			wire.push({ role: message.role, content: message.content });
+		}
+
+		return wire;
+	}
+
+	/**
+	 * Ollama assigns no id to a tool call, so synthesise a stable one from its
+	 * position in the turn. The agent loop only needs ids to be unique per turn.
+	 */
+	private _toToolCalls(raw: OllamaToolCall[] | undefined, offset: number): ToolCallRequest[] {
+		return (raw ?? []).map((call, i) => ({
+			id: `call_${offset + i}`,
+			name: call.function?.name ?? '',
+			arguments: call.function?.arguments ?? {}
+		}));
+	}
+
+	private _toStopReason(raw: string | undefined): StopReason {
+		return raw === 'length' ? 'max_tokens' : 'end_turn';
+	}
+
 	async getAvailableModels(): Promise<SiriusModel[]> {
 		try {
 			const endpoint = this.getEndpoint();
 			const response = await fetch(`${endpoint}/api/tags`);
 			if (!response.ok) { return []; }
 
-			const data = await response.json() as any;
-			const models: SiriusModel[] = (data.models || []).map((m: any) => ({
+			const data = await response.json() as OllamaTagsResponse;
+			const models: SiriusModel[] = (data.models || []).map(m => ({
 				id: m.name,
 				name: m.name,
 				provider: 'ollama' as ProviderType,
