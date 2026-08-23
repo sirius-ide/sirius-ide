@@ -6,7 +6,6 @@
 
 import * as vscode from 'vscode';
 import { ModelRouter, PROVIDER_COLORS } from '../providers/modelRouter';
-import { SiriusModel, SIRIUS_SYSTEM_PROMPT, ProviderType } from '../types';
 import { WorkspaceContextEngine } from '../context/contextEngine';
 import { SiriusCodeActions } from '../actions/codeActions';
 import { SiriusToolExecutor } from '../tools/toolExecutor';
@@ -72,7 +71,7 @@ export class SiriusChatViewProvider implements vscode.WebviewViewProvider {
 				case 'sendMessage':
 					await this._handleUserMessage(message.text);
 					break;
-				case 'selectModel':
+				case 'selectModel': {
 					const selected = await this.modelRouter.selectModel();
 					if (selected && this._view) {
 						const clr = PROVIDER_COLORS[selected.provider];
@@ -89,12 +88,14 @@ export class SiriusChatViewProvider implements vscode.WebviewViewProvider {
 						});
 					}
 					break;
-				case 'toggleThinking':
+				}
+				case 'toggleThinking': {
 					const config = vscode.workspace.getConfiguration('sirius.ai.thinking');
 					const current = config.get<boolean>('enabled', true);
 					await config.update('enabled', !current, vscode.ConfigurationTarget.Global);
 					this._view?.webview.postMessage({ type: 'thinkingToggled', enabled: !current });
 					break;
+				}
 				case 'setEffort':
 					await vscode.workspace.getConfiguration('sirius.ai.thinking')
 						.update('effort', message.effort, vscode.ConfigurationTarget.Global);
