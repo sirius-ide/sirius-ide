@@ -42,8 +42,13 @@ if (process.env.npm_execpath?.includes('yarn')) {
 	throw new Error();
 }
 
+// Sirius IDE: distro packagers (e.g. the Arch AUR package) are pinned to whatever npm their
+// distribution ships and cannot downgrade it. Mirror the VSCODE_SKIP_NODE_VERSION_CHECK escape
+// hatch above so packaging can opt out deliberately, while contributors keep the guard.
 const npmUserAgent = process.env.npm_config_user_agent;
-const npmVersionMatch = npmUserAgent?.match(/npm\/(\d+)\.(\d+)\.(\d+)/);
+const npmVersionMatch = process.env['VSCODE_SKIP_NPM_VERSION_CHECK']
+	? null
+	: npmUserAgent?.match(/npm\/(\d+)\.(\d+)\.(\d+)/);
 if (npmVersionMatch) {
 	const npmMajor = parseInt(npmVersionMatch[1]);
 	const npmMinor = parseInt(npmVersionMatch[2]);

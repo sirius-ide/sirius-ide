@@ -313,6 +313,10 @@ const nativeExtensions = [
 
 const excludedExtensions = [
 	'copilot',
+	// Sirius IDE: `extensions/copilot.disabled` is a local, gitignored backup of the removed
+	// upstream Copilot extension. This list matches on directory name, so without this entry
+	// the extension glob would happily package the disabled extension into local builds.
+	'copilot.disabled',
 	'vscode-api-tests',
 	'vscode-colorize-tests',
 	'vscode-colorize-perf-tests',

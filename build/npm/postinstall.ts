@@ -252,6 +252,14 @@ async function main() {
 			continue; // already executed in root
 		}
 
+		// Sirius IDE: a stale entry in `dirs` (e.g. an extension that was removed from the
+		// fork) must not abort the whole install. Spawning npm with a non-existent cwd fails
+		// with ENOENT, which previously took down `npm ci` entirely.
+		if (!fs.existsSync(path.join(root, dir))) {
+			log(dir, 'Skipping npm install: directory does not exist.');
+			continue;
+		}
+
 		if (dir === 'build') {
 			nativeTasks.push(() => {
 				const env: NodeJS.ProcessEnv = { ...process.env };
