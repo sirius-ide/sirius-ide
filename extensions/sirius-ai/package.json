@@ -4,7 +4,7 @@
 	"description": "Multi-model AI assistant for Sirius IDE — supports Google Gemini, Anthropic Claude, OpenAI GPT, and local Ollama models. Features: Thinking mode, Tool use, Image generation, Inline chat.",
 	"version": "2.0.0",
 	"publisher": "sirius",
-	"license": "MIT",
+	"license": "SEE LICENSE IN LICENSE.txt",
 	"engines": {
 		"vscode": "*"
 	},

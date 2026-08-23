@@ -1,21 +1,87 @@
-MIT License
+Sirius IDE — Software License Agreement
 
-Copyright (c) 2015 - present Microsoft Corporation
+Copyright (c) 2026 Arshad Siddiqui. All rights reserved.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+This is a license agreement between you and the copyright holder ("we", "us")
+covering Sirius IDE and its accompanying documentation (the "Software"). By
+downloading, installing, or using the Software you agree to these terms. If you
+do not agree, do not install or use the Software.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+1. GRANT OF LICENCE
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+   We grant you a personal, non-exclusive, non-transferable, revocable license
+   to install and use the Software on any number of devices you own or control,
+   for personal or commercial software development.
+
+2. RESTRICTIONS
+
+   Except where a separate written agreement with us says otherwise, or where
+   this restriction is void under applicable law, you may not:
+
+   a. redistribute, sublicense, rent, lease, or sell the Software, or offer it
+      as a hosted service;
+   b. remove or alter any proprietary notice, license text, or attribution
+      contained in the Software;
+   c. use our names, logos, or trademarks to endorse or promote products
+      derived from the Software without our prior written permission.
+
+   Nothing in this section restricts rights granted to you by the licenses of
+   the third-party components described in section 4.
+
+3. RESERVATION OF RIGHTS
+
+   The Software is licensed, not sold. We retain all right, title, and interest
+   in the Software, excluding the third-party components described in section 4
+   and excluding your own content.
+
+4. THIRD-PARTY COMPONENTS
+
+   The Software is a derivative work of Code - OSS, the open-source foundation
+   of Visual Studio Code, which is licensed under the MIT License and is
+   copyright (c) 2015 - present Microsoft Corporation. The Software incorporates
+   further third-party components.
+
+   Those components remain governed by their own licenses, which are reproduced
+   in ThirdPartyNotices.txt distributed with the Software. Where a third-party
+   license grants you rights broader than this agreement, that license controls
+   for that component.
+
+   Sirius IDE is not Visual Studio Code, and is neither produced nor endorsed by
+   Microsoft Corporation.
+
+5. YOUR CONTENT AND YOUR CREDENTIALS
+
+   We claim no ownership of the source code, files, or other content you create
+   or edit with the Software. Where you configure the Software with credentials
+   for a third-party model provider, your use of that provider is governed by
+   your agreement with that provider, not by this agreement.
+
+6. TERMINATION
+
+   This license terminates automatically if you breach it. On termination you
+   must stop using the Software and remove your installations. Sections 3, 4, 7,
+   and 8 survive termination.
+
+7. DISCLAIMER OF WARRANTY
+
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+   FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT.
+
+8. LIMITATION OF LIABILITY
+
+   TO THE MAXIMUM EXTENT PERMITTED BY LAW, IN NO EVENT SHALL WE BE LIABLE FOR
+   ANY CLAIM, DAMAGES, OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+   TORT, OR OTHERWISE, ARISING FROM, OUT OF, OR IN CONNECTION WITH THE SOFTWARE
+   OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+   Nothing in this agreement excludes liability that cannot lawfully be excluded.
+
+9. GOVERNING LAW
+
+   This agreement is governed by the laws of [JURISDICTION], without regard to
+   its conflict-of-law rules.
+
+10. CONTACT
+
+   Questions about this license: https://github.com/ArshadSiddiqui/sirius-ide
