@@ -29,7 +29,7 @@ API key and actually speak the providers' current APIs.
 - ✅ **Keys in the system keyring** — `SiriusSecretStore` over VS Code SecretStorage, with automatic migration of any key left in `settings.json` by an earlier build
 - ✅ **Correct Anthropic requests** — `output_config.effort` (not `thinking.effort`), real effort levels, no sampling parameters on models that reject them, current model ids including Opus 5 / Sonnet 5 / Fable 5
 - ✅ **Prompt caching** on the system prompt — cheaper, and cached reads do not count toward the input-tokens-per-minute limit
-- ⬜ **Native tool calling** — replace the ```` ```tool ```` text protocol with real `tool_use` / `tool_result`, and close the loop so results go back to the model (today tools fire once and the model never sees what they returned)
+- ✅ **Native tool calling** — real `tool_use` / `tool_result` on Anthropic and Ollama, driven by `SiriusAgentLoop`; results now go back to the model instead of firing once as a side effect. Verified end to end against a local Ollama model across multiple tool rounds
 - ⬜ **Verify Gemini and OpenAI request shapes** the way Anthropic's were verified; their model ids are unverified too
 - ⬜ **One `OpenAICompatibleProvider`** to replace the per-vendor adapters — covers Ollama, LM Studio, vLLM, llama.cpp, OpenRouter, Together, Groq, DeepSeek and Mistral, turning "add a provider" into a config entry
 
