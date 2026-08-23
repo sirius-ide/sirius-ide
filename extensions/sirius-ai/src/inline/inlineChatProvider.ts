@@ -89,7 +89,7 @@ export class SiriusInlineChatProvider {
 		}
 
 		const fullPrompt = contextPrefix + userMessage;
-		const messages = [{ role: 'user' as const, content: fullPrompt }];
+		const messages = [{ role: 'user' as const, content: fullPrompt, timestamp: Date.now() }];
 
 		try {
 			for await (const chunk of this.modelRouter.chat(messages)) {
@@ -140,7 +140,7 @@ export class SiriusInlineChatProvider {
 
 					try {
 						let completion = '';
-						for await (const chunk of this.modelRouter.chat([{ role: 'user', content: prompt }])) {
+						for await (const chunk of this.modelRouter.chat([{ role: 'user', content: prompt, timestamp: Date.now() }])) {
 							if (token.isCancellationRequested) { return []; }
 							if (chunk.content) {
 								completion += chunk.content;

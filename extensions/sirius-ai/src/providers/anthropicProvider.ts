@@ -5,12 +5,44 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { SiriusSecretStore } from '../auth/secretStore';
-import { IAIProvider, SiriusModel, ChatRequest, ChatChunk, ProviderType, ThinkingEffort } from '../types';
+import { IAIProvider, SiriusModel, ChatRequest, ChatChunk, ChatMessage, ProviderType, ThinkingEffort, ToolCallRequest, StopReason } from '../types';
+
+/** A content block in a response: text, thinking, or a tool call. */
+interface AnthropicContentBlock {
+	type?: string;
+	text?: string;
+	thinking?: string;
+	id?: string;
+	name?: string;
+	input?: Record<string, unknown>;
+}
 
 /** The subset of Anthropic's Messages response that this provider reads. */
 interface AnthropicMessageResponse {
-	content?: Array<{ type?: string; text?: string; thinking?: string }>;
+	content?: AnthropicContentBlock[];
+	stop_reason?: string;
 	usage?: AnthropicUsage;
+}
+
+/** The subset of the SSE event stream that this provider reads. */
+interface AnthropicStreamEvent {
+	type?: string;
+	index?: number;
+	content_block?: AnthropicContentBlock;
+	delta?: {
+		type?: string;
+		text?: string;
+		thinking?: string;
+		partial_json?: string;
+		stop_reason?: string;
+	};
+	usage?: AnthropicUsage;
+}
+
+/** One Anthropic wire message. Content is a string or an array of blocks. */
+interface AnthropicWireMessage {
+	role: 'user' | 'assistant';
+	content: string | unknown[];
 }
 
 /**
@@ -149,19 +181,21 @@ export class AnthropicProvider implements IAIProvider {
 		const constraints = this._constraintsFor(model);
 		const modelInfo = this.models.find(m => m.id === model);
 
-		// Convert messages to Anthropic format
-		const messages = request.messages
-			.filter(m => m.role !== 'system')
-			.map(m => ({
-				role: m.role as 'user' | 'assistant',
-				content: m.content
-			}));
-
 		const body: Record<string, unknown> = {
 			model,
 			max_tokens: request.maxTokens,
-			messages
+			messages: this._toWireMessages(request.messages)
 		};
+
+		// Tool definitions are stable across turns, so they sit before the system
+		// prompt's cache breakpoint and are cached along with it.
+		if (request.tools?.length) {
+			body.tools = request.tools.map(t => ({
+				name: t.name,
+				description: t.description,
+				input_schema: t.inputSchema
+			}));
+		}
 
 		// The system prompt is byte-identical on every turn, so mark it as a cache
 		// breakpoint. Cached reads bill at a tenth of the input rate and do not
@@ -306,18 +340,102 @@ export class AnthropicProvider implements IAIProvider {
 	}
 
 	/**
-	 * Handle SSE streaming response with thinking block support
+	 * Convert Sirius messages to Anthropic's wire format.
+	 *
+	 * Anthropic carries tool calls and their results as content blocks, and
+	 * results come back on a `user` turn rather than a dedicated tool role.
+	 */
+	private _toWireMessages(messages: ChatMessage[]): AnthropicWireMessage[] {
+		const wire: AnthropicWireMessage[] = [];
+
+		for (const message of messages) {
+			if (message.role === 'system') {
+				continue;
+			}
+
+			if (message.role === 'tool') {
+				wire.push({
+					role: 'user',
+					content: (message.toolResults ?? []).map(result => ({
+						type: 'tool_result',
+						tool_use_id: result.id,
+						content: result.content,
+						...(result.isError ? { is_error: true } : {})
+					}))
+				});
+				continue;
+			}
+
+			if (message.role === 'assistant' && message.toolCalls?.length) {
+				const blocks: unknown[] = [];
+				if (message.content) {
+					blocks.push({ type: 'text', text: message.content });
+				}
+				for (const call of message.toolCalls) {
+					blocks.push({ type: 'tool_use', id: call.id, name: call.name, input: call.arguments });
+				}
+				wire.push({ role: 'assistant', content: blocks });
+				continue;
+			}
+
+			wire.push({ role: message.role, content: message.content });
+		}
+
+		return wire;
+	}
+
+	/**
+	 * Rebuild tool calls from the accumulated per-block JSON fragments.
+	 *
+	 * A call whose arguments failed to parse is still returned, with empty
+	 * arguments, so the agent loop reports the failure back to the model rather
+	 * than dropping the call and leaving the model waiting for a result.
+	 */
+	private _collectToolCalls(pending: Map<number, { id: string; name: string; json: string }>): ToolCallRequest[] | undefined {
+		if (pending.size === 0) {
+			return undefined;
+		}
+
+		return Array.from(pending.values()).map(({ id, name, json }) => {
+			let args: Record<string, unknown> = {};
+			try {
+				args = json.trim() ? JSON.parse(json) as Record<string, unknown> : {};
+			} catch {
+				// Leave the arguments empty; the tool reports what it was missing.
+			}
+			return { id, name, arguments: args };
+		});
+	}
+
+	private _toStopReason(raw: string | undefined): StopReason {
+		switch (raw) {
+			case 'tool_use': return 'tool_use';
+			case 'max_tokens': return 'max_tokens';
+			case 'refusal': return 'refusal';
+			default: return 'end_turn';
+		}
+	}
+
+	/**
+	 * Handle SSE streaming, accumulating text, thinking and tool calls.
+	 *
+	 * Tool arguments arrive as a stream of JSON fragments (`input_json_delta`)
+	 * keyed by content-block index, so they must be reassembled per block before
+	 * they can be parsed.
 	 */
 	private async *_handleStream(response: Response): AsyncIterable<ChatChunk> {
 		const reader = response.body?.getReader();
 		if (!reader) {
-			yield { content: '⚠️ No response stream available', done: true };
+			yield { content: '⚠️ No response stream available', done: true, stopReason: 'error' };
 			return;
 		}
 
 		const decoder = new TextDecoder();
+		const pendingTools = new Map<number, { id: string; name: string; json: string }>();
 		let buffer = '';
 		let isInThinkingBlock = false;
+		let stopReason: StopReason = 'end_turn';
+		let usage: ChatChunk['usage'];
 
 		while (true) {
 			const { done, value } = await reader.read();
@@ -332,60 +450,63 @@ export class AnthropicProvider implements IAIProvider {
 				const data = line.slice(6).trim();
 				if (!data || data === '[DONE]') { continue; }
 
+				let event: AnthropicStreamEvent;
 				try {
-					const parsed = JSON.parse(data);
-
-					// ─── Thinking Block Start ─────────────────────────────
-					if (parsed.type === 'content_block_start') {
-						if (parsed.content_block?.type === 'thinking') {
-							isInThinkingBlock = true;
-							yield { content: '', thinking: '', isThinkingBlock: true, done: false };
-						} else {
-							isInThinkingBlock = false;
-						}
-						continue;
-					}
-
-					// ─── Content Deltas ───────────────────────────────────
-					if (parsed.type === 'content_block_delta') {
-						if (parsed.delta?.type === 'thinking_delta') {
-							// Thinking content
-							yield { content: '', thinking: parsed.delta.thinking || '', done: false };
-						} else if (parsed.delta?.type === 'text_delta') {
-							// Regular text content
-							yield { content: parsed.delta.text || '', done: false };
-						}
-						continue;
-					}
-
-					// ─── Block Stop ───────────────────────────────────────
-					if (parsed.type === 'content_block_stop') {
-						if (isInThinkingBlock) {
-							isInThinkingBlock = false;
-							yield { content: '', thinking: '', isThinkingBlock: false, done: false };
-						}
-						continue;
-					}
-
-					// ─── Message Stop / Delta ─────────────────────────────
-					if (parsed.type === 'message_stop') {
-						yield { content: '', done: true };
-						return;
-					}
-
-					if (parsed.type === 'message_delta') {
-						yield {
-							content: '',
-							done: true,
-							usage: this._summariseUsage(parsed.usage)
-						};
-					}
+					event = JSON.parse(data) as AnthropicStreamEvent;
 				} catch {
-					// Skip malformed JSON
+					continue; // Skip malformed JSON
+				}
+
+				if (event.type === 'content_block_start') {
+					const block = event.content_block;
+					if (block?.type === 'thinking') {
+						isInThinkingBlock = true;
+						yield { content: '', thinking: '', isThinkingBlock: true, done: false };
+					} else if (block?.type === 'tool_use' && block.id && block.name) {
+						pendingTools.set(event.index ?? 0, { id: block.id, name: block.name, json: '' });
+					} else {
+						isInThinkingBlock = false;
+					}
+					continue;
+				}
+
+				if (event.type === 'content_block_delta') {
+					const delta = event.delta;
+					if (delta?.type === 'thinking_delta') {
+						yield { content: '', thinking: delta.thinking || '', done: false };
+					} else if (delta?.type === 'text_delta') {
+						yield { content: delta.text || '', done: false };
+					} else if (delta?.type === 'input_json_delta') {
+						const pending = pendingTools.get(event.index ?? 0);
+						if (pending) {
+							pending.json += delta.partial_json || '';
+						}
+					}
+					continue;
+				}
+
+				if (event.type === 'content_block_stop') {
+					if (isInThinkingBlock) {
+						isInThinkingBlock = false;
+						yield { content: '', thinking: '', isThinkingBlock: false, done: false };
+					}
+					continue;
+				}
+
+				if (event.type === 'message_delta') {
+					stopReason = this._toStopReason(event.delta?.stop_reason);
+					usage = this._summariseUsage(event.usage);
+					continue;
+				}
+
+				if (event.type === 'message_stop') {
+					yield { content: '', done: true, stopReason, usage, toolCalls: this._collectToolCalls(pendingTools) };
+					return;
 				}
 			}
 		}
-		yield { content: '', done: true };
+
+		yield { content: '', done: true, stopReason, usage, toolCalls: this._collectToolCalls(pendingTools) };
 	}
 
 	/**
@@ -395,13 +516,15 @@ export class AnthropicProvider implements IAIProvider {
 		const result = await response.json() as AnthropicMessageResponse;
 		let textContent = '';
 		let thinkingContent = '';
+		const toolCalls: ToolCallRequest[] = [];
 
-		// Parse content blocks (may include both thinking and text)
 		for (const block of (result.content || [])) {
 			if (block.type === 'thinking') {
 				thinkingContent += block.thinking || '';
 			} else if (block.type === 'text') {
 				textContent += block.text || '';
+			} else if (block.type === 'tool_use' && block.id && block.name) {
+				toolCalls.push({ id: block.id, name: block.name, arguments: block.input ?? {} });
 			}
 		}
 
@@ -412,6 +535,8 @@ export class AnthropicProvider implements IAIProvider {
 		yield {
 			content: textContent,
 			done: true,
+			stopReason: this._toStopReason(result.stop_reason),
+			toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
 			usage: this._summariseUsage(result.usage)
 		};
 	}
