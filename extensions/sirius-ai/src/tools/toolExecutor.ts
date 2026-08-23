@@ -134,6 +134,37 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
  */
 export class SiriusToolExecutor {
 
+	/** Set once the user opts into unattended file writes for this session. */
+	private _alwaysAllowWrites = false;
+
+	/**
+	 * Ask before a tool touches the user's files.
+	 *
+	 * These tools replace content with no diff, no preview and no undo, and the
+	 * agent loop now genuinely drives them. Until edits are routed through the
+	 * editor's chat-editing session — which brings its own review and rollback —
+	 * this prompt is the only thing between a misread instruction and lost work.
+	 */
+	private async _confirmWrite(summary: string): Promise<boolean> {
+		if (this._alwaysAllowWrites) {
+			return true;
+		}
+
+		const allowOnce = 'Allow';
+		const allowSession = 'Allow for This Session';
+		const choice = await vscode.window.showWarningMessage(
+			`★ Sirius AI wants to ${summary}`,
+			allowOnce,
+			allowSession
+		);
+
+		if (choice === allowSession) {
+			this._alwaysAllowWrites = true;
+			return true;
+		}
+		return choice === allowOnce;
+	}
+
 	/**
 	 * Execute a tool call and return the result
 	 */
@@ -192,6 +223,10 @@ export class SiriusToolExecutor {
 			const rootUri = vscode.workspace.workspaceFolders?.[0]?.uri;
 			if (!rootUri) { return { success: false, output: 'No workspace open' }; }
 
+			if (!await this._confirmWrite(`write ${args.path}`)) {
+				return { success: false, output: 'The user declined the write.' };
+			}
+
 			const fileUri = vscode.Uri.joinPath(rootUri, args.path);
 			const data = new TextEncoder().encode(args.content);
 			await vscode.workspace.fs.writeFile(fileUri, data);
@@ -217,6 +252,10 @@ export class SiriusToolExecutor {
 
 			if (!content.includes(args.search)) {
 				return { success: false, output: `Search text not found in ${args.path}` };
+			}
+
+			if (!await this._confirmWrite(`edit ${args.path}`)) {
+				return { success: false, output: 'The user declined the edit.' };
 			}
 
 			content = content.replace(args.search, args.replace);
