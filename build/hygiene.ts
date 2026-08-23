@@ -23,6 +23,36 @@ const copyrightHeaderLines = [
 	' *--------------------------------------------------------------------------------------------*/',
 ];
 
+// Sirius IDE: fork-owned files carry a Sirius header rather than the upstream Microsoft one.
+// Both must pass, because `src/` stays upstream and gets rebased. The Sirius banner allows a
+// free-text title line, so it is matched structurally instead of line-for-line.
+const siriusBannerStart = '/*---------------------------------------------------------------------------------------------';
+const siriusBannerEnd = ' *--------------------------------------------------------------------------------------------*/';
+const siriusCopyrightLine = ' *  Copyright (c) Arshad Siddiqui. All rights reserved.';
+const siriusLicensePattern = /^ \*  Licensed under the MIT License\./;
+const siriusBannerMaxLines = 12;
+
+/**
+ * Accepts either the upstream Microsoft copyright header or the Sirius fork header.
+ */
+function hasValidCopyrightHeader(lines: string[]): boolean {
+	if (copyrightHeaderLines.every((line, i) => lines[i] === line)) {
+		return true;
+	}
+
+	if (lines[0] !== siriusBannerStart) {
+		return false;
+	}
+
+	const bannerEnd = lines.slice(0, siriusBannerMaxLines).indexOf(siriusBannerEnd);
+	if (bannerEnd === -1) {
+		return false;
+	}
+
+	const banner = lines.slice(1, bannerEnd);
+	return banner.includes(siriusCopyrightLine) && banner.some(line => siriusLicensePattern.test(line));
+}
+
 interface VinylFileWithLines extends VinylFile {
 	__lines: string[];
 }
@@ -100,14 +130,9 @@ export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, run
 	});
 
 	const copyrights = es.through(function (file: VinylFileWithLines) {
-		const lines = file.__lines;
-
-		for (let i = 0; i < copyrightHeaderLines.length; i++) {
-			if (lines[i] !== copyrightHeaderLines[i]) {
-				console.error(file.relative + ': Missing or bad copyright statement');
-				errorCount++;
-				break;
-			}
+		if (!hasValidCopyrightHeader(file.__lines)) {
+			console.error(file.relative + ': Missing or bad copyright statement');
+			errorCount++;
 		}
 
 		this.emit('data', file);

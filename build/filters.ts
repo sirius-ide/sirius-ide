@@ -61,6 +61,12 @@ export const unicodeFilter = Object.freeze<string[]>([
 	'!extensions/**/dist/**',
 	'!extensions/**/out/**',
 	'!extensions/**/snippets/**',
+	// Sirius IDE: the assistant's UI deliberately uses emoji in user-facing strings
+	// (model picker badges, tool results, status messages) and box-drawing rules in
+	// section comments. This gate exists to catch homoglyphs sneaking into the core
+	// editor source, which these fork-owned extensions are not part of.
+	'!extensions/sirius-ai/**',
+	'!extensions/theme-sirius-star/**',
 	'!extensions/**/colorize-fixtures/**',
 	'!extensions/terminal-suggest/src/shell/fishBuiltinsCache.ts',
 

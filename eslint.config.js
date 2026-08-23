@@ -2389,6 +2389,19 @@ export default tseslint.config(
 			'@typescript-eslint/consistent-generic-constructors': ['warn', 'constructor'],
 		}
 	},
+	// Sirius IDE: fork-owned code carries a Sirius copyright header instead of the upstream
+	// Microsoft one. The `header/header` rule can only match a fixed block, and the Sirius
+	// banner has a free-text title line, so it is enforced by build/hygiene.ts instead --
+	// see hasValidCopyrightHeader(), which accepts either header.
+	{
+		files: [
+			'extensions/sirius-ai/**/*.{ts,mts}',
+			'extensions/theme-sirius-star/**/*.{ts,mts}',
+		],
+		rules: {
+			'header/header': 'off',
+		}
+	},
 	// Allow querySelector/querySelectorAll in test files - it's acceptable for test assertions
 	{
 		files: [
