@@ -115,8 +115,8 @@ export class ModelRouter {
 			{ label: '⚡ Low', effort: 'low', description: 'Fastest — simple tasks, quick answers' },
 			{ label: '🔷 Medium', effort: 'medium', description: 'Balanced — everyday coding tasks' },
 			{ label: '🔶 High', effort: 'high', description: 'Thorough — complex reasoning (default)' },
-			{ label: '🔴 Max', effort: 'max', description: 'Deep analysis — hard problems' },
-			{ label: '💎 Ultra Code', effort: 'ultra_code', description: 'Maximum depth — advanced engineering' }
+			{ label: '🔷 Extra High', effort: 'xhigh', description: 'Best for coding and agentic work' },
+			{ label: '💎 Max', effort: 'max', description: 'Maximum depth — when correctness beats cost' }
 		];
 
 		const selected = await vscode.window.showQuickPick(

@@ -671,8 +671,8 @@ body {
 			<option value="low">⚡ Low</option>
 			<option value="medium">🔷 Med</option>
 			<option value="high" selected>🔶 High</option>
-			<option value="max">🔴 Max</option>
-			<option value="ultra_code">💎 Ultra</option>
+			<option value="xhigh">🔷 X-High</option>
+			<option value="max">💎 Max</option>
 		</select>
 		<span class="model-badge" id="modelBadge" onclick="selectModel()">Loading...</span>
 		<button class="clear-btn" onclick="clearChat()" title="Clear Chat">🗑</button>

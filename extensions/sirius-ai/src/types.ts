@@ -7,9 +7,13 @@
 // ─── Thinking / Effort ───────────────────────────────────────────────────────
 
 /**
- * Effort levels for adaptive thinking (Claude 4.6+, Gemini 3.5+)
+ * How much reasoning to spend before answering.
+ *
+ * These are the levels the Anthropic API actually accepts in
+ * `output_config.effort`. `xhigh` sits between `high` and `max` and is the
+ * best default for coding and agentic work on current models.
  */
-export type ThinkingEffort = 'low' | 'medium' | 'high' | 'max' | 'ultra_code';
+export type ThinkingEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 
 /**
  * Thinking configuration sent alongside chat requests
