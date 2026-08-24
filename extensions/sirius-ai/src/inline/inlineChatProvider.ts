@@ -24,91 +24,9 @@ export class SiriusInlineChatProvider {
 	 * Register all inline chat features
 	 */
 	register(context: vscode.ExtensionContext): void {
-		// Register the Sirius chat participant
-		this._registerChatParticipant(context);
-
-		// Register inline completion provider for quick suggestions
+		// The editor's own chat drives Sirius models through the language-model
+		// provider, so a separate participant would just be a second front door.
 		this._registerInlineCompletions(context);
-	}
-
-	/**
-	 * Register Sirius as a VS Code Chat Participant
-	 */
-	private _registerChatParticipant(context: vscode.ExtensionContext): void {
-		try {
-			// Check if the chat API is available (VS Code 1.90+)
-			if (!vscode.chat?.createChatParticipant) {
-				console.log('★ Sirius: Chat Participant API not available in this VS Code version');
-				return;
-			}
-
-			const participant = vscode.chat.createChatParticipant('sirius.ai', this._handleChatRequest.bind(this));
-
-			participant.iconPath = new vscode.ThemeIcon('star-full');
-
-			context.subscriptions.push(participant);
-			console.log('★ Sirius: Chat Participant registered');
-		} catch (error) {
-			console.log('★ Sirius: Could not register Chat Participant:', error);
-		}
-	}
-
-	/**
-	 * Handle chat requests from VS Code's built-in chat panel or inline chat
-	 */
-	private async _handleChatRequest(
-		request: vscode.ChatRequest,
-		_context: vscode.ChatContext,
-		stream: vscode.ChatResponseStream,
-		token: vscode.CancellationToken
-	): Promise<vscode.ChatResult> {
-
-		const userMessage = request.prompt;
-
-		// Get current editor context
-		const editor = vscode.window.activeTextEditor;
-		let contextPrefix = '';
-
-		if (editor) {
-			const selection = editor.document.getText(editor.selection);
-			const fileName = editor.document.fileName.split('/').pop();
-			const lang = editor.document.languageId;
-
-			if (selection) {
-				contextPrefix = `\n\nThe user has selected this code in ${fileName}:\n\`\`\`${lang}\n${selection}\n\`\`\`\n\n`;
-			} else {
-				// Send surrounding context (±50 lines around cursor)
-				const cursorLine = editor.selection.active.line;
-				const startLine = Math.max(0, cursorLine - 50);
-				const endLine = Math.min(editor.document.lineCount - 1, cursorLine + 50);
-				const range = new vscode.Range(startLine, 0, endLine, editor.document.lineAt(endLine).text.length);
-				const surroundingCode = editor.document.getText(range);
-
-				contextPrefix = `\n\nThe user's cursor is at line ${cursorLine + 1} in ${fileName}:\n\`\`\`${lang}\n${surroundingCode}\n\`\`\`\n\n`;
-			}
-		}
-
-		const fullPrompt = contextPrefix + userMessage;
-		const messages = [{ role: 'user' as const, content: fullPrompt, timestamp: Date.now() }];
-
-		try {
-			for await (const chunk of this.modelRouter.chat(messages)) {
-				if (token.isCancellationRequested) { break; }
-
-				if (chunk.thinking) {
-					// Show thinking as a progress indicator
-					stream.progress(`🧠 Thinking: ${chunk.thinking.substring(0, 100)}...`);
-				}
-
-				if (chunk.content) {
-					stream.markdown(chunk.content);
-				}
-			}
-		} catch (error: any) {
-			stream.markdown(`\n\n⚠️ Error: ${error.message}`);
-		}
-
-		return {};
 	}
 
 	/**
