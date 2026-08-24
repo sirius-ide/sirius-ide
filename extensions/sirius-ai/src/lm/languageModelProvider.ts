@@ -18,6 +18,15 @@ export const SIRIUS_VENDOR = 'sirius';
  */
 const DISCOVERY_TIMEOUT_MS = 4000;
 
+/**
+ * Order providers appear as groups in the model picker. Anything unlisted sorts
+ * after these.
+ */
+const CATEGORY_ORDER: readonly ProviderType[] = [
+	'anthropic', 'gemini', 'openai', 'openrouter', 'groq',
+	'deepseek', 'mistral', 'xai', 'ollama', 'lmstudio', 'llamacpp', 'custom'
+];
+
 /** Resolve with `fallback` if the work has not finished in time. */
 async function withTimeout<T>(work: Promise<T>, ms: number, fallback: T): Promise<T> {
 	let timer: ReturnType<typeof setTimeout> | undefined;
@@ -114,6 +123,8 @@ export class SiriusLanguageModelProvider implements vscode.LanguageModelChatProv
 	}
 
 	private _describe(providerId: ProviderType, providerName: string, model: SiriusModel): vscode.LanguageModelChatInformation {
+		const order = CATEGORY_ORDER.indexOf(providerId);
+
 		return {
 			id: toLmId(providerId, model.id),
 			name: model.name,
@@ -125,6 +136,15 @@ export class SiriusLanguageModelProvider implements vscode.LanguageModelChatProv
 			maxOutputTokens: model.maxOutputTokens ?? 8192,
 			tooltip: model.description,
 			detail: providerName,
+			// Without this a model is known to the editor but never offered in the
+			// chat model picker, which then renders an inert "Auto" entry because
+			// it believes no models exist.
+			isUserSelectable: true,
+			// Group by provider, so twelve providers stay navigable.
+			category: {
+				label: providerName,
+				order: order === -1 ? CATEGORY_ORDER.length : order
+			},
 			capabilities: {
 				imageInput: model.supportsVision,
 				toolCalling: true
