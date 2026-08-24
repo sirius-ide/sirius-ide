@@ -4,14 +4,14 @@
 	<metadata_license>@@LICENSE@@</metadata_license>
 	<project_license>@@LICENSE@@</project_license>
 	<name>@@NAME_LONG@@</name>
-	<url type="homepage">https://github.com/ArshadSiddiqui/sirius-ide</url>
+	<url type="homepage">https://github.com/sirius-ide/sirius-ide</url>
 	<summary>Sirius IDE. The agentic, AI-native code editor.</summary>
 	<description>
-		<p>Sirius IDE is an agentic, AI-native code editor. It brings your choice of model — Anthropic Claude, Google Gemini, OpenAI, and local models via Ollama or LM Studio — into the editor, with agent mode, multi-file edits and tool use. See https://github.com/ArshadSiddiqui/sirius-ide for installation instructions.</p>
+		<p>Sirius IDE is an agentic, AI-native code editor. It brings your choice of model — Anthropic Claude, Google Gemini, OpenAI, and local models via Ollama or LM Studio — into the editor, with agent mode, multi-file edits and tool use. See https://github.com/sirius-ide/sirius-ide for installation instructions.</p>
 	</description>
 	<screenshots>
 		<screenshot type="default">
-			<image>https://github.com/ArshadSiddiqui/sirius-ide/raw/sirius/resources/linux/code.png</image>
+			<image>https://github.com/sirius-ide/sirius-ide/raw/sirius/resources/linux/code.png</image>
 			<caption>Editing TypeScript and searching for extensions</caption>
 		</screenshot>
 	</screenshots>

@@ -11,10 +11,10 @@ compatibility_date = "2026-08-01"
 # the worker is reachable at https://sirius-update.<your-subdomain>.workers.dev,
 # which is a perfectly good updateUrl.
 # routes = [
-#   { pattern = "update.sirius-ide.dev", custom_domain = true }
+#   { pattern = "update.siriuside.com", custom_domain = true }
 # ]
 
 # Once the R2 bucket and its custom domain exist, uncomment so update responses
 # point downloads at the zero-egress path instead of GitHub:
 # [vars]
-# DL_BASE = "https://dl.sirius-ide.dev"
+# DL_BASE = "https://dl.siriuside.com"

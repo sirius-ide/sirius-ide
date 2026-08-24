@@ -22,7 +22,7 @@ yay -Syu
 sudo apt install ./sirius-ide_<version>_amd64.deb
 ```
 
-Download the `.deb` from the [latest release](https://github.com/ArshadSiddiqui/sirius-ide/releases/latest).
+Download the `.deb` from the [latest release](https://github.com/sirius-ide/sirius-ide/releases/latest).
 
 Unlike upstream VS Code, this package does **not** add a third-party apt
 repository or signing key to your system. Update by installing a newer `.deb`,
@@ -61,7 +61,7 @@ update-desktop-database ~/.local/share/applications
 
 ## Windows
 
-Run the installer from the [latest release](https://github.com/ArshadSiddiqui/sirius-ide/releases/latest):
+Run the installer from the [latest release](https://github.com/sirius-ide/sirius-ide/releases/latest):
 
 ```
 sirius-win32-x64-setup.exe

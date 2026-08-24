@@ -81,7 +81,7 @@ rebase instead of drifting.
 - ⬜ Onboarding walkthrough content written for Sirius (the strings are correct; the walkthrough still teaches upstream's feature tour)
 - ⬜ Sign the Windows installer — SmartScreen warns on first run without it
 - ⬜ macOS builds — packaging exists, but needs an Apple Developer certificate for notarisation
-- ⬜ Deploy the update server and point `updateUrl` at it (it is `https://update.sirius-ide.dev` today)
+- ⬜ Deploy the update server and point `updateUrl` at it (it is `https://update.siriuside.com` today)
 - ⬜ Settings UI for model providers and API keys
 - ⬜ Docs site
 

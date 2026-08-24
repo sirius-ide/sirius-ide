@@ -53,7 +53,7 @@ export const OPENAI_COMPATIBLE_ENDPOINTS: OpenAICompatibleConfig[] = [
 		keyUrl: 'https://openrouter.ai/keys',
 		// OpenRouter attributes traffic by these headers.
 		extraHeaders: {
-			'HTTP-Referer': 'https://github.com/ArshadSiddiqui/sirius-ide',
+			'HTTP-Referer': 'https://github.com/sirius-ide/sirius-ide',
 			'X-Title': 'Sirius IDE'
 		},
 		assumedContextWindow: 128000
