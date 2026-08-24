@@ -37,7 +37,7 @@ const REPO_ROOT = path.resolve(import.meta.dirname, '../..');
 const AUR_ROOT = path.resolve(REPO_ROOT, '../aur');
 
 const OLD_OWNER = 'ArshadSiddiqui';
-const OLD_UPDATE_HOST = 'update.sirius-ide.dev';
+const OLD_DOMAIN = 'sirius-ide.dev';
 
 const targets = [
 	'product.json',
@@ -47,10 +47,13 @@ const targets = [
 	'ROADMAP.md',
 	'build/update-server/worker.mjs',
 	'build/update-server/README.md',
+	'build/update-server/wrangler.toml',
 	'resources/linux/code.appdata.xml',
 	'resources/linux/debian/control.template',
 	'resources/linux/rpm/code.spec.template',
-	'.github/workflows/sirius-release.yml'
+	'.github/workflows/sirius-release.yml',
+	'LICENSE.txt',
+	'extensions/sirius-ai/src/providers/openaiCompatible.ts'
 ].map(p => path.join(REPO_ROOT, p));
 
 for (const pkg of ['sirius-ide-bin', 'sirius-ide-git']) {
@@ -73,7 +76,7 @@ for (const file of targets) {
 	let after = before.replaceAll(OLD_OWNER, owner);
 
 	if (domain) {
-		after = after.replaceAll(OLD_UPDATE_HOST, `update.${domain}`);
+		after = after.replaceAll(OLD_DOMAIN, domain);
 	}
 
 	if (after === before) {
@@ -93,6 +96,6 @@ for (const file of targets) {
 console.log(`\n${dry ? 'would change' : 'changed'} ${changedLines} lines across ${changedFiles} files`);
 
 if (domain && !dry) {
-	console.log(`\nupdateUrl is now https://update.${domain} — it is compiled into the`);
-	console.log('binary, so tag a new release after this or shipped builds keep the old host.');
+	console.log(`\nupdateUrl is now https://update.${domain} — compiled into the binary,`);
+	console.log('so this must land before the first tagged release.');
 }

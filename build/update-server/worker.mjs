@@ -21,7 +21,7 @@
  * then point `updateUrl` in product.json at the worker's hostname.
  */
 
-const REPO = 'ArshadSiddiqui/sirius-ide';
+const REPO = 'sirius-ide/sirius-ide';
 const CACHE_SECONDS = 300;
 
 /**

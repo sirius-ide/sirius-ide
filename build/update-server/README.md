@@ -22,7 +22,7 @@ npx wrangler deploy --config build/update-server/wrangler.toml
 ```
 
 Then set `updateUrl` in `product.json` to the worker's hostname — a
-`workers.dev` URL works; the custom domain (`update.sirius-ide.dev`) is a
+`workers.dev` URL works; the custom domain (`update.siriuside.com`) is a
 one-click attach in the Cloudflare dashboard once the zone exists.
 
 Any host that can run a single fetch handler works — the worker uses only
@@ -37,7 +37,7 @@ and fastest from R2, because R2 charges **no egress** — and bandwidth is the
 one real cost of shipping an editor:
 
 1. Create the bucket once: `npx wrangler r2 bucket create sirius-releases`,
-   then attach the custom domain `dl.sirius-ide.dev` to it (dashboard → R2 →
+   then attach the custom domain `dl.siriuside.com` to it (dashboard → R2 →
    bucket → Settings → Custom Domains).
 2. Give the release workflow its mirror credentials: an R2 API token scoped to
    just this bucket, stored as the `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY`
@@ -45,7 +45,7 @@ one real cost of shipping an editor:
    (`https://<account-id>.r2.cloudflarestorage.com`). The mirror step stays
    skipped until the variable exists.
 3. Uncomment `DL_BASE` in `wrangler.toml` and redeploy the worker; update
-   responses then point at `dl.sirius-ide.dev/releases/<tag>/<asset>` instead
+   responses then point at `dl.siriuside.com/releases/<tag>/<asset>` instead
    of GitHub.
 
 The worker still reads release *metadata* (and the `.sha256` sidecars) from

@@ -84,4 +84,4 @@ do not agree, do not install or use the Software.
 
 10. CONTACT
 
-   Questions about this license: https://github.com/ArshadSiddiqui/sirius-ide
+   Questions about this license: https://github.com/sirius-ide/sirius-ide
