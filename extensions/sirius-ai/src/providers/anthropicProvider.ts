@@ -1,6 +1,6 @@
 /*---------------------------------------------------------------------------------------------
  *  Sirius IDE — Anthropic Claude Provider
- *  Copyright (c) emrys. All rights reserved.
+ *  Copyright (c) Clicksora, L.L.C. All rights reserved.
  *  Licensed under the MIT License.
  *--------------------------------------------------------------------------------------------*/
 

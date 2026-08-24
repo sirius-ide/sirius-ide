@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Copyright (c) emrys. All rights reserved.
+# Copyright (c) Clicksora, L.L.C. All rights reserved.
 # Licensed under the MIT License. See License.txt in the project root for license information.
 #
 # Everything GitHub-side that follows org creation, in one idempotent run.

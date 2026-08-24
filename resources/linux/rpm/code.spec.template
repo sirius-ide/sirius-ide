@@ -3,7 +3,7 @@ Version:  @@VERSION@@
 Release:  @@RELEASE@@.el8
 Summary:  Code editing. Redefined.
 Group:    Development/Tools
-Vendor:   emrys
+Vendor:   Clicksora, L.L.C.
 Packager: emrys <iarshrind@gmail.com>
 License:  @@LICENSE@@
 URL:      https://github.com/sirius-ide/sirius-ide
