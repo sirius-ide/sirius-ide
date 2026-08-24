@@ -128,9 +128,16 @@
 		"providerExtensionId": "vscode.github-authentication",
 		"providerUriSetting": "github-enterprise.uri",
 		"providerScopes": [
-			["read:user", "user:email"],
-			["user:email"],
-			["read:user"]
+			[
+				"read:user",
+				"user:email"
+			],
+			[
+				"user:email"
+			],
+			[
+				"read:user"
+			]
 		],
 		"entitlementUrl": "",
 		"entitlementSignupLimitedUrl": "",
@@ -229,7 +236,5 @@
 			"type": "light"
 		}
 	],
-	"builtInExtensionsEnabledWithAutoUpdates": [
-		"sirius.sirius-ai"
-	]
+	"builtInExtensionsEnabledWithAutoUpdates": []
 }

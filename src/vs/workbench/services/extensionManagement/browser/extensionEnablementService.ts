@@ -136,7 +136,15 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 			});
 		}
 
-		if (!this.environmentService.isSessionsWindow && !this.environmentService.skipBuiltinExtensions?.some(id => id.toLowerCase() === this._chatExtensionId)) {
+		// This migration keeps the built-in chat extension dormant until the user
+		// has completed chat setup, so a signed-out editor does not activate it.
+		// That assumes setup is something that can complete — a sign-in against an
+		// entitlement service. A product with no entitlement endpoint has no such
+		// step, so setup never reports completed and this would disable the chat
+		// extension permanently, on every fresh profile.
+		const hasChatEntitlementFlow = Boolean(productService.defaultChatAgent?.entitlementUrl);
+
+		if (hasChatEntitlementFlow && !this.environmentService.isSessionsWindow && !this.environmentService.skipBuiltinExtensions?.some(id => id.toLowerCase() === this._chatExtensionId)) {
 			const builtinChatExtensionEnablementMigrationKey = 'builtinChatExtensionEnablementMigration';
 			const builtinChatExtensionEnablementMigration = this.storageService.getBoolean(builtinChatExtensionEnablementMigrationKey, StorageScope.PROFILE) === true;
 			if (!builtinChatExtensionEnablementMigration) {
@@ -611,6 +619,14 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 	}
 
 	private _isDisabledByUnification(identifier: IExtensionIdentifier): boolean {
+		// Unification exists to fold a separate completions extension into the
+		// chat extension. When one extension serves both roles there is nothing
+		// to fold, and disabling it would remove the very extension unification
+		// is meant to defer to.
+		if (this._completionsExtensionId === this._chatExtensionId) {
+			return false;
+		}
+
 		return this._extensionUnificationEnabled && identifier.id.toLowerCase() === this._completionsExtensionId;
 	}
 
