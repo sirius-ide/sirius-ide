@@ -5,7 +5,7 @@ Depends: @@DEPENDS@@
 Recommends: @@RECOMMENDS@@
 Priority: optional
 Architecture: @@ARCHITECTURE@@
-Maintainer: Arshad Siddiqui <iarshrind@gmail.com>
+Maintainer: emrys <iarshrind@gmail.com>
 Homepage: https://github.com/ArshadSiddiqui/sirius-ide
 Installed-Size: @@INSTALLEDSIZE@@
 Provides: visual-studio-@@NAME@@

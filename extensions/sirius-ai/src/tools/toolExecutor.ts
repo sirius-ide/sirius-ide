@@ -1,6 +1,6 @@
 /*---------------------------------------------------------------------------------------------
  *  Sirius IDE — AI Tools System (Search, File Ops, Terminal, Tasks)
- *  Copyright (c) Arshad Siddiqui. All rights reserved.
+ *  Copyright (c) emrys. All rights reserved.
  *  Licensed under the MIT License.
  *
  *  Provides tool capabilities to the AI agent, similar to Google Antigravity's

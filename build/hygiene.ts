@@ -28,7 +28,7 @@ const copyrightHeaderLines = [
 // free-text title line, so it is matched structurally instead of line-for-line.
 const siriusBannerStart = '/*---------------------------------------------------------------------------------------------';
 const siriusBannerEnd = ' *--------------------------------------------------------------------------------------------*/';
-const siriusCopyrightLine = ' *  Copyright (c) Arshad Siddiqui. All rights reserved.';
+const siriusCopyrightLine = ' *  Copyright (c) emrys. All rights reserved.';
 const siriusLicensePattern = /^ \*  Licensed under the MIT License\./;
 const siriusBannerMaxLines = 12;
 
