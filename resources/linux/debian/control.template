@@ -5,14 +5,14 @@ Depends: @@DEPENDS@@
 Recommends: @@RECOMMENDS@@
 Priority: optional
 Architecture: @@ARCHITECTURE@@
-Maintainer: Microsoft Corporation <vscode-linux@microsoft.com>
-Homepage: https://code.visualstudio.com/
+Maintainer: Arshad Siddiqui <iarshrind@gmail.com>
+Homepage: https://github.com/ArshadSiddiqui/sirius-ide
 Installed-Size: @@INSTALLEDSIZE@@
 Provides: visual-studio-@@NAME@@
 Conflicts: visual-studio-@@NAME@@
 Replaces: visual-studio-@@NAME@@
-Description: Code editing. Redefined.
- Visual Studio Code is a new choice of tool that combines the simplicity of
- a code editor with what developers need for the core edit-build-debug cycle.
- See https://code.visualstudio.com/docs/setup/linux for installation
- instructions and FAQ.
+Description: The agentic, AI-native code editor.
+ Sirius IDE brings your choice of model — Anthropic Claude, Google Gemini,
+ OpenAI, and local models via Ollama or LM Studio — into the editor, with
+ agent mode, multi-file edits and tool use.
+ See https://github.com/ArshadSiddiqui/sirius-ide for documentation.

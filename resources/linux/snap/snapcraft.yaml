@@ -1,10 +1,10 @@
 name: @@NAME@@
 version: '@@VERSION@@'
-summary: Code editing. Redefined.
+summary: The agentic, AI-native code editor.
 description: |
-  Visual Studio Code is a new choice of tool that combines the
-  simplicity of a code editor with what developers need for the core
-  edit-build-debug cycle.
+  Sirius IDE brings your choice of model — Anthropic Claude, Google
+  Gemini, OpenAI, and local models via Ollama or LM Studio — into the
+  editor, with agent mode, multi-file edits and tool use.
 
 architectures:
   - build-on: amd64

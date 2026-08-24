@@ -4,14 +4,14 @@
 	<metadata_license>@@LICENSE@@</metadata_license>
 	<project_license>@@LICENSE@@</project_license>
 	<name>@@NAME_LONG@@</name>
-	<url type="homepage">https://code.visualstudio.com</url>
-	<summary>Visual Studio Code. Code editing. Redefined.</summary>
+	<url type="homepage">https://github.com/ArshadSiddiqui/sirius-ide</url>
+	<summary>Sirius IDE. The agentic, AI-native code editor.</summary>
 	<description>
-		<p>Visual Studio Code is a new choice of tool that combines the simplicity of a code editor with what developers need for the core edit-build-debug cycle. See https://code.visualstudio.com/docs/setup/linux for installation instructions and FAQ.</p>
+		<p>Sirius IDE is an agentic, AI-native code editor. It brings your choice of model — Anthropic Claude, Google Gemini, OpenAI, and local models via Ollama or LM Studio — into the editor, with agent mode, multi-file edits and tool use. See https://github.com/ArshadSiddiqui/sirius-ide for installation instructions.</p>
 	</description>
 	<screenshots>
 		<screenshot type="default">
-			<image>https://code.visualstudio.com/home/home-screenshot-linux-lg.png</image>
+			<image>https://github.com/ArshadSiddiqui/sirius-ide/raw/sirius/resources/linux/code.png</image>
 			<caption>Editing TypeScript and searching for extensions</caption>
 		</screenshot>
 	</screenshots>

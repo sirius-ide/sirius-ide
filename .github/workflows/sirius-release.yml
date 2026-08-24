@@ -1,0 +1,125 @@
+name: Sirius Release
+
+# Tagging v1.2.3 builds and publishes a release. The update server reads that
+# release, so a tag is the whole ship process.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      prerelease:
+        description: 'Publish to the insider channel'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  linux:
+    name: Linux ${{ matrix.arch }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x64, arm64]
+    steps:
+      - uses: actions/checkout@v4
+
+      # preinstall.ts rejects a mismatched major, so read the pin rather than
+      # hardcoding a version that will drift.
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      # Arch's npm and the runner's npm both move; the guard wants < 11.2.0.
+      - name: Pin npm below the version the build rejects
+        run: npm install -g npm@10
+
+      - name: Install build prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libkrb5-dev libsecret-1-dev libx11-dev libxkbfile-dev \
+            fakeroot rpm libnss3 libgtk-3-0
+
+      - name: Install dependencies
+        run: npm ci
+        env:
+          npm_config_arch: ${{ matrix.arch }}
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+
+      - name: Build
+        run: npm run gulp vscode-linux-${{ matrix.arch }}-min
+        env:
+          NODE_OPTIONS: --max-old-space-size=8192
+
+      - name: Package tarball
+        run: |
+          tar -czf sirius-linux-${{ matrix.arch }}.tar.gz -C .. VSCode-linux-${{ matrix.arch }}
+          sha256sum sirius-linux-${{ matrix.arch }}.tar.gz > sirius-linux-${{ matrix.arch }}.tar.gz.sha256
+
+      - name: Build deb and rpm
+        continue-on-error: true
+        run: |
+          npm run gulp vscode-linux-${{ matrix.arch }}-build-deb
+          npm run gulp vscode-linux-${{ matrix.arch }}-build-rpm
+          find .build/linux -name '*.deb' -o -name '*.rpm' | while read -r f; do cp "$f" .; done
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-${{ matrix.arch }}
+          path: |
+            sirius-linux-${{ matrix.arch }}.tar.gz*
+            *.deb
+            *.rpm
+
+  windows:
+    name: Windows x64
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - run: npm install -g npm@10
+      - run: npm ci
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+      - name: Build
+        run: npm run gulp vscode-win32-x64-min
+        env:
+          NODE_OPTIONS: --max-old-space-size=8192
+      - name: Build installer
+        run: npm run gulp vscode-win32-x64-system-setup
+      - name: Collect installer
+        shell: bash
+        run: |
+          find .build/win32-x64 -name '*.exe' -exec cp {} sirius-win32-x64-setup.exe \;
+          sha256sum sirius-win32-x64-setup.exe > sirius-win32-x64-setup.exe.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: win32-x64
+          path: sirius-win32-x64-setup.exe*
+
+  release:
+    name: Publish
+    needs: [linux, windows]
+    # Windows signing is not set up yet, so a failed Windows build must not
+    # block a Linux release.
+    if: always() && needs.linux.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { path: dist, merge-multiple: true }
+
+      # The editor compares commits, not versions. Without this the update
+      # server can never tell one build from another.
+      - name: Stamp the build commit
+        run: echo "${{ github.sha }}" > dist/commit.txt
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          prerelease: ${{ inputs.prerelease || false }}
+          generate_release_notes: true
