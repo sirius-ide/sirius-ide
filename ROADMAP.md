@@ -18,7 +18,7 @@ This is a living document. Status legend: ✅ done · 🔨 in progress · ⬜ pl
 - ✅ AUR package builds against the pinned Node toolchain instead of the system one (Arch ships Node 26 / npm 12, both rejected by `preinstall`)
 - ⬜ Sirius-owned hygiene/copyright config (replace the Microsoft copyright-header gate with a Sirius header so commits pass `gulp hygiene` cleanly)
 - ⬜ Replace remaining VS Code branding in resources (icons, app images under `resources/`)
-- ⬜ Fix `product.json` defects: `defaultChatAgent.extensionId` is `sirius.ai` but the extension really registers as `sirius.sirius-ai`; `builtInExtensionsEnabledWithAutoUpdates` names a non-existent extension; two Windows AppId GUIDs contain non-hex characters; `webviewContentExternalBaseUrlTemplate` still points at Microsoft's CDN; no `quality` / `updateUrl` / `downloadUrl`
+- ⬜ Fix remaining `product.json` defects: two Windows AppId GUIDs contain non-hex characters, `webviewContentExternalBaseUrlTemplate` still points at Microsoft's CDN, and there is no `quality` / `updateUrl` / `downloadUrl`. (The `defaultChatAgent` extension ids are fixed.)
 - ⬜ CI: build Sirius on push (GitHub Actions) and produce Linux/Win/macOS artifacts
 
 ## Phase 1 — A correct, secure model layer
@@ -45,8 +45,8 @@ Registering into that seam is how every upstream AI surface starts working
 against Claude, Gemini, GPT and Ollama at once — and it keeps improving on each
 rebase instead of drifting.
 
-- ⬜ **`LanguageModelChatProvider` for each provider** — the single highest-leverage change in the project
-- ⬜ **Retire the bespoke chat webview** (974 lines) in favour of upstream chat and agent mode
+- ✅ **`LanguageModelChatProvider`** — Sirius registers as a language-model vendor, so every provider is selectable through the editor's own API. Verified from outside: `vscode.lm.selectChatModels({vendor:'sirius'})` returns Sirius models and `sendRequest` streams a real response through the bridge
+- ⬜ **Retire the bespoke chat webview** (974 lines) — blocked on confirming the editor's own chat panel is usable rather than showing the Copilot setup/sign-in flow. `product.json`'s `defaultChatAgent` drives that flow and named extensions that did not exist; the ids are now correct, but the panel has **not** been visually confirmed (Electron does not map a window under bare Xvfb). Launch the built app and look at the chat panel before deleting anything.
 - ⬜ **Route edits through the chat-editing session** instead of `workspace.fs.writeFile`, which today writes to disk with no diff, preview or undo
 - ⬜ Then, free from upstream: Composer-class multi-file edits, @-mentions, checkpoints, MCP tools
 
