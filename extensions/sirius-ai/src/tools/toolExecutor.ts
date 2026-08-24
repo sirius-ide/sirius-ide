@@ -138,6 +138,12 @@ export class SiriusToolExecutor {
 	private _alwaysAllowWrites = false;
 
 	/**
+	 * True while running a call the caller already confirmed — the editor's own
+	 * tool UI prompts before invoking, so prompting again would double up.
+	 */
+	private _confirmationSuppressed = false;
+
+	/**
 	 * Ask before a tool touches the user's files.
 	 *
 	 * These tools replace content with no diff, no preview and no undo, and the
@@ -146,7 +152,7 @@ export class SiriusToolExecutor {
 	 * this prompt is the only thing between a misread instruction and lost work.
 	 */
 	private async _confirmWrite(summary: string): Promise<boolean> {
-		if (this._alwaysAllowWrites) {
+		if (this._confirmationSuppressed || this._alwaysAllowWrites) {
 			return true;
 		}
 
@@ -168,7 +174,16 @@ export class SiriusToolExecutor {
 	/**
 	 * Execute a tool call and return the result
 	 */
-	async execute(tool: ToolCallRequest): Promise<ToolResult> {
+	async execute(tool: ToolCallRequest, options?: { skipConfirmation?: boolean }): Promise<ToolResult> {
+		this._confirmationSuppressed = options?.skipConfirmation === true;
+		try {
+			return await this._dispatch(tool);
+		} finally {
+			this._confirmationSuppressed = false;
+		}
+	}
+
+	private async _dispatch(tool: ToolCallRequest): Promise<ToolResult> {
 		switch (tool.name) {
 			case 'read_file':
 				return this._readFile(tool.arguments);

@@ -19,15 +19,6 @@
 	],
 	"main": "./out/extension.js",
 	"contributes": {
-		"chatParticipants": [
-			{
-				"id": "sirius.ai",
-				"name": "sirius",
-				"fullName": "Sirius AI",
-				"description": "Multi-model AI coding assistant with thinking and tools",
-				"isSticky": true
-			}
-		],
 		"commands": [
 			{
 				"command": "sirius.ai.openChat",
@@ -49,10 +40,6 @@
 			{
 				"command": "sirius.ai.setThinkingEffort",
 				"title": "Sirius: Set Thinking Effort Level"
-			},
-			{
-				"command": "sirius.ai.generateImage",
-				"title": "Sirius: Generate Image (Imagen)"
 			},
 			{
 				"command": "sirius.ai.explainSelection",
@@ -230,24 +217,6 @@
 				}
 			}
 		},
-		"viewsContainers": {
-			"activitybar": [
-				{
-					"id": "sirius-ai",
-					"title": "Sirius AI",
-					"icon": "$(star-full)"
-				}
-			]
-		},
-		"views": {
-			"sirius-ai": [
-				{
-					"type": "webview",
-					"id": "sirius.ai.chatView",
-					"name": "AI Chat"
-				}
-			]
-		},
 		"keybindings": [
 			{
 				"command": "sirius.ai.openChat",
@@ -269,6 +238,234 @@
 			{
 				"vendor": "sirius",
 				"displayName": "Sirius AI"
+			}
+		],
+		"languageModelTools": [
+			{
+				"name": "sirius_read_file",
+				"toolReferenceName": "readFile",
+				"displayName": "Read File",
+				"modelDescription": "Read the contents of a file in the workspace. Prefer a line range for large files.",
+				"userDescription": "Read the contents of a file in the workspace. Prefer a line range for large files.",
+				"canBeReferencedInPrompt": true,
+				"icon": "$(file)",
+				"tags": [
+					"sirius"
+				],
+				"inputSchema": {
+					"type": "object",
+					"properties": {
+						"path": {
+							"type": "string",
+							"description": "Path relative to the workspace root"
+						},
+						"startLine": {
+							"type": "number",
+							"description": "First line to read, 1-indexed"
+						},
+						"endLine": {
+							"type": "number",
+							"description": "Last line to read, 1-indexed"
+						}
+					},
+					"required": [
+						"path"
+					]
+				}
+			},
+			{
+				"name": "sirius_write_file",
+				"toolReferenceName": "writeFile",
+				"displayName": "Write File",
+				"modelDescription": "Create a file, or replace an existing file entirely. Use edit_file for targeted changes.",
+				"userDescription": "Create a file, or replace an existing file entirely. Use edit_file for targeted changes.",
+				"canBeReferencedInPrompt": true,
+				"icon": "$(new-file)",
+				"tags": [
+					"sirius",
+					"edit"
+				],
+				"inputSchema": {
+					"type": "object",
+					"properties": {
+						"path": {
+							"type": "string",
+							"description": "Path relative to the workspace root"
+						},
+						"content": {
+							"type": "string",
+							"description": "Full contents to write"
+						}
+					},
+					"required": [
+						"path",
+						"content"
+					]
+				}
+			},
+			{
+				"name": "sirius_edit_file",
+				"toolReferenceName": "editFile",
+				"displayName": "Edit File",
+				"modelDescription": "Replace an exact span of text in a file. The search text must match exactly and appear once.",
+				"userDescription": "Replace an exact span of text in a file. The search text must match exactly and appear once.",
+				"canBeReferencedInPrompt": true,
+				"icon": "$(edit)",
+				"tags": [
+					"sirius",
+					"edit"
+				],
+				"inputSchema": {
+					"type": "object",
+					"properties": {
+						"path": {
+							"type": "string",
+							"description": "Path relative to the workspace root"
+						},
+						"search": {
+							"type": "string",
+							"description": "Exact text to find"
+						},
+						"replace": {
+							"type": "string",
+							"description": "Text to put in its place"
+						}
+					},
+					"required": [
+						"path",
+						"search",
+						"replace"
+					]
+				}
+			},
+			{
+				"name": "sirius_search_files",
+				"toolReferenceName": "searchFiles",
+				"displayName": "Search Files",
+				"modelDescription": "Search workspace files for a literal string, like grep.",
+				"userDescription": "Search workspace files for a literal string, like grep.",
+				"canBeReferencedInPrompt": true,
+				"icon": "$(search)",
+				"tags": [
+					"sirius"
+				],
+				"inputSchema": {
+					"type": "object",
+					"properties": {
+						"query": {
+							"type": "string",
+							"description": "Text to search for"
+						},
+						"include": {
+							"type": "string",
+							"description": "Glob of files to include, e.g. \"**/*.ts\""
+						},
+						"maxResults": {
+							"type": "number",
+							"description": "Maximum matches to return, default 20"
+						}
+					},
+					"required": [
+						"query"
+					]
+				}
+			},
+			{
+				"name": "sirius_list_directory",
+				"toolReferenceName": "listDirectory",
+				"displayName": "List Directory",
+				"modelDescription": "List the files and directories at a path in the workspace.",
+				"userDescription": "List the files and directories at a path in the workspace.",
+				"canBeReferencedInPrompt": true,
+				"icon": "$(folder)",
+				"tags": [
+					"sirius"
+				],
+				"inputSchema": {
+					"type": "object",
+					"properties": {
+						"path": {
+							"type": "string",
+							"description": "Path relative to the workspace root; empty for the root itself"
+						}
+					},
+					"required": []
+				}
+			},
+			{
+				"name": "sirius_run_terminal",
+				"toolReferenceName": "runInTerminal",
+				"displayName": "Run Terminal",
+				"modelDescription": "Run a shell command in the integrated terminal. The user is asked to confirm first.",
+				"userDescription": "Run a shell command in the integrated terminal. The user is asked to confirm first.",
+				"canBeReferencedInPrompt": true,
+				"icon": "$(terminal)",
+				"tags": [
+					"sirius",
+					"edit"
+				],
+				"inputSchema": {
+					"type": "object",
+					"properties": {
+						"command": {
+							"type": "string",
+							"description": "Command to run"
+						},
+						"cwd": {
+							"type": "string",
+							"description": "Working directory relative to the workspace root"
+						}
+					},
+					"required": [
+						"command"
+					]
+				}
+			},
+			{
+				"name": "sirius_search_web",
+				"toolReferenceName": "searchWeb",
+				"displayName": "Search Web",
+				"modelDescription": "Open a web search in the default browser.",
+				"userDescription": "Open a web search in the default browser.",
+				"canBeReferencedInPrompt": true,
+				"icon": "$(globe)",
+				"tags": [
+					"sirius"
+				],
+				"inputSchema": {
+					"type": "object",
+					"properties": {
+						"query": {
+							"type": "string",
+							"description": "What to search for"
+						}
+					},
+					"required": [
+						"query"
+					]
+				}
+			},
+			{
+				"name": "sirius_get_diagnostics",
+				"toolReferenceName": "problems",
+				"displayName": "Get Diagnostics",
+				"modelDescription": "Get current errors and warnings reported in the workspace.",
+				"userDescription": "Get current errors and warnings reported in the workspace.",
+				"canBeReferencedInPrompt": true,
+				"icon": "$(warning)",
+				"tags": [
+					"sirius"
+				],
+				"inputSchema": {
+					"type": "object",
+					"properties": {
+						"file": {
+							"type": "string",
+							"description": "Limit results to paths containing this string"
+						}
+					},
+					"required": []
+				}
 			}
 		]
 	},

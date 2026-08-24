@@ -7,8 +7,9 @@
 import * as vscode from 'vscode';
 import { SiriusSecretStore } from './auth/secretStore';
 import { ModelRouter } from './providers/modelRouter';
-import { SiriusChatViewProvider } from './chat/chatPanel';
 import { SiriusLanguageModelProvider, SIRIUS_VENDOR } from './lm/languageModelProvider';
+import { registerSiriusTools } from './lm/toolRegistration';
+import { SiriusToolExecutor } from './tools/toolExecutor';
 import { SiriusInlineChatProvider } from './inline/inlineChatProvider';
 
 let modelRouter: ModelRouter;
@@ -38,11 +39,11 @@ export async function activate(context: vscode.ExtensionContext) {
 	// rather than making the user reload the window.
 	context.subscriptions.push(secrets.onDidChange(() => lmProvider.refresh()));
 
-	// ─── Chat Panel (Sidebar) ────────────────────────────────────────────
-	const chatProvider = new SiriusChatViewProvider(context.extensionUri, modelRouter);
-	context.subscriptions.push(
-		vscode.window.registerWebviewViewProvider(SiriusChatViewProvider.viewType, chatProvider)
-	);
+	// ─── Agent Tools ─────────────────────────────────────────────────────
+	// Removing Copilot took 39 tools with it, and the workbench registers only
+	// two of its own, so without these the editor's agent mode can reason but
+	// cannot read, edit, search or run anything.
+	registerSiriusTools(context, new SiriusToolExecutor());
 
 	// ─── Inline Chat (Ctrl+I) ────────────────────────────────────────────
 	const inlineChat = new SiriusInlineChatProvider(modelRouter);
@@ -53,7 +54,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	// Open chat
 	context.subscriptions.push(
 		vscode.commands.registerCommand('sirius.ai.openChat', () => {
-			vscode.commands.executeCommand('sirius.ai.chatView.focus');
+			vscode.commands.executeCommand('workbench.action.chat.open');
 		})
 	);
 
@@ -88,68 +89,36 @@ export async function activate(context: vscode.ExtensionContext) {
 		})
 	);
 
-	// Generate image
-	context.subscriptions.push(
-		vscode.commands.registerCommand('sirius.ai.generateImage', async () => {
-			const prompt = await vscode.window.showInputBox({
-				title: '🎨 Generate Image',
-				prompt: 'Describe the image you want to generate',
-				placeHolder: 'A modern dashboard UI with dark theme...'
-			});
-			if (prompt) {
-				const result = await modelRouter.generateImage(prompt);
-				if (result && result.images.length > 0) {
-					vscode.window.showInformationMessage(`🎨 Generated ${result.images.length} image(s)`);
-				}
-			}
-		})
-	);
-
 	// ─── Context Menu Commands ───────────────────────────────────────────
+	// These seed the editor's own chat rather than a Sirius-specific panel, so
+	// the reply lands somewhere the user can keep working in — with edits,
+	// checkpoints and tools attached.
 
-	context.subscriptions.push(
-		vscode.commands.registerCommand('sirius.ai.explainSelection', () => {
-			const editor = vscode.window.activeTextEditor;
-			if (editor) {
-				const code = editor.document.getText(editor.selection);
-				const lang = editor.document.languageId;
-				chatProvider.sendContextAction('explain', code, lang);
-			}
-		})
-	);
+	const selectionPrompts: Record<string, string> = {
+		'sirius.ai.explainSelection': 'Explain this code',
+		'sirius.ai.fixErrors': 'Find and fix the problems in this code',
+		'sirius.ai.writeTests': 'Write tests for this code',
+		'sirius.ai.refactor': 'Refactor this code, explaining what you changed and why'
+	};
 
-	context.subscriptions.push(
-		vscode.commands.registerCommand('sirius.ai.fixErrors', () => {
-			const editor = vscode.window.activeTextEditor;
-			if (editor) {
-				const code = editor.document.getText(editor.selection);
-				const lang = editor.document.languageId;
-				chatProvider.sendContextAction('fix', code, lang);
-			}
-		})
-	);
+	for (const [command, instruction] of Object.entries(selectionPrompts)) {
+		context.subscriptions.push(
+			vscode.commands.registerCommand(command, async () => {
+				const editor = vscode.window.activeTextEditor;
+				if (!editor) {
+					return;
+				}
 
-	context.subscriptions.push(
-		vscode.commands.registerCommand('sirius.ai.writeTests', () => {
-			const editor = vscode.window.activeTextEditor;
-			if (editor) {
-				const code = editor.document.getText(editor.selection);
-				const lang = editor.document.languageId;
-				chatProvider.sendContextAction('tests', code, lang);
-			}
-		})
-	);
+				const selection = editor.document.getText(editor.selection);
+				const language = editor.document.languageId;
+				const query = selection
+					? `${instruction}:\n\n\`\`\`${language}\n${selection}\n\`\`\``
+					: instruction;
 
-	context.subscriptions.push(
-		vscode.commands.registerCommand('sirius.ai.refactor', () => {
-			const editor = vscode.window.activeTextEditor;
-			if (editor) {
-				const code = editor.document.getText(editor.selection);
-				const lang = editor.document.languageId;
-				chatProvider.sendContextAction('refactor', code, lang);
-			}
-		})
-	);
+				await vscode.commands.executeCommand('workbench.action.chat.open', { query });
+			})
+		);
+	}
 
 	// ─── Status Bar ──────────────────────────────────────────────────────
 
