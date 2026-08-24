@@ -1,6 +1,6 @@
 Sirius IDE — Software License Agreement
 
-Copyright (c) 2026 emrys. All rights reserved.
+Copyright (c) 2026 Clicksora, L.L.C. All rights reserved.
 
 This is a license agreement between you and the copyright holder ("we", "us")
 covering Sirius IDE and its accompanying documentation (the "Software"). By

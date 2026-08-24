@@ -1,6 +1,6 @@
 /*---------------------------------------------------------------------------------------------
  *  Sirius IDE — Agent Tools for the Editor's Chat
- *  Copyright (c) emrys. All rights reserved.
+ *  Copyright (c) Clicksora, L.L.C. All rights reserved.
  *  Licensed under the MIT License.
  *--------------------------------------------------------------------------------------------*/
 
