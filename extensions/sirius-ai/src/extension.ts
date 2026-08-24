@@ -1,6 +1,6 @@
 /*---------------------------------------------------------------------------------------------
  *  Sirius IDE — AI Extension Entry Point
- *  Copyright (c) Arshad Siddiqui. All rights reserved.
+ *  Copyright (c) emrys. All rights reserved.
  *  Licensed under the MIT License.
  *--------------------------------------------------------------------------------------------*/
 

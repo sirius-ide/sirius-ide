@@ -1,6 +1,6 @@
 /*---------------------------------------------------------------------------------------------
  *  Sirius IDE — Inline Chat Provider (Ctrl+I)
- *  Copyright (c) Arshad Siddiqui. All rights reserved.
+ *  Copyright (c) emrys. All rights reserved.
  *  Licensed under the MIT License.
  *
  *  Hooks into VS Code's built-in inline chat system to provide

@@ -3,8 +3,8 @@ Version:  @@VERSION@@
 Release:  @@RELEASE@@.el8
 Summary:  Code editing. Redefined.
 Group:    Development/Tools
-Vendor:   Arshad Siddiqui
-Packager: Arshad Siddiqui <iarshrind@gmail.com>
+Vendor:   emrys
+Packager: emrys <iarshrind@gmail.com>
 License:  @@LICENSE@@
 URL:      https://github.com/ArshadSiddiqui/sirius-ide
 Icon:     @@NAME@@.xpm

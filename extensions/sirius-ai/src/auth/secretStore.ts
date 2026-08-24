@@ -1,6 +1,6 @@
 /*---------------------------------------------------------------------------------------------
  *  Sirius IDE — Provider Credential Store
- *  Copyright (c) Arshad Siddiqui. All rights reserved.
+ *  Copyright (c) emrys. All rights reserved.
  *  Licensed under the MIT License.
  *--------------------------------------------------------------------------------------------*/
 
