@@ -5,13 +5,26 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { SiriusSecretStore } from '../auth/secretStore';
-import { IAIProvider, SiriusModel, ChatRequest, ChatChunk, ProviderType, ImageGenRequest, ImageGenResult } from '../types';
+import { IAIProvider, SiriusModel, ChatRequest, ChatChunk, ChatMessage, ProviderType, ImageGenRequest, ImageGenResult, StopReason, ToolCallRequest } from '../types';
 
 /** A single part of a Gemini candidate's content. */
 interface GeminiPart {
 	text?: string;
 	thought?: boolean;
 	inlineData?: { data: string; mimeType?: string };
+	functionCall?: { name?: string; args?: Record<string, unknown> };
+}
+
+/** The subset of the models endpoint that discovery reads. */
+interface GeminiModelList {
+	models?: Array<{
+		name?: string;
+		displayName?: string;
+		description?: string;
+		inputTokenLimit?: number;
+		outputTokenLimit?: number;
+		supportedGenerationMethods?: string[];
+	}>;
 }
 
 /** The subset of Gemini's generateContent response that this provider reads. */
@@ -127,13 +140,7 @@ export class GeminiProvider implements IAIProvider {
 
 		const model = request.model || 'gemini-3.5-flash';
 
-		// Convert messages to Gemini format
-		const contents = request.messages
-			.filter(m => m.role !== 'system')
-			.map(m => ({
-				role: m.role === 'assistant' ? 'model' : 'user',
-				parts: [{ text: m.content }]
-			}));
+		const contents = this._toContents(request.messages);
 
 		const systemInstruction = request.systemPrompt
 			? { parts: [{ text: request.systemPrompt }] }
@@ -144,16 +151,33 @@ export class GeminiProvider implements IAIProvider {
 			temperature: request.temperature
 		};
 
-		// Gemini thinking mode (thinkingConfig)
+		// Gemini's field is `thinkingConfig`, and thought parts are only returned
+		// when `includeThoughts` is set — without it the parser below never sees a
+		// thought and the thinking pane stays empty.
 		if (request.thinking?.enabled) {
-			generationConfig.thinking = { thinkingBudget: this._effortToBudget(request.thinking.effort) };
+			generationConfig.thinkingConfig = {
+				thinkingBudget: this._effortToBudget(request.thinking.effort),
+				includeThoughts: true
+			};
 		}
 
-		const body = JSON.stringify({
+		const payload: Record<string, unknown> = {
 			contents,
 			systemInstruction,
 			generationConfig
-		});
+		};
+
+		if (request.tools?.length) {
+			payload.tools = [{
+				functionDeclarations: request.tools.map(t => ({
+					name: t.name,
+					description: t.description,
+					parameters: t.inputSchema
+				}))
+			}];
+		}
+
+		const body = JSON.stringify(payload);
 
 		try {
 			if (request.stream) {
@@ -163,6 +187,79 @@ export class GeminiProvider implements IAIProvider {
 			}
 		} catch (error: any) {
 			yield { content: `⚠️ Gemini Error: ${error.message}`, done: true };
+		}
+	}
+
+	/**
+	 * Convert Sirius messages to Gemini `contents`.
+	 *
+	 * Gemini names the assistant role `model`, carries tool calls as
+	 * `functionCall` parts, and takes results back as `functionResponse` parts on
+	 * a user turn. It assigns no call ids, so results are matched by name.
+	 */
+	private _toContents(messages: ChatMessage[]): Array<Record<string, unknown>> {
+		const contents: Array<Record<string, unknown>> = [];
+
+		for (const message of messages) {
+			if (message.role === 'system') {
+				continue;
+			}
+
+			if (message.role === 'tool') {
+				contents.push({
+					role: 'user',
+					parts: (message.toolResults ?? []).map(result => ({
+						functionResponse: {
+							name: result.name,
+							response: { result: result.content }
+						}
+					}))
+				});
+				continue;
+			}
+
+			if (message.role === 'assistant' && message.toolCalls?.length) {
+				const parts: Array<Record<string, unknown>> = [];
+				if (message.content) {
+					parts.push({ text: message.content });
+				}
+				for (const call of message.toolCalls) {
+					parts.push({ functionCall: { name: call.name, args: call.arguments } });
+				}
+				contents.push({ role: 'model', parts });
+				continue;
+			}
+
+			contents.push({
+				role: message.role === 'assistant' ? 'model' : 'user',
+				parts: [{ text: message.content }]
+			});
+		}
+
+		return contents;
+	}
+
+	/**
+	 * Gemini assigns no id to a function call, so synthesise one from position.
+	 * Results are matched back by name.
+	 */
+	private _toToolCalls(parts: GeminiPart[], offset = 0): ToolCallRequest[] {
+		return parts
+			.filter(part => part.functionCall?.name)
+			.map((part, i) => ({
+				id: `call_${offset + i}`,
+				name: part.functionCall?.name ?? '',
+				arguments: part.functionCall?.args ?? {}
+			}));
+	}
+
+	private _toStopReason(raw: string | undefined): StopReason {
+		switch (raw) {
+			case 'MAX_TOKENS': return 'max_tokens';
+			case 'SAFETY':
+			case 'PROHIBITED_CONTENT':
+				return 'refusal';
+			default: return 'end_turn';
 		}
 	}
 
@@ -204,7 +301,9 @@ export class GeminiProvider implements IAIProvider {
 		}
 
 		const decoder = new TextDecoder();
+		const toolCalls: ToolCallRequest[] = [];
 		let buffer = '';
+		let stopReason: StopReason = 'end_turn';
 
 		while (true) {
 			const { done, value } = await reader.read();
@@ -215,32 +314,50 @@ export class GeminiProvider implements IAIProvider {
 			buffer = lines.pop() || '';
 
 			for (const line of lines) {
-				if (line.startsWith('data: ')) {
-					const data = line.slice(6).trim();
-					if (data === '[DONE]') {
-						yield { content: '', done: true };
-						return;
-					}
-					try {
-						const parsed = JSON.parse(data);
+				if (!line.startsWith('data: ')) { continue; }
+				const data = line.slice(6).trim();
+				if (data === '[DONE]') {
+					yield {
+						content: '', done: true,
+						stopReason: toolCalls.length > 0 ? 'tool_use' : stopReason,
+						toolCalls: toolCalls.length > 0 ? toolCalls : undefined
+					};
+					return;
+				}
 
-						// Check for thinking content
-						const parts = parsed.candidates?.[0]?.content?.parts || [];
-						for (const part of parts) {
-							if (part.thought) {
-								// Gemini thinking block
-								yield { content: '', thinking: part.text || '', isThinkingBlock: true, done: false };
-							} else if (part.text) {
-								yield { content: part.text, done: false };
-							}
-						}
-					} catch {
-						// Skip malformed JSON chunks
+				let parsed: GeminiGenerateResponse & { candidates?: Array<{ finishReason?: string }> };
+				try {
+					parsed = JSON.parse(data) as typeof parsed;
+				} catch {
+					continue; // Skip malformed JSON chunks
+				}
+
+				const candidate = parsed.candidates?.[0];
+				if (candidate?.finishReason) {
+					stopReason = this._toStopReason(candidate.finishReason);
+				}
+
+				const parts = parsed.candidates?.[0]?.content?.parts || [];
+				toolCalls.push(...this._toToolCalls(parts, toolCalls.length));
+
+				for (const part of parts) {
+					if (part.functionCall) {
+						continue; // Collected above.
+					}
+					if (part.thought) {
+						yield { content: '', thinking: part.text || '', isThinkingBlock: true, done: false };
+					} else if (part.text) {
+						yield { content: part.text, done: false };
 					}
 				}
 			}
 		}
-		yield { content: '', done: true };
+
+		yield {
+			content: '', done: true,
+			stopReason: toolCalls.length > 0 ? 'tool_use' : stopReason,
+			toolCalls: toolCalls.length > 0 ? toolCalls : undefined
+		};
 	}
 
 	/**
@@ -260,12 +377,17 @@ export class GeminiProvider implements IAIProvider {
 			return;
 		}
 
-		const result = await response.json() as GeminiGenerateResponse;
+		const result = await response.json() as GeminiGenerateResponse & { candidates?: Array<{ finishReason?: string }> };
 		let textContent = '';
 		let thinkingContent = '';
 
 		const parts = result.candidates?.[0]?.content?.parts || [];
+		const toolCalls = this._toToolCalls(parts);
+
 		for (const part of parts) {
+			if (part.functionCall) {
+				continue; // Collected above.
+			}
 			if (part.thought) {
 				thinkingContent += part.text || '';
 			} else if (part.text) {
@@ -280,6 +402,8 @@ export class GeminiProvider implements IAIProvider {
 		yield {
 			content: textContent,
 			done: true,
+			stopReason: toolCalls.length > 0 ? 'tool_use' : this._toStopReason(result.candidates?.[0]?.finishReason),
+			toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
 			usage: {
 				promptTokens: result.usageMetadata?.promptTokenCount || 0,
 				completionTokens: result.usageMetadata?.candidatesTokenCount || 0,
@@ -341,7 +465,46 @@ export class GeminiProvider implements IAIProvider {
 		return { images, revisedPrompt };
 	}
 
+	/**
+	 * Ask Google which models this key can actually use.
+	 *
+	 * The static list above is a guess that goes stale; discovery keeps the picker
+	 * honest. Only models advertising `generateContent` are usable for chat.
+	 */
 	async getAvailableModels(): Promise<SiriusModel[]> {
-		return this.models;
+		const apiKey = this.getApiKey();
+		if (!apiKey) {
+			return this.models;
+		}
+
+		try {
+			const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+			if (!response.ok) {
+				return this.models;
+			}
+
+			const data = await response.json() as GeminiModelList;
+			const discovered = (data.models ?? [])
+				.filter(m => m.name && m.supportedGenerationMethods?.includes('generateContent'))
+				.map(m => {
+					const id = (m.name ?? '').replace(/^models\//, '');
+					return {
+						id,
+						name: m.displayName || id,
+						provider: 'gemini' as ProviderType,
+						contextWindow: m.inputTokenLimit ?? 1000000,
+						description: m.description || 'Google Gemini model',
+						supportsStreaming: true,
+						supportsVision: true,
+						supportsThinking: true,
+						supportsImageGen: id.includes('image'),
+						maxOutputTokens: m.outputTokenLimit
+					} satisfies SiriusModel;
+				});
+
+			return discovered.length > 0 ? discovered : this.models;
+		} catch {
+			return this.models;
+		}
 	}
 }
