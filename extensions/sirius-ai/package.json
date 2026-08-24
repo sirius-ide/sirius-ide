@@ -101,16 +101,32 @@
 					"type": "string",
 					"default": "anthropic",
 					"enum": [
-						"gemini",
 						"anthropic",
+						"gemini",
+						"ollama",
 						"openai",
-						"ollama"
+						"openrouter",
+						"groq",
+						"deepseek",
+						"mistral",
+						"xai",
+						"lmstudio",
+						"llamacpp",
+						"custom"
 					],
 					"enumDescriptions": [
-						"Google Gemini",
 						"Anthropic Claude — strongest coding models",
-						"OpenAI GPT",
-						"Local Ollama models — free, private, offline"
+						"Google Gemini",
+						"Ollama — local, free, private, offline",
+						"OpenAI",
+						"OpenRouter — one key, hundreds of models",
+						"Groq — very fast inference",
+						"DeepSeek — inexpensive, strong at code",
+						"Mistral",
+						"xAI Grok",
+						"LM Studio — local",
+						"llama.cpp or vLLM — local",
+						"Any other OpenAI-compatible endpoint"
 					],
 					"description": "Default AI model provider"
 				},
@@ -190,6 +206,26 @@
 					"type": "boolean",
 					"default": false,
 					"description": "Enable AI-powered inline code completions (experimental)"
+				},
+				"sirius.ai.openai.baseUrl": {
+					"type": "string",
+					"default": "https://api.openai.com/v1",
+					"description": "Override the OpenAI endpoint — e.g. an Azure deployment or a corporate proxy."
+				},
+				"sirius.ai.lmstudio.baseUrl": {
+					"type": "string",
+					"default": "http://localhost:1234/v1",
+					"description": "LM Studio local server endpoint."
+				},
+				"sirius.ai.llamacpp.baseUrl": {
+					"type": "string",
+					"default": "http://localhost:8080/v1",
+					"description": "llama.cpp or vLLM OpenAI-compatible endpoint."
+				},
+				"sirius.ai.custom.baseUrl": {
+					"type": "string",
+					"default": "",
+					"description": "Base URL of any other OpenAI-compatible service, including the /v1 suffix."
 				}
 			}
 		},

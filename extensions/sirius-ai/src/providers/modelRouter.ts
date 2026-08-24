@@ -9,17 +9,25 @@ import { IAIProvider, SiriusModel, ChatRequest, ChatChunk, ChatMessage, Provider
 import { SiriusSecretStore, KEYED_PROVIDERS, PROVIDER_LABELS } from '../auth/secretStore';
 import { GeminiProvider } from './geminiProvider';
 import { AnthropicProvider } from './anthropicProvider';
-import { OpenAIProvider } from './openaiProvider';
+import { OpenAICompatibleProvider, OPENAI_COMPATIBLE_ENDPOINTS } from './openaiCompatible';
 import { OllamaProvider } from './ollamaProvider';
 
 /**
  * Provider color map for UI
  */
 export const PROVIDER_COLORS: Record<ProviderType, string> = {
-	anthropic: '#8b5cf6',  // Purple
-	gemini: '#4285f4',     // Blue
-	openai: '#10a37f',     // Green
-	ollama: '#6b7280'      // Gray
+	anthropic: '#8b5cf6',   // Purple
+	gemini: '#4285f4',      // Blue
+	ollama: '#6b7280',      // Gray
+	openai: '#10a37f',      // Green
+	openrouter: '#6467f2',  // Indigo
+	groq: '#f55036',        // Orange
+	deepseek: '#4d6bfe',    // Cornflower
+	mistral: '#fa520f',     // Vermilion
+	xai: '#1d9bf0',         // Sky
+	lmstudio: '#8b8b8b',    // Gray
+	llamacpp: '#8b8b8b',    // Gray
+	custom: '#9ca3af'       // Slate
 };
 
 /**
@@ -33,10 +41,14 @@ export class ModelRouter {
 
 	constructor(private readonly secrets: SiriusSecretStore) {
 		this.providers = new Map();
-		this.providers.set('gemini', new GeminiProvider(secrets));
 		this.providers.set('anthropic', new AnthropicProvider(secrets));
-		this.providers.set('openai', new OpenAIProvider(secrets));
+		this.providers.set('gemini', new GeminiProvider(secrets));
 		this.providers.set('ollama', new OllamaProvider());
+
+		// Everything OpenAI-shaped comes from one adapter and one table.
+		for (const endpoint of OPENAI_COMPATIBLE_ENDPOINTS) {
+			this.providers.set(endpoint.id, new OpenAICompatibleProvider(endpoint, secrets));
+		}
 	}
 
 	// ─── Provider Access ─────────────────────────────────────────────────────
@@ -59,8 +71,13 @@ export class ModelRouter {
 
 	getDefaultModel(): SiriusModel {
 		const config = vscode.workspace.getConfiguration('sirius.ai');
-		const modelId = config.get<string>('defaultModel', 'gemini-3.5-flash');
-		return this.findModel(modelId) || this.getDefaultProvider().models[0];
+		const modelId = config.get<string>('defaultModel', 'claude-opus-5');
+
+		return this.findModel(modelId)
+			?? this.getDefaultProvider().models[0]
+			// Providers that discover their models start empty, so fall back to
+			// anything statically known rather than returning undefined.
+			?? this.getAllModels()[0];
 	}
 
 	findModel(modelId: string): SiriusModel | undefined {
@@ -162,19 +179,31 @@ export class ModelRouter {
 			}
 		}
 
-		// Add Ollama dynamic models
-		const ollama = this.providers.get('ollama')!;
-		const ollamaModels = await ollama.getAvailableModels();
-		if (ollamaModels.length > 0) {
-			for (const model of ollamaModels) {
-				if (!ollama.models.some(m => m.id === model.id)) {
-					items.push({
-						label: `  ${model.name}`,
-						description: `(detected) ${model.id}`,
-						detail: model.description,
-						model
-					});
+		// Ask every configured provider what it actually serves. Local runtimes and
+		// gateways both change underneath us, so a static list goes stale fast.
+		const configured = this.getConfiguredProviders();
+		const discovered = await Promise.all(
+			configured.map(async provider => {
+				try {
+					return { provider, models: await provider.getAvailableModels() };
+				} catch {
+					return { provider, models: [] as SiriusModel[] };
 				}
+			})
+		);
+
+		for (const { provider, models } of discovered) {
+			const fresh = models.filter(m => !provider.models.some(known => known.id === m.id));
+			if (fresh.length === 0) { continue; }
+
+			items.push({ label: `${provider.name} — detected`, kind: vscode.QuickPickItemKind.Separator });
+			for (const model of fresh) {
+				items.push({
+					label: model.name,
+					description: model.id,
+					detail: model.description,
+					model
+				});
 			}
 		}
 
