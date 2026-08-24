@@ -8,6 +8,7 @@ import * as vscode from 'vscode';
 import { SiriusSecretStore } from './auth/secretStore';
 import { ModelRouter } from './providers/modelRouter';
 import { SiriusChatViewProvider } from './chat/chatPanel';
+import { SiriusLanguageModelProvider, SIRIUS_VENDOR } from './lm/languageModelProvider';
 import { SiriusInlineChatProvider } from './inline/inlineChatProvider';
 
 let modelRouter: ModelRouter;
@@ -22,6 +23,20 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	// ─── Core: Model Router ──────────────────────────────────────────────
 	modelRouter = new ModelRouter(secrets);
+
+	// ─── Language Models ─────────────────────────────────────────────────
+	// Registering as a language-model vendor is what lets the editor's own chat,
+	// agent mode, inline chat and MCP tooling drive every provider Sirius can
+	// reach, instead of that work living in a bespoke panel.
+	const lmProvider = new SiriusLanguageModelProvider(modelRouter);
+	context.subscriptions.push(
+		vscode.lm.registerLanguageModelChatProvider(SIRIUS_VENDOR, lmProvider)
+	);
+	context.subscriptions.push(lmProvider);
+
+	// A newly added key unlocks a provider's models, so re-advertise immediately
+	// rather than making the user reload the window.
+	context.subscriptions.push(secrets.onDidChange(() => lmProvider.refresh()));
 
 	// ─── Chat Panel (Sidebar) ────────────────────────────────────────────
 	const chatProvider = new SiriusChatViewProvider(context.extensionUri, modelRouter);

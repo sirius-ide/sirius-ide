@@ -14,7 +14,8 @@
 		"Machine Learning"
 	],
 	"activationEvents": [
-		"onStartupFinished"
+		"onStartupFinished",
+		"onLanguageModelChatProvider:sirius"
 	],
 	"main": "./out/extension.js",
 	"contributes": {
@@ -263,6 +264,12 @@
 				"key": "ctrl+shift+t",
 				"mac": "cmd+shift+t"
 			}
+		],
+		"languageModelChatProviders": [
+			{
+				"vendor": "sirius",
+				"displayName": "Sirius AI"
+			}
 		]
 	},
 	"scripts": {
@@ -272,5 +279,11 @@
 	"dependencies": {},
 	"devDependencies": {
 		"@types/node": "22.x"
-	}
+	},
+	"enabledApiProposals": [
+		"chatParticipantAdditions",
+		"chatParticipantPrivate",
+		"chatProvider",
+		"languageModelThinkingPart"
+	]
 }
