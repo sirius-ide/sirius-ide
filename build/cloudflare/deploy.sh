@@ -17,7 +17,11 @@ WORKER=sirius-update
 BUCKET=sirius-releases
 
 ENV_FILE="${SIRIUS_CF_ENV:-$HOME/.secrets/cloudflare-sirius.env}"
-if [[ -f "$ENV_FILE" ]]; then set -a; . "$ENV_FILE"; set +a; fi
+# Parse rather than source: a malformed line must never be executed (or echoed).
+if [[ -f "$ENV_FILE" ]]; then
+	CLOUDFLARE_API_TOKEN=$(grep -m1 '^CLOUDFLARE_API_TOKEN=' "$ENV_FILE" | cut -d= -f2-)
+	export CLOUDFLARE_API_TOKEN
+fi
 : "${CLOUDFLARE_API_TOKEN:?no token — create one per build/cloudflare/README.md and store it in $ENV_FILE}"
 
 API=https://api.cloudflare.com/client/v4

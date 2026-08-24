@@ -86,7 +86,10 @@ jobs:
 
   windows:
     name: Windows x64
-    runs-on: windows-latest
+    # Pinned: windows-latest now carries Visual Studio 18, which node-gyp 11
+    # cannot classify ("unknown version undefined"), so native modules fail to
+    # configure. The 2022 image carries VS2022, which it fully understands.
+    runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
