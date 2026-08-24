@@ -9,16 +9,52 @@ bucket, and `dl.siriuside.com`. It needs one API token, created once.
 Dashboard → profile icon (top right) → **My Profile → API Tokens → Create
 Token → Create Custom Token**:
 
-| Scope | Permission | Level |
-| --- | --- | --- |
-| Account | Workers Scripts | Edit |
-| Account | Workers R2 Storage | Edit |
-| Account | Email Routing Addresses | Edit |
-| Account | Account Settings | Read |
-| Zone | Zone | Read |
-| Zone | DNS | Edit |
-| Zone | Email Routing Rules | Edit |
-| Zone | Workers Routes | Edit |
+The full-control set — everything needed to operate, debug and grow the
+Sirius infrastructure unattended:
+
+| Scope | Permission | Level | Powers |
+| --- | --- | --- | --- |
+| Account | Workers Scripts | Edit | deploy/roll back the update worker |
+| Account | Workers Tail | Read | live log tailing while debugging |
+| Account | Workers KV Storage | Edit | worker state, if ever needed |
+| Account | Workers R2 Storage | Edit | release bucket + custom domains |
+| Account | Cloudflare Pages | Edit | the siriuside.com website + docs |
+| Account | Email Routing Addresses | Edit | forwarding destinations |
+| Account | Bulk URL Redirects | Edit | siriuside.dev → siriuside.com |
+| Account | Account Rulesets | Edit | applies the redirect lists |
+| Account | Notifications | Edit | alerts on worker errors / SSL expiry |
+| Account | Registrar Domains | Read | watch expiry + renewal state |
+| Account | Account Settings | Read | account discovery for tooling |
+| Account | Account Analytics | Read | traffic debugging |
+| Zone | Zone | Read | zone discovery |
+| Zone | Zone Settings | Edit | SSL mode, HTTPS, security level |
+| Zone | DNS | Edit | all records |
+| Zone | SSL and Certificates | Edit | edge certificates |
+| Zone | Cache Purge | Purge | purge stale content |
+| Zone | Cache Rules | Edit | caching behaviour |
+| Zone | Transform Rules | Edit | redirects, header rewrites |
+| Zone | Config Rules | Edit | per-path settings |
+| Zone | Page Rules | Edit | the legacy equivalents |
+| Zone | Zone WAF | Edit | firewall rules for the two zones |
+| Zone | Firewall Services | Edit | same, older grouping (add if shown) |
+| Zone | Email Routing Rules | Edit | address → destination rules |
+| Zone | Workers Routes | Edit | attach worker custom domains |
+| Zone | Health Checks | Edit | monitor the update endpoint |
+| Zone | Analytics | Read | per-zone traffic |
+| Zone | Logs | Read | request logs while debugging |
+
+Deliberately **excluded**, and why:
+
+- **Billing** — spending stays a human decision.
+- **API Tokens / Members** — a token that can mint tokens or manage users can
+  escalate itself; operations never needs it.
+
+One honesty note on scope: Zone permissions are pinned to the two siriuside
+zones and cannot touch any other Clicksora property. Account-level services
+(Workers, R2, Pages) are account-wide by Cloudflare's design — if other
+Clicksora workers or buckets live on this same account, this token could see
+them. If that matters, the alternative is a separate Cloudflare account for
+Sirius; otherwise this is the working set.
 
 - **Account Resources**: the Clicksora account.
 - **Zone Resources**: *Specific zone* → add both `siriuside.com` and
