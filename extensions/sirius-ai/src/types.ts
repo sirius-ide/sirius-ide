@@ -26,9 +26,25 @@ export interface ThinkingConfig {
 // ─── Models ──────────────────────────────────────────────────────────────────
 
 /**
- * Supported AI providers
+ * Supported AI providers.
+ *
+ * Anthropic, Gemini and Ollama have their own APIs and their own adapters.
+ * Everything else speaks the OpenAI chat-completions shape and is served by a
+ * single adapter driven by a table, so adding one is a config entry.
  */
-export type ProviderType = 'gemini' | 'anthropic' | 'openai' | 'ollama';
+export type ProviderType =
+	| 'anthropic'
+	| 'gemini'
+	| 'ollama'
+	| 'openai'
+	| 'openrouter'
+	| 'groq'
+	| 'deepseek'
+	| 'mistral'
+	| 'xai'
+	| 'lmstudio'
+	| 'llamacpp'
+	| 'custom';
 
 /**
  * Represents a single AI model from any provider

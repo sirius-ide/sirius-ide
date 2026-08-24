@@ -11,14 +11,24 @@ import { ProviderType } from '../types';
  * Providers that authenticate with an API key. Ollama talks to a local server
  * and needs an endpoint rather than a credential, so it is deliberately absent.
  */
-export const KEYED_PROVIDERS: readonly ProviderType[] = ['anthropic', 'gemini', 'openai'];
+export const KEYED_PROVIDERS: readonly ProviderType[] = [
+	'anthropic', 'gemini', 'openai', 'openrouter', 'groq', 'deepseek', 'mistral', 'xai'
+];
 
 /** Human-readable names, used in prompts and confirmations. */
 export const PROVIDER_LABELS: Record<ProviderType, string> = {
 	anthropic: 'Anthropic Claude',
 	gemini: 'Google Gemini',
-	openai: 'OpenAI GPT',
-	ollama: 'Ollama (local)'
+	ollama: 'Ollama (local)',
+	openai: 'OpenAI',
+	openrouter: 'OpenRouter',
+	groq: 'Groq',
+	deepseek: 'DeepSeek',
+	mistral: 'Mistral',
+	xai: 'xAI Grok',
+	lmstudio: 'LM Studio (local)',
+	llamacpp: 'llama.cpp / vLLM (local)',
+	custom: 'Custom OpenAI-compatible'
 };
 
 /** Where a provider's key lives in SecretStorage. */
