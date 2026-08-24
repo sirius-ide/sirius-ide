@@ -17,14 +17,40 @@ anything else (newest prerelease), so both channels ship from one repository.
 ## Deploy
 
 ```bash
-npx wrangler deploy build/update-server/worker.mjs --name sirius-update
+npx wrangler login
+npx wrangler deploy --config build/update-server/wrangler.toml
 ```
 
-Then set `updateUrl` in `product.json` to the worker's hostname. It is
-`https://update.sirius-ide.dev` today; change it if you deploy elsewhere.
+Then set `updateUrl` in `product.json` to the worker's hostname — a
+`workers.dev` URL works; the custom domain (`update.sirius-ide.dev`) is a
+one-click attach in the Cloudflare dashboard once the zone exists.
 
 Any host that can run a single fetch handler works — the worker uses only
-`fetch`, so it also runs on Deno Deploy or as a small Node service.
+`fetch` — but Cloudflare is the deliberate choice: the update endpoint must
+outlive everything else, and here it rides a free tier at the edge with no
+servers to keep alive.
+
+## The download path
+
+GitHub Releases is canonical and archival. Downloads themselves are cheapest
+and fastest from R2, because R2 charges **no egress** — and bandwidth is the
+one real cost of shipping an editor:
+
+1. Create the bucket once: `npx wrangler r2 bucket create sirius-releases`,
+   then attach the custom domain `dl.sirius-ide.dev` to it (dashboard → R2 →
+   bucket → Settings → Custom Domains).
+2. Give the release workflow its mirror credentials: an R2 API token scoped to
+   just this bucket, stored as the `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY`
+   secrets, plus the `R2_ENDPOINT` repo variable
+   (`https://<account-id>.r2.cloudflarestorage.com`). The mirror step stays
+   skipped until the variable exists.
+3. Uncomment `DL_BASE` in `wrangler.toml` and redeploy the worker; update
+   responses then point at `dl.sirius-ide.dev/releases/<tag>/<asset>` instead
+   of GitHub.
+
+The worker still reads release *metadata* (and the `.sha256` sidecars) from
+GitHub, so R2 going missing degrades to GitHub URLs rather than breaking
+updates.
 
 ## What a release must contain
 

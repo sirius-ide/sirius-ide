@@ -24,6 +24,18 @@
 const REPO = 'ArshadSiddiqui/sirius-ide';
 const CACHE_SECONDS = 300;
 
+/**
+ * Every response carries an explicit TTL. A bare 204 has no cache-control, and
+ * a CDN in front of this worker would then apply its default TTL — pinning
+ * "already current" at the edge long after a release ships.
+ */
+function noUpdate() {
+	return new Response(null, {
+		status: 204,
+		headers: { 'cache-control': `public, max-age=${CACHE_SECONDS}` }
+	});
+}
+
 /** Asset naming per platform, as produced by the release workflow. */
 const ASSET_SUFFIX = {
 	'linux-x64': 'linux-x64.tar.gz',
@@ -36,18 +48,21 @@ const ASSET_SUFFIX = {
 };
 
 export default {
-	async fetch(request) {
+	async fetch(request, env) {
 		const url = new URL(request.url);
 		const match = url.pathname.match(/^\/api\/update\/([^/]+)\/([^/]+)\/([^/]+)$/);
 
 		if (!match) {
-			return new Response('Sirius IDE update server', { status: 200 });
+			return new Response('Sirius IDE update server', {
+				status: 200,
+				headers: { 'cache-control': `public, max-age=${CACHE_SECONDS}` }
+			});
 		}
 
 		const [, platform, quality, currentCommit] = match;
 		const suffix = ASSET_SUFFIX[platform];
 		if (!suffix) {
-			return new Response(null, { status: 204 });
+			return noUpdate();
 		}
 
 		let release;
@@ -55,28 +70,35 @@ export default {
 			release = await latestRelease(quality);
 		} catch {
 			// Never fail an update check loudly; the editor treats it as "no update".
-			return new Response(null, { status: 204 });
+			return noUpdate();
 		}
 		if (!release) {
-			return new Response(null, { status: 204 });
+			return noUpdate();
 		}
 
 		const commit = await releaseCommit(release);
 		if (!commit || commit === currentCommit) {
-			return new Response(null, { status: 204 });
+			return noUpdate();
 		}
 
 		const asset = release.assets.find(a => a.name.endsWith(suffix));
 		if (!asset) {
-			return new Response(null, { status: 204 });
+			return noUpdate();
 		}
+
+		// When DL_BASE is set (wrangler [vars]), downloads ride the R2/CDN path
+		// the release workflow mirrors to; GitHub remains the fallback and the
+		// canonical archive either way.
+		const downloadUrl = env?.DL_BASE
+			? `${env.DL_BASE}/releases/${release.tag_name}/${asset.name}`
+			: asset.browser_download_url;
 
 		const body = {
 			// `version` is the build commit, not the product version.
 			version: commit,
 			productVersion: release.tag_name.replace(/^v/, ''),
 			timestamp: Date.parse(release.published_at) || Date.now(),
-			url: asset.browser_download_url,
+			url: downloadUrl,
 			sha256hash: await assetHash(release, asset.name)
 		};
 

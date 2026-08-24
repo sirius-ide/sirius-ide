@@ -14,6 +14,11 @@ on:
 
 permissions:
   contents: write
+  # Provenance attestations: CI signs a statement binding each asset's digest to
+  # this workflow, this commit and this run, verifiable with
+  # `gh attestation verify <file> --owner <org>`.
+  id-token: write
+  attestations: write
 
 jobs:
   linux:
@@ -124,8 +129,26 @@ jobs:
       - name: Stamp the build commit
         run: echo "${{ github.sha }}" > dist/commit.txt
 
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: 'dist/*'
+
       - uses: softprops/action-gh-release@v2
         with:
           files: dist/*
           prerelease: ${{ inputs.prerelease || false }}
           generate_release_notes: true
+
+      # Mirror the assets to R2 so downloads ride the zero-egress CDN path.
+      # Gated on a repo *variable* so CI stays green before Cloudflare is wired;
+      # the keys are an R2 API token scoped to this one bucket, nothing wider.
+      - name: Mirror release to R2
+        if: vars.R2_ENDPOINT != ''
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+        run: |
+          aws s3 cp dist/ "s3://sirius-releases/releases/${{ github.ref_name }}/" \
+            --recursive --endpoint-url "${{ vars.R2_ENDPOINT }}"
