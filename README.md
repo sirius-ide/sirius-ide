@@ -4,11 +4,24 @@
 
 Sirius takes the best ideas from **Antigravity** (autonomous, agent-first workflows) and **Cursor** (Tab autocomplete, inline edit, multi-file Composer, deep codebase context) and brings them together in a single, open, multi-model editor.
 
+## Install
+
+```bash
+yay -S sirius-ide-bin          # Arch
+```
+
+Debian, Fedora, tarball and Windows are in **[INSTALL.md](INSTALL.md)**, along
+with how updates reach you on each.
+
+Sirius needs a model before it can do anything: add a provider key with
+`Sirius: Set API Key`, or run models locally with Ollama and send nothing off
+your machine.
+
 ## What makes Sirius different
 
-- **Bring your own model.** First-class support for **Anthropic Claude**, **Google Gemini**, **OpenAI GPT**, and local **Ollama** models — routed automatically per task. No vendor lock-in.
-- **Agentic by default.** The built-in `sirius-ai` assistant doesn't just chat — it reads your codebase, plans, runs tools, and edits across files.
-- **Thinking mode & tool use.** Toggle extended reasoning and let the agent use tools to inspect the project, run commands, and apply changes.
+- **Bring your own model.** Twelve providers — **Anthropic Claude**, **Google Gemini**, **OpenAI**, OpenRouter, Groq, DeepSeek, Mistral, xAI — and local models through **Ollama**, LM Studio, llama.cpp or vLLM. No vendor lock-in, and no account to create.
+- **Agentic by default.** Sirius supplies the editor's agent mode with its tools — read, edit, search, run — so it plans and works across files rather than only answering.
+- **No telemetry.** Nothing is collected, and there is no relay: requests go straight from your machine to the provider you chose. See [PRIVACY.md](PRIVACY.md).
 - **Inline AI.** Explain, fix, test, and refactor any selection straight from the editor.
 - **Open extension gallery.** Ships with the [Open VSX](https://open-vsx.org) marketplace out of the box.
 - **Signature look.** The "Sirius Star Dark" theme — deep space with brilliant star accents.
@@ -20,7 +33,7 @@ Sirius is a thin, well-isolated layer on top of Code - OSS so it stays easy to r
 | Path | What it is |
 | --- | --- |
 | [product.json](product.json) | Sirius branding, protocols, default chat agent, gallery |
-| [extensions/sirius-ai/](extensions/sirius-ai) | Multi-model AI assistant (router, context engine, tools, chat, inline) |
+| [extensions/sirius-ai/](extensions/sirius-ai) | Model layer: twelve providers, agent tools, inline completions |
 | [extensions/theme-sirius-star/](extensions/theme-sirius-star) | Sirius Star Dark theme |
 | `src/` | Core editor / workbench (upstream Code - OSS) |
 

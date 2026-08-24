@@ -16,10 +16,10 @@ This is a living document. Status legend: ✅ done · 🔨 in progress · ⬜ pl
 - ✅ Repair the build pipeline (`npm ci` no longer dies on the removed Copilot dir; `sirius-ai` is registered in the gulp compilations, installed by postinstall, and esbuild-bundled for release; `npm run watch` no longer fans out to Copilot; the gitignored `copilot.disabled` backup can no longer leak into a package)
 - ✅ **First clean build + launch verification of the branded app** — `gulp vscode-linux-x64-min` produces a 720 MB `VSCode-linux-x64`; launching it activates `sirius.sirius-ai` with no extension-host errors and registers the Sirius Star Dark theme
 - ✅ AUR package builds against the pinned Node toolchain instead of the system one (Arch ships Node 26 / npm 12, both rejected by `preinstall`)
-- ⬜ Sirius-owned hygiene/copyright config (replace the Microsoft copyright-header gate with a Sirius header so commits pass `gulp hygiene` cleanly)
-- ⬜ Replace remaining VS Code branding in resources (icons, app images under `resources/`)
-- ⬜ Fix remaining `product.json` defects: two Windows AppId GUIDs contain non-hex characters, `webviewContentExternalBaseUrlTemplate` still points at Microsoft's CDN, and there is no `quality` / `updateUrl` / `downloadUrl`. (The `defaultChatAgent` extension ids are fixed.)
-- ⬜ CI: build Sirius on push (GitHub Actions) and produce Linux/Win/macOS artifacts
+- ✅ Sirius-owned hygiene/copyright config
+- ✅ **Sirius branding in resources** — the app shipped Microsoft's Visual Studio Code mark, which is their trademark. Replaced across Linux, Windows, server favicons and macOS with a Sirius mark, legible down to 16px. The packaging templates named Microsoft as vendor and maintainer, and the deb `postinst` installed Microsoft's apt repository and signing key onto the user's machine; that is gone
+- ✅ **`product.json` defects fixed** — four Windows AppIds contained non-hex characters and would have broken the Inno Setup installer; `webviewContentExternalBaseUrlTemplate` pointed at Microsoft's CDN pinned to an upstream commit; `quality` / `updateUrl` / `downloadUrl` / `serverDownloadUrlTemplate` were absent, so update checks returned early
+- ✅ **CI** — `.github/workflows/sirius-release.yml` builds Linux x64/arm64 and Windows on a tag and publishes the assets the update server expects. An unsigned Windows build cannot block a Linux release
 
 ## Phase 1 — A correct, secure model layer
 
@@ -46,7 +46,9 @@ against Claude, Gemini, GPT and Ollama at once — and it keeps improving on eac
 rebase instead of drifting.
 
 - ✅ **`LanguageModelChatProvider`** — Sirius registers as a language-model vendor, so every provider is selectable through the editor's own API. Verified from outside: `vscode.lm.selectChatModels({vendor:'sirius'})` returns Sirius models and `sendRequest` streams a real response through the bridge
-- ⬜ **Retire the bespoke chat webview** (974 lines) — blocked on confirming the editor's own chat panel is usable rather than showing the Copilot setup/sign-in flow. `product.json`'s `defaultChatAgent` drives that flow and named extensions that did not exist; the ids are now correct, but the panel has **not** been visually confirmed (Electron does not map a window under bare Xvfb). Launch the built app and look at the chat panel before deleting anything.
+- ✅ **Retired the bespoke chat webview** — the editor's own panel was confirmed usable (it shows "Build with Agent", not a sign-in wall), so 1,700 lines came out: the 974-line webview, the context engine, the webview-only code actions, and the agent loop upstream now drives. The four selection commands seed the editor's chat instead
+- ✅ **Sirius supplies the agent tools** — removing Copilot took 39 `languageModelTools` with it and the workbench registers only two of its own, so agent mode could reason but not read, edit, search or run anything. Sirius's executor is contributed as `languageModelTools` and registered through `vscode.lm.registerTool`, with confirmation moved into `prepareInvocation` so writes are approved inline in the chat
+- ✅ **Fixed the editor disabling Sirius AI** — the extension was absent from the registry entirely, so no models, no tools, and a dead "Auto" in the model picker. Two Copilot-shaped mechanisms were disabling it: the built-in chat enablement migration, which keeps the chat extension dormant until a sign-in that Sirius does not have; and extension unification, which folds a completions extension into a chat extension and so disabled Sirius from itself. Both now check whether they apply
 - ⬜ **Route edits through the chat-editing session** instead of `workspace.fs.writeFile`, which today writes to disk with no diff, preview or undo
 - ⬜ Then, free from upstream: Composer-class multi-file edits, @-mentions, checkpoints, MCP tools
 
@@ -73,19 +75,31 @@ rebase instead of drifting.
 
 ## Phase 4 — Polish & distribution
 
-- ⬜ Onboarding/walkthrough rebranded for Sirius
-- ⬜ Settings UI for model providers and API keys (secure storage)
-- ⬜ Telemetry-free defaults; clear privacy posture
-- ⬜ Packaged installers + auto-update channel
+- ✅ **Telemetry-free defaults and a clear privacy posture** — `PRIVACY.md` says plainly that Sirius collects nothing, that requests go straight to the chosen provider with no Sirius relay, and that local models mean nothing leaves the machine
+- ✅ **Packaged installers and an update channel** — AUR `sirius-ide-bin` installs the prebuilt release (compiling costs tens of minutes and ~8 GB of RAM, which most users will not sit through); deb, rpm and tarball come from the release workflow; `build/update-server` implements the protocol the editor speaks, backed by GitHub Releases and deployable as a single worker. `INSTALL.md` covers every route
+- ✅ **User-facing strings name the running product** — the workbench told Sirius users to "reload Visual Studio Code" and announced "Welcome to Visual Studio Code" to screen readers
+- ⬜ Onboarding walkthrough content written for Sirius (the strings are correct; the walkthrough still teaches upstream's feature tour)
+- ⬜ Sign the Windows installer — SmartScreen warns on first run without it
+- ⬜ macOS builds — packaging exists, but needs an Apple Developer certificate for notarisation
+- ⬜ Deploy the update server and point `updateUrl` at it (it is `https://update.sirius-ide.dev` today)
+- ⬜ Settings UI for model providers and API keys
 - ⬜ Docs site
 
 ---
 
 ## Near-term next steps (suggested order)
 
-1. **Sirius hygiene config** so `gulp hygiene` passes — unblocks normal (verified) commits.
-2. **Build + launch** the branded app once, to confirm `sirius-ai` and the theme load.
-3. **Tab / Next-Edit Prediction** — highest-impact Cursor feature; start `nextEditProvider.ts`.
-4. **Composer** panel with diff-apply — the agentic multi-file editing core.
+Distribution is in place; what is left before a first public release is the work
+that needs accounts and credentials rather than code.
+
+1. **Tag a release** — push `v0.1.0` and let the workflow build and publish. That
+   exercises CI, the release assets and the update path for real.
+2. **Deploy the update server** and point `updateUrl` at it.
+3. **Publish `sirius-ide-bin` to the AUR** — bump `pkgver` to the release tag and
+   run `updpkgsums`, which needs real assets to hash.
+4. **Route edits through the chat-editing session** instead of
+   `workspace.fs.writeFile`, so file writes get a diff, preview and undo.
+5. **Tab / next-edit prediction** — the one Cursor feature upstream does not
+   provide, and the clearest reason to choose Sirius over stock VS Code.
 
 > Pick the next item and Sirius will implement it end to end.
