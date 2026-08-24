@@ -2397,6 +2397,7 @@ export default tseslint.config(
 		files: [
 			'extensions/sirius-ai/**/*.{ts,mts}',
 			'extensions/theme-sirius-star/**/*.{ts,mts}',
+			'build/update-server/**/*.{js,mjs,ts,mts}',
 		],
 		rules: {
 			'header/header': 'off',

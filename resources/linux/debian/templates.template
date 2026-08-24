@@ -1,6 +1,6 @@
-Template: @@NAME@@/add-microsoft-repo
+Template: @@NAME@@/purge-cache
 Type: boolean
-Default: true
-Description: Add Microsoft apt repository for Visual Studio Code?
- The installer would like to add the Microsoft repository and signing
- key to update VS Code through apt.
+Default: false
+Description: Delete the cache directory on purge?
+ Sirius IDE stores a cache of downloaded assets under /var/cache. Choose
+ whether to remove it when the package is purged.
