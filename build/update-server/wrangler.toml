@@ -1,0 +1,15 @@
+# Deploy with:  npx wrangler deploy --config build/update-server/wrangler.toml
+#
+# The worker needs no secrets, no KV and no bindings — it reads public GitHub
+# releases. Free-tier limits are far above what update checks generate.
+
+name = "sirius-update"
+main = "worker.mjs"
+compatibility_date = "2026-08-01"
+
+# Uncomment once you own the domain and have added it to Cloudflare. Until then
+# the worker is reachable at https://sirius-update.<your-subdomain>.workers.dev,
+# which is a perfectly good updateUrl.
+# routes = [
+#   { pattern = "update.sirius-ide.dev", custom_domain = true }
+# ]

@@ -171,6 +171,7 @@ export const copyrightFilter = Object.freeze<string[]>([
 	'!**/*.json',
 	'!**/*.jsonc',
 	'!**/*.jsonl',
+	'!**/*.toml',
 	'!**/*.html',
 	'!**/*.template',
 	'!**/*.md',
