@@ -303,32 +303,57 @@ export class ModelRouter {
 		tools?: ToolDefinition[]
 	): AsyncIterable<ChatChunk> {
 		const config = vscode.workspace.getConfiguration('sirius.ai');
-		const targetModelId = modelId || config.get<string>('defaultModel', 'gemini-3.5-flash');
-		const maxTokens = config.get<number>('maxTokens', 16384);
-		const temperature = config.get<number>('temperature', 0.7);
-		const stream = config.get<boolean>('streamResponses', true);
+		const targetModelId = modelId || config.get<string>('defaultModel', 'claude-opus-5');
 
-		// Find the provider for this model
-		let provider = this.getProviderForModel(targetModelId);
+		// A model discovered at runtime has no statically known provider, so fall
+		// back to Ollama, which is the only provider that serves unlisted ids.
+		const provider = this.getProviderForModel(targetModelId) ?? this.providers.get('ollama')!;
+
+		yield* this._send(provider, targetModelId, messages, tools);
+	}
+
+	/**
+	 * Send to an explicitly chosen provider.
+	 *
+	 * The language-model bridge namespaces ids as `provider/model` to keep them
+	 * unique across twelve providers, so it resolves the provider itself rather
+	 * than searching for a model id that may be served by several of them.
+	 */
+	async *chatWithProvider(
+		providerId: ProviderType,
+		modelId: string,
+		messages: ChatMessage[],
+		tools?: ToolDefinition[]
+	): AsyncIterable<ChatChunk> {
+		const provider = this.providers.get(providerId);
 		if (!provider) {
-			// Fallback: might be a dynamic Ollama model
-			provider = this.providers.get('ollama')!;
+			yield { content: `⚠️ Unknown provider: ${providerId}`, done: true, stopReason: 'error' };
+			return;
 		}
 
-		// Build thinking config — only if the model supports it
-		const model = this.findModel(targetModelId);
+		yield* this._send(provider, modelId, messages, tools);
+	}
+
+	private async *_send(
+		provider: IAIProvider,
+		modelId: string,
+		messages: ChatMessage[],
+		tools?: ToolDefinition[]
+	): AsyncIterable<ChatChunk> {
+		const config = vscode.workspace.getConfiguration('sirius.ai');
+
+		// Thinking is only requested where the model actually supports it.
+		const model = provider.models.find(m => m.id === modelId) ?? this.findModel(modelId);
 		const thinkingConfig = this.getThinkingConfig();
 		const thinking: ThinkingConfig | undefined =
-			model?.supportsThinking && thinkingConfig.enabled
-				? thinkingConfig
-				: undefined;
+			model?.supportsThinking && thinkingConfig.enabled ? thinkingConfig : undefined;
 
 		const request: ChatRequest = {
 			messages,
-			model: targetModelId,
-			maxTokens,
-			temperature,
-			stream,
+			model: modelId,
+			maxTokens: config.get<number>('maxTokens', 16384),
+			temperature: config.get<number>('temperature', 0.7),
+			stream: config.get<boolean>('streamResponses', true),
 			systemPrompt: SIRIUS_SYSTEM_PROMPT,
 			thinking,
 			tools
