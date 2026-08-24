@@ -97,9 +97,9 @@
 		}
 	],
 	"defaultChatAgent": {
-		"extensionId": "sirius.ai",
-		"chatExtensionId": "sirius.ai-chat",
-		"chatExtensionOutputId": "sirius.ai-chat.Sirius AI Chat.log",
+		"extensionId": "sirius.sirius-ai",
+		"chatExtensionId": "sirius.sirius-ai",
+		"chatExtensionOutputId": "sirius.sirius-ai.Sirius AI.log",
 		"chatExtensionOutputExtensionStateCommand": "sirius.ai.debug.extensionState",
 		"documentationUrl": "https://github.com/ArshadSiddiqui/sirius-ide",
 		"privacyStatementUrl": "https://github.com/ArshadSiddiqui/sirius-ide/blob/main/PRIVACY.md",
@@ -226,6 +226,6 @@
 		}
 	],
 	"builtInExtensionsEnabledWithAutoUpdates": [
-		"sirius.ai-chat"
+		"sirius.sirius-ai"
 	]
 }
