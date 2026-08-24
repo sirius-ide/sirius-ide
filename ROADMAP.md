@@ -30,8 +30,8 @@ API key and actually speak the providers' current APIs.
 - ✅ **Correct Anthropic requests** — `output_config.effort` (not `thinking.effort`), real effort levels, no sampling parameters on models that reject them, current model ids including Opus 5 / Sonnet 5 / Fable 5
 - ✅ **Prompt caching** on the system prompt — cheaper, and cached reads do not count toward the input-tokens-per-minute limit
 - ✅ **Native tool calling** — real `tool_use` / `tool_result` on Anthropic and Ollama, driven by `SiriusAgentLoop`; results now go back to the model instead of firing once as a side effect. Verified end to end against a local Ollama model across multiple tool rounds
-- ⬜ **Verify Gemini and OpenAI request shapes** the way Anthropic's were verified; their model ids are unverified too
-- ⬜ **One `OpenAICompatibleProvider`** to replace the per-vendor adapters — covers Ollama, LM Studio, vLLM, llama.cpp, OpenRouter, Together, Groq, DeepSeek and Mistral, turning "add a provider" into a config entry
+- ⬜ **Gemini: native tool calling and model discovery** — the last provider without tools, and its hardcoded model ids are unverified. Discovery via the models endpoint would make the list self-correcting rather than guessed
+- ✅ **One `OpenAICompatibleProvider`** replaces the OpenAI-only adapter and serves OpenAI, OpenRouter, Groq, DeepSeek, Mistral, xAI, LM Studio, llama.cpp/vLLM and any custom endpoint from a table — twelve providers total, with native tool calling and `/v1/models` discovery. Verified against a local Ollama model through its OpenAI-compatible endpoint
 
 ## Phase 1b — Adopt the editor's own AI surfaces
 
