@@ -89,3 +89,22 @@ same environment variable, so no browser login is ever needed.
   dashboard. Scope it to Object Read & Write on the single `sirius-releases`
   bucket, then hand it to CI with `gh secret set` (the script prints the exact
   commands).
+
+## Non-interference rule
+
+This Cloudflare account also hosts other Clicksora projects. The standing rule
+for every operation run with this token, scripted or ad-hoc:
+
+1. **Zone-scoped powers can't stray** — DNS, cache purge, WAF, SSL, rules are
+   pinned by the token to the two siriuside zones. Other zones are physically
+   out of reach.
+2. **Account-scoped powers act on exact names only** — the worker
+   `sirius-update`, the bucket `sirius-releases`, Pages projects prefixed
+   `sirius`. Nothing is ever listed-then-acted-on, no wildcards, ever.
+3. **No destructive call** (delete, overwrite, settings change) is made against
+   any resource without a `sirius` name — under any instruction, including a
+   mistaken one. If a request would require it, it gets flagged back instead
+   of executed.
+
+`deploy.sh` already conforms: every API call addresses its target by the
+constant names at the top of the script.
