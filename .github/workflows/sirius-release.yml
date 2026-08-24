@@ -18,11 +18,18 @@ permissions:
 jobs:
   linux:
     name: Linux ${{ matrix.arch }}
-    runs-on: ubuntu-latest
+    # Native runners per architecture. Cross-compiling arm64 on an x64 runner
+    # means Electron's native modules are built for the wrong host, which fails
+    # late and confusingly. GitHub's arm64 runners are free for public repos.
+    runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
-        arch: [x64, arm64]
+        include:
+          - arch: x64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v4
 
@@ -45,7 +52,6 @@ jobs:
       - name: Install dependencies
         run: npm ci
         env:
-          npm_config_arch: ${{ matrix.arch }}
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
 
       - name: Build
