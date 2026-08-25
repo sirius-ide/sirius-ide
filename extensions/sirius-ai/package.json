@@ -14,6 +14,7 @@
 		"Machine Learning"
 	],
 	"activationEvents": [
+		"onChatParticipant:sirius.default",
 		"onStartupFinished",
 		"onLanguageModelChatProvider:sirius"
 	],
@@ -391,6 +392,21 @@
 					"required": []
 				}
 			}
+		],
+		"chatParticipants": [
+			{
+				"id": "sirius.default",
+				"name": "sirius",
+				"fullName": "Sirius",
+				"description": "Describe what to build",
+				"isDefault": true,
+				"isSticky": true,
+				"modes": [
+					"ask",
+					"edit",
+					"agent"
+				]
+			}
 		]
 	},
 	"scripts": {
@@ -405,6 +421,7 @@
 		"chatParticipantAdditions",
 		"chatParticipantPrivate",
 		"chatProvider",
-		"languageModelThinkingPart"
+		"languageModelThinkingPart",
+		"defaultChatParticipant"
 	]
 }

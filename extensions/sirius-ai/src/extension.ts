@@ -10,6 +10,7 @@ import { ModelRouter } from './providers/modelRouter';
 import { SiriusLanguageModelProvider, SIRIUS_VENDOR } from './lm/languageModelProvider';
 import { registerSiriusTools } from './lm/toolRegistration';
 import { registerGitAssist } from './scm/gitAssist';
+import { registerSiriusAgent } from './chat/siriusAgent';
 import { SiriusToolExecutor } from './tools/toolExecutor';
 import { SiriusInlineChatProvider } from './inline/inlineChatProvider';
 
@@ -50,6 +51,13 @@ export async function activate(context: vscode.ExtensionContext) {
 	// Fills the product.json hooks the workbench already renders buttons for:
 	// the commit-message sparkle and the resolve-merge-conflicts action.
 	registerGitAssist(context);
+
+	// ─── The Default Chat Agent ──────────────────────────────────────────
+	// The panel's ask/edit/agent modes are served by the product's default
+	// participant — the role Copilot Chat plays upstream. Without it, the
+	// workbench's setup placeholder intercepts every request demanding a
+	// GitHub sign-in, and the model picker stays an inert "Auto".
+	registerSiriusAgent(context);
 
 	// ─── Inline Chat (Ctrl+I) ────────────────────────────────────────────
 	const inlineChat = new SiriusInlineChatProvider();
