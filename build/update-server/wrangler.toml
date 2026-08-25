@@ -18,3 +18,9 @@ compatibility_date = "2026-08-01"
 # downloads at the zero-egress path, with GitHub as automatic fallback.
 [vars]
 DL_BASE = "https://dl.siriuside.com"
+
+# The worker reads release metadata from its own bucket — no external API, no
+# rate limits. GitHub remains the fallback when the manifest is absent.
+[[r2_buckets]]
+binding = "RELEASES"
+bucket_name = "sirius-releases"
