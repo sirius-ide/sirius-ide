@@ -56,6 +56,14 @@
 			{
 				"command": "sirius.ai.refactor",
 				"title": "Sirius: Refactor Selection"
+			},
+			{
+				"command": "sirius.ai.generateCommitMessage",
+				"title": "Sirius: Generate Commit Message"
+			},
+			{
+				"command": "sirius.ai.resolveMergeConflicts",
+				"title": "Sirius: Resolve Merge Conflicts"
 			}
 		],
 		"menus": {
