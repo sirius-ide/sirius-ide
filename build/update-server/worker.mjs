@@ -65,6 +65,39 @@ export default {
 			return noUpdate();
 		}
 
+		// Primary source: the manifest CI drops into our own bucket at release
+		// time. Reading it is a binding call — no external API, no rate limits,
+		// no way for a third party's throttling to turn into "no update".
+		const manifest = await latestFromBucket(env, quality);
+		if (manifest) {
+			if (manifest.commit === currentCommit) {
+				return noUpdate();
+			}
+
+			const assetName = Object.keys(manifest.assets ?? {}).find(n => n.endsWith(suffix));
+			if (!assetName) {
+				return noUpdate();
+			}
+
+			const url = env?.DL_BASE
+				? `${env.DL_BASE}/releases/${manifest.tag}/${assetName}`
+				: `https://github.com/${REPO}/releases/download/${manifest.tag}/${assetName}`;
+
+			return new Response(JSON.stringify({
+				version: manifest.commit,
+				productVersion: manifest.productVersion,
+				timestamp: manifest.timestamp,
+				url,
+				sha256hash: manifest.assets[assetName]
+			}), {
+				status: 200,
+				headers: {
+					'content-type': 'application/json',
+					'cache-control': `public, max-age=${CACHE_SECONDS}`
+				}
+			});
+		}
+
 		let release;
 		try {
 			release = await latestRelease(quality);
@@ -111,6 +144,19 @@ export default {
 		});
 	}
 };
+
+/** The release manifest CI publishes to the bucket root, or null. */
+async function latestFromBucket(env, quality) {
+	if (!env?.RELEASES) {
+		return null;
+	}
+	try {
+		const object = await env.RELEASES.get(`latest-${quality}.json`);
+		return object ? await object.json() : null;
+	} catch {
+		return null;
+	}
+}
 
 async function gh(path) {
 	const response = await fetch(`https://api.github.com/repos/${REPO}${path}`, {
