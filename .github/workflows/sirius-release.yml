@@ -103,6 +103,11 @@ jobs:
         run: npm run gulp vscode-win32-x64-min
         env:
           NODE_OPTIONS: --max-old-space-size=8192
+      # Upstream's pipeline runs this between build and installer: it stages the
+      # background-updater binaries into the app's tools/ directory, which
+      # code.iss line 108 requires unconditionally.
+      - name: Stage installer tools
+        run: npm run gulp vscode-win32-x64-inno-updater
       - name: Build installer
         run: npm run gulp vscode-win32-x64-system-setup
       - name: Collect installer
