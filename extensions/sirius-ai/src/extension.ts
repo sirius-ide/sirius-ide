@@ -52,7 +52,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	registerGitAssist(context);
 
 	// ─── Inline Chat (Ctrl+I) ────────────────────────────────────────────
-	const inlineChat = new SiriusInlineChatProvider(modelRouter);
+	const inlineChat = new SiriusInlineChatProvider();
 	inlineChat.register(context);
 
 	// ─── Commands ────────────────────────────────────────────────────────
