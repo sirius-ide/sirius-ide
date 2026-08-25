@@ -131,7 +131,11 @@ function buildWin32Setup(arch: string, target: string): task.CallbackTask {
 			definitions['ProxyMutex'] = embedded.win32MutexName;
 		}
 
-		if (quality === 'stable' || quality === 'insider') {
+		// Defining AppxPackageName switches on the installer's Explorer
+		// context-menu machinery, which needs the appx artifact only Microsoft's
+		// product.json (win32ContextMenu) and internal pipeline provide. Guard on
+		// the data, not just the quality — same reasoning as the package task.
+		if ((quality === 'stable' || quality === 'insider') && (product as { win32ContextMenu?: object }).win32ContextMenu) {
 			definitions['AppxPackage'] = `${quality === 'stable' ? 'code' : 'code_insider'}_${arch}.appx`;
 			definitions['AppxPackageDll'] = `${quality === 'stable' ? 'code' : 'code_insider'}_explorer_command_${arch}.dll`;
 			definitions['AppxPackageName'] = `${product.win32AppUserModelId}`;
