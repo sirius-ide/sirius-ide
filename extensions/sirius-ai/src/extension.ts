@@ -41,6 +41,12 @@ export async function activate(context: vscode.ExtensionContext) {
 	// rather than making the user reload the window.
 	context.subscriptions.push(secrets.onDidChange(() => lmProvider.refresh()));
 
+	// Warm the editor's model registry immediately. The panel resolves its
+	// "Auto" selection against models registered at that instant — on a fresh
+	// window a request can beat discovery, and the resolution then fails with
+	// "Language model unavailable" before any handler runs.
+	void vscode.lm.selectChatModels({ vendor: SIRIUS_VENDOR }).then(undefined, () => { });
+
 	// ─── Agent Tools ─────────────────────────────────────────────────────
 	// Removing Copilot took 39 tools with it, and the workbench registers only
 	// two of its own, so without these the editor's agent mode can reason but

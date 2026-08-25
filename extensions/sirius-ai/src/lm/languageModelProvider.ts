@@ -117,9 +117,26 @@ export class SiriusLanguageModelProvider implements vscode.LanguageModelChatProv
 			return [];
 		}
 
-		return resolved.flatMap(({ provider, models }) =>
+		const described = resolved.flatMap(({ provider, models }) =>
 			models.map(model => this._describe(provider.id, provider.name, model))
 		);
+
+		// The panel's "Auto" resolves to whichever model is marked default; with
+		// none marked, every auto-routed request dies with "Language model
+		// unavailable". Prefer the configured default, else the first model.
+		if (described.length > 0) {
+			const config = vscode.workspace.getConfiguration('sirius.ai');
+			const wantedModel = config.get<string>('defaultModel', '');
+			const wantedProvider = config.get<string>('defaultProvider', '');
+			const pick =
+				described.find(m => m.id.endsWith(`/${wantedModel}`)) ??
+				described.find(m => m.id.startsWith(`${wantedProvider}/`)) ??
+				described[0];
+			const index = described.indexOf(pick);
+			described[index] = { ...pick, isDefault: true };
+		}
+
+		return described;
 	}
 
 	private _describe(providerId: ProviderType, providerName: string, model: SiriusModel): vscode.LanguageModelChatInformation {
