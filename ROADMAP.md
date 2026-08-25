@@ -89,14 +89,16 @@ rebase instead of drifting.
 
 ## Near-term next steps (suggested order)
 
-Distribution is in place; what is left before a first public release is the work
-that needs accounts and credentials rather than code.
+**v1.118.0 shipped 2026-08-25** — first public release, all three platforms,
+built by CI from a tag, provenance-attested, mirrored to R2, and served by the
+production update endpoint. The remaining items need accounts rather than code.
 
-1. **Tag a release** — push `v0.1.0` and let the workflow build and publish. That
-   exercises CI, the release assets and the update path for real.
-2. **Deploy the update server** and point `updateUrl` at it.
-3. **Publish `sirius-ide-bin` to the AUR** — bump `pkgver` to the release tag and
-   run `updpkgsums`, which needs real assets to hash.
+1. ~~Tag a release~~ — **done**: `v1.118.0`, five cuts to get Windows through
+   Microsoft-internal packaging paths that `quality: stable` switches on.
+2. ~~Deploy the update server~~ — **done**: `update.siriuside.com`, serving
+   `dl.siriuside.com` (R2, zero egress) URLs with sha256 per asset.
+3. **Publish `sirius-ide-bin` to the AUR** — bump `pkgver` to 1.118.0 and run
+   `updpkgsums` against the live release. Needs the AUR account + SSH key.
 4. **Route edits through the chat-editing session** instead of
    `workspace.fs.writeFile`, so file writes get a diff, preview and undo.
 5. **Tab / next-edit prediction** — the one Cursor feature upstream does not
