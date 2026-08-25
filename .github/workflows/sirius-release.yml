@@ -36,7 +36,7 @@ jobs:
           - arch: arm64
             runner: ubuntu-24.04-arm
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # preinstall.ts rejects a mismatched major, so read the pin rather than
       # hardcoding a version that will drift.
@@ -91,7 +91,7 @@ jobs:
     # configure. The 2022 image carries VS2022, which it fully understands.
     runs-on: windows-2022
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
@@ -128,7 +128,7 @@ jobs:
     if: always() && needs.linux.result == 'success'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/download-artifact@v4
         with: { path: dist, merge-multiple: true }
 
