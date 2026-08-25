@@ -42,31 +42,6 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 		}
 	},
 	{
-		name: 'write_file',
-		description: 'Create a file, or replace an existing file entirely. Use edit_file for targeted changes.',
-		inputSchema: {
-			type: 'object',
-			properties: {
-				path: { type: 'string', description: 'Path relative to the workspace root' },
-				content: { type: 'string', description: 'Full contents to write' }
-			},
-			required: ['path', 'content']
-		}
-	},
-	{
-		name: 'edit_file',
-		description: 'Replace an exact span of text in a file. The search text must match exactly and appear once.',
-		inputSchema: {
-			type: 'object',
-			properties: {
-				path: { type: 'string', description: 'Path relative to the workspace root' },
-				search: { type: 'string', description: 'Exact text to find' },
-				replace: { type: 'string', description: 'Text to put in its place' }
-			},
-			required: ['path', 'search', 'replace']
-		}
-	},
-	{
 		name: 'search_files',
 		description: 'Search workspace files for a literal string, like grep.',
 		inputSchema: {
@@ -88,18 +63,6 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 				path: { type: 'string', description: 'Path relative to the workspace root; empty for the root itself' }
 			},
 			required: []
-		}
-	},
-	{
-		name: 'run_terminal',
-		description: 'Run a shell command in the integrated terminal. The user is asked to confirm first.',
-		inputSchema: {
-			type: 'object',
-			properties: {
-				command: { type: 'string', description: 'Command to run' },
-				cwd: { type: 'string', description: 'Working directory relative to the workspace root' }
-			},
-			required: ['command']
 		}
 	},
 	{
@@ -134,15 +97,6 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
  */
 export class SiriusToolExecutor {
 
-	/** Set once the user opts into unattended file writes for this session. */
-	private _alwaysAllowWrites = false;
-
-	/**
-	 * True while running a call the caller already confirmed — the editor's own
-	 * tool UI prompts before invoking, so prompting again would double up.
-	 */
-	private _confirmationSuppressed = false;
-
 	/**
 	 * Ask before a tool touches the user's files.
 	 *
@@ -151,52 +105,17 @@ export class SiriusToolExecutor {
 	 * editor's chat-editing session — which brings its own review and rollback —
 	 * this prompt is the only thing between a misread instruction and lost work.
 	 */
-	private async _confirmWrite(summary: string): Promise<boolean> {
-		if (this._confirmationSuppressed || this._alwaysAllowWrites) {
-			return true;
-		}
-
-		const allowOnce = 'Allow';
-		const allowSession = 'Allow for This Session';
-		const choice = await vscode.window.showWarningMessage(
-			`★ Sirius AI wants to ${summary}`,
-			allowOnce,
-			allowSession
-		);
-
-		if (choice === allowSession) {
-			this._alwaysAllowWrites = true;
-			return true;
-		}
-		return choice === allowOnce;
-	}
-
 	/**
 	 * Execute a tool call and return the result
 	 */
-	async execute(tool: ToolCallRequest, options?: { skipConfirmation?: boolean }): Promise<ToolResult> {
-		this._confirmationSuppressed = options?.skipConfirmation === true;
-		try {
-			return await this._dispatch(tool);
-		} finally {
-			this._confirmationSuppressed = false;
-		}
-	}
-
-	private async _dispatch(tool: ToolCallRequest): Promise<ToolResult> {
+	async execute(tool: ToolCallRequest): Promise<ToolResult> {
 		switch (tool.name) {
 			case 'read_file':
 				return this._readFile(tool.arguments);
-			case 'write_file':
-				return this._writeFile(tool.arguments);
-			case 'edit_file':
-				return this._editFile(tool.arguments);
 			case 'search_files':
 				return this._searchFiles(tool.arguments);
 			case 'list_directory':
 				return this._listDirectory(tool.arguments);
-			case 'run_terminal':
-				return this._runTerminal(tool.arguments);
 			case 'search_web':
 				return this._searchWeb(tool.arguments);
 			case 'get_diagnostics':
@@ -230,59 +149,6 @@ export class SiriusToolExecutor {
 			return { success: true, output: content };
 		} catch (e: any) {
 			return { success: false, output: `Failed to read file: ${e.message}` };
-		}
-	}
-
-	private async _writeFile(args: Record<string, any>): Promise<ToolResult> {
-		try {
-			const rootUri = vscode.workspace.workspaceFolders?.[0]?.uri;
-			if (!rootUri) { return { success: false, output: 'No workspace open' }; }
-
-			if (!await this._confirmWrite(`write ${args.path}`)) {
-				return { success: false, output: 'The user declined the write.' };
-			}
-
-			const fileUri = vscode.Uri.joinPath(rootUri, args.path);
-			const data = new TextEncoder().encode(args.content);
-			await vscode.workspace.fs.writeFile(fileUri, data);
-
-			// Open the file in editor
-			const doc = await vscode.workspace.openTextDocument(fileUri);
-			await vscode.window.showTextDocument(doc, { preview: true });
-
-			return { success: true, output: `✅ File written: ${args.path}` };
-		} catch (e: any) {
-			return { success: false, output: `Failed to write file: ${e.message}` };
-		}
-	}
-
-	private async _editFile(args: Record<string, any>): Promise<ToolResult> {
-		try {
-			const rootUri = vscode.workspace.workspaceFolders?.[0]?.uri;
-			if (!rootUri) { return { success: false, output: 'No workspace open' }; }
-
-			const fileUri = vscode.Uri.joinPath(rootUri, args.path);
-			const data = await vscode.workspace.fs.readFile(fileUri);
-			let content = new TextDecoder().decode(data);
-
-			if (!content.includes(args.search)) {
-				return { success: false, output: `Search text not found in ${args.path}` };
-			}
-
-			if (!await this._confirmWrite(`edit ${args.path}`)) {
-				return { success: false, output: 'The user declined the edit.' };
-			}
-
-			content = content.replace(args.search, args.replace);
-			await vscode.workspace.fs.writeFile(fileUri, new TextEncoder().encode(content));
-
-			// Open and show the file
-			const doc = await vscode.workspace.openTextDocument(fileUri);
-			await vscode.window.showTextDocument(doc, { preview: true });
-
-			return { success: true, output: `✅ File edited: ${args.path}` };
-		} catch (e: any) {
-			return { success: false, output: `Failed to edit file: ${e.message}` };
 		}
 	}
 
@@ -351,28 +217,6 @@ export class SiriusToolExecutor {
 		} catch (e: any) {
 			return { success: false, output: `Failed to list directory: ${e.message}` };
 		}
-	}
-
-	private async _runTerminal(args: Record<string, any>): Promise<ToolResult> {
-		// Show confirmation before running commands
-		const confirm = await vscode.window.showWarningMessage(
-			`★ Sirius AI wants to run: \`${args.command}\``,
-			'Run', 'Cancel'
-		);
-
-		if (confirm !== 'Run') {
-			return { success: false, output: 'Command execution cancelled by user.' };
-		}
-
-		const terminal = vscode.window.createTerminal({
-			name: `★ Sirius: ${args.command.substring(0, 30)}`,
-			cwd: args.cwd ? vscode.Uri.joinPath(vscode.workspace.workspaceFolders![0].uri, args.cwd) : undefined
-		});
-
-		terminal.show();
-		terminal.sendText(args.command);
-
-		return { success: true, output: `✅ Command sent to terminal: \`${args.command}\`\n(Check the terminal for output)` };
 	}
 
 	private async _searchWeb(args: Record<string, any>): Promise<ToolResult> {
