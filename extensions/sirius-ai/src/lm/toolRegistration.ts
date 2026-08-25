@@ -15,9 +15,6 @@ export function qualifiedToolName(name: string): string {
 	return `sirius_${name}`;
 }
 
-/** Tools that change the user's files, and so need confirming before they run. */
-const DESTRUCTIVE_TOOLS = new Set(['write_file', 'edit_file', 'run_terminal']);
-
 /**
  * Register Sirius's tools with the editor so agent mode can actually do work.
  *
@@ -39,8 +36,7 @@ export function registerSiriusTools(
 		const tool: vscode.LanguageModelTool<Record<string, unknown>> = {
 			async invoke(options, _token) {
 				const result = await executor.execute(
-					{ id: '', name: definition.name, arguments: options.input },
-					{ skipConfirmation: true }
+					{ id: '', name: definition.name, arguments: options.input }
 				);
 
 				// A failed tool still returns a result. The model needs to read what
@@ -53,18 +49,10 @@ export function registerSiriusTools(
 			},
 
 			prepareInvocation(options, _token) {
-				const summary = describeInvocation(definition.name, options.input);
-				if (!DESTRUCTIVE_TOOLS.has(definition.name)) {
-					return { invocationMessage: summary };
-				}
-
-				return {
-					invocationMessage: summary,
-					confirmationMessages: {
-						title: `Allow Sirius to ${summary.toLowerCase()}?`,
-						message: 'This changes files or runs commands in your workspace.'
-					}
-				};
+				// Every remaining Sirius tool is read-only; mutating work goes
+				// through the workbench's own tools, which carry the review and
+				// approval flows.
+				return { invocationMessage: describeInvocation(definition.name, options.input) };
 			}
 		};
 
@@ -76,16 +64,12 @@ export function registerSiriusTools(
 function describeInvocation(name: string, input: Record<string, unknown>): string {
 	const path = typeof input.path === 'string' ? input.path : '';
 	const query = typeof input.query === 'string' ? input.query : '';
-	const command = typeof input.command === 'string' ? input.command : '';
 
 	switch (name) {
 		case 'read_file': return `Read ${path}`;
-		case 'write_file': return `Write ${path}`;
-		case 'edit_file': return `Edit ${path}`;
 		case 'list_directory': return `List ${path || 'the workspace root'}`;
 		case 'search_files': return `Search for "${query}"`;
 		case 'search_web': return `Search the web for "${query}"`;
-		case 'run_terminal': return `Run \`${command}\``;
 		case 'get_diagnostics': return 'Check errors and warnings';
 		default: return name;
 	}

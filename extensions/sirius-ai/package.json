@@ -274,71 +274,6 @@
 				}
 			},
 			{
-				"name": "sirius_write_file",
-				"toolReferenceName": "writeFile",
-				"displayName": "Write File",
-				"modelDescription": "Create a file, or replace an existing file entirely. Use edit_file for targeted changes.",
-				"userDescription": "Create a file, or replace an existing file entirely. Use edit_file for targeted changes.",
-				"canBeReferencedInPrompt": true,
-				"icon": "$(new-file)",
-				"tags": [
-					"sirius",
-					"edit"
-				],
-				"inputSchema": {
-					"type": "object",
-					"properties": {
-						"path": {
-							"type": "string",
-							"description": "Path relative to the workspace root"
-						},
-						"content": {
-							"type": "string",
-							"description": "Full contents to write"
-						}
-					},
-					"required": [
-						"path",
-						"content"
-					]
-				}
-			},
-			{
-				"name": "sirius_edit_file",
-				"toolReferenceName": "editFile",
-				"displayName": "Edit File",
-				"modelDescription": "Replace an exact span of text in a file. The search text must match exactly and appear once.",
-				"userDescription": "Replace an exact span of text in a file. The search text must match exactly and appear once.",
-				"canBeReferencedInPrompt": true,
-				"icon": "$(edit)",
-				"tags": [
-					"sirius",
-					"edit"
-				],
-				"inputSchema": {
-					"type": "object",
-					"properties": {
-						"path": {
-							"type": "string",
-							"description": "Path relative to the workspace root"
-						},
-						"search": {
-							"type": "string",
-							"description": "Exact text to find"
-						},
-						"replace": {
-							"type": "string",
-							"description": "Text to put in its place"
-						}
-					},
-					"required": [
-						"path",
-						"search",
-						"replace"
-					]
-				}
-			},
-			{
 				"name": "sirius_search_files",
 				"toolReferenceName": "searchFiles",
 				"displayName": "Search Files",
@@ -390,35 +325,6 @@
 						}
 					},
 					"required": []
-				}
-			},
-			{
-				"name": "sirius_run_terminal",
-				"toolReferenceName": "runInTerminal",
-				"displayName": "Run Terminal",
-				"modelDescription": "Run a shell command in the integrated terminal. The user is asked to confirm first.",
-				"userDescription": "Run a shell command in the integrated terminal. The user is asked to confirm first.",
-				"canBeReferencedInPrompt": true,
-				"icon": "$(terminal)",
-				"tags": [
-					"sirius",
-					"edit"
-				],
-				"inputSchema": {
-					"type": "object",
-					"properties": {
-						"command": {
-							"type": "string",
-							"description": "Command to run"
-						},
-						"cwd": {
-							"type": "string",
-							"description": "Working directory relative to the workspace root"
-						}
-					},
-					"required": [
-						"command"
-					]
 				}
 			},
 			{
