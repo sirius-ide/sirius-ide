@@ -14,7 +14,7 @@ compatibility_date = "2026-08-01"
 #   { pattern = "update.siriuside.com", custom_domain = true }
 # ]
 
-# Once the R2 bucket and its custom domain exist, uncomment so update responses
-# point downloads at the zero-egress path instead of GitHub:
-# [vars]
-# DL_BASE = "https://dl.siriuside.com"
+# The R2 bucket and its custom domain are live; update responses point
+# downloads at the zero-egress path, with GitHub as automatic fallback.
+[vars]
+DL_BASE = "https://dl.siriuside.com"
