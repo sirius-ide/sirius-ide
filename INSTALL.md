@@ -2,19 +2,30 @@
 
 ## Arch Linux (recommended)
 
-```bash
-yay -S sirius-ide-bin
+Add the Sirius repository to `/etc/pacman.conf`:
+
+```ini
+[sirius]
+SigLevel = Optional
+Server = https://dl.siriuside.com/arch/$arch
 ```
 
-`sirius-ide-bin` installs the prebuilt release. There is also `sirius-ide-git`,
-which compiles from source — that takes tens of minutes and about 8 GB of RAM,
-so prefer the binary package unless you want to track the branch.
-
-Updates come through your package manager:
+Then install like any package:
 
 ```bash
-yay -Syu
+sudo pacman -Syu sirius-ide-bin
 ```
+
+Updates arrive with your normal `pacman -Syu`. The repository is served from
+the same zero-egress CDN as every Sirius download, and the package is built
+from the same release assets whose provenance you can verify with
+`gh attestation verify`.
+
+An AUR package will follow once the AUR reopens new-account registration
+(paused during their malicious-packages incident); the repository above is the
+first-class path either way. `sirius-ide-git`, which compiles from source,
+also arrives with the AUR — expect tens of minutes and ~8 GB of RAM if you
+choose it.
 
 ## Debian, Ubuntu
 
