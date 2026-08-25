@@ -222,6 +222,16 @@
 					"type": "string",
 					"default": "",
 					"description": "Base URL of any other OpenAI-compatible service, including the /v1 suffix."
+				},
+				"sirius.ai.completions.model": {
+					"type": "string",
+					"default": "auto",
+					"description": "Model for Tab completion: \"auto\" picks a running Ollama code model automatically; or \"ollama/<model>\"; or \"llamacpp\" for the configured llama.cpp server."
+				},
+				"sirius.ai.completions.maxLines": {
+					"type": "number",
+					"default": 12,
+					"description": "Longest suggestion Tab completion will offer, in lines."
 				}
 			}
 		},
