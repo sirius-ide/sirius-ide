@@ -9,6 +9,7 @@ import { SiriusSecretStore } from './auth/secretStore';
 import { ModelRouter } from './providers/modelRouter';
 import { SiriusLanguageModelProvider, SIRIUS_VENDOR } from './lm/languageModelProvider';
 import { registerSiriusTools } from './lm/toolRegistration';
+import { registerGitAssist } from './scm/gitAssist';
 import { SiriusToolExecutor } from './tools/toolExecutor';
 import { SiriusInlineChatProvider } from './inline/inlineChatProvider';
 
@@ -44,6 +45,11 @@ export async function activate(context: vscode.ExtensionContext) {
 	// two of its own, so without these the editor's agent mode can reason but
 	// cannot read, edit, search or run anything.
 	registerSiriusTools(context, new SiriusToolExecutor());
+
+	// ─── SCM Assistance ──────────────────────────────────────────────────
+	// Fills the product.json hooks the workbench already renders buttons for:
+	// the commit-message sparkle and the resolve-merge-conflicts action.
+	registerGitAssist(context);
 
 	// ─── Inline Chat (Ctrl+I) ────────────────────────────────────────────
 	const inlineChat = new SiriusInlineChatProvider(modelRouter);
