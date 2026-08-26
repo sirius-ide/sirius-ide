@@ -11,6 +11,7 @@ import { SiriusLanguageModelProvider, SIRIUS_VENDOR } from './lm/languageModelPr
 import { registerSiriusTools } from './lm/toolRegistration';
 import { registerGitAssist } from './scm/gitAssist';
 import { registerSiriusAgent } from './chat/siriusAgent';
+import { registerEditorImporter } from './importer/editorImporter';
 import { SiriusToolExecutor } from './tools/toolExecutor';
 import { SiriusInlineChatProvider } from './inline/inlineChatProvider';
 
@@ -64,6 +65,9 @@ export async function activate(context: vscode.ExtensionContext) {
 	// workbench's setup placeholder intercepts every request demanding a
 	// GitHub sign-in, and the model picker stays an inert "Auto".
 	registerSiriusAgent(context);
+
+	// ─── Import from Another Editor ──────────────────────────────────────
+	registerEditorImporter(context);
 
 	// ─── Inline Chat (Ctrl+I) ────────────────────────────────────────────
 	const inlineChat = new SiriusInlineChatProvider();

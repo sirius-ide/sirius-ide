@@ -65,6 +65,10 @@
 			{
 				"command": "sirius.ai.resolveMergeConflicts",
 				"title": "Sirius: Resolve Merge Conflicts"
+			},
+			{
+				"command": "sirius.ai.importFromEditor",
+				"title": "Sirius: Import from VS Code, Cursor, or Windsurf"
 			}
 		],
 		"menus": {
