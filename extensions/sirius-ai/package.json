@@ -233,6 +233,11 @@
 					"type": "number",
 					"default": 12,
 					"description": "Longest suggestion Tab completion will offer, in lines."
+				},
+				"sirius.ai.ollama.largeModelBytes": {
+					"type": "number",
+					"default": 12000000000,
+					"description": "Refuse to load Ollama models larger than this many bytes — protection against freezing the machine with a model that far exceeds its memory. 0 disables the check."
 				}
 			}
 		},

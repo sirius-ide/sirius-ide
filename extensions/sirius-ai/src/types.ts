@@ -54,6 +54,8 @@ export interface SiriusModel {
 	name: string;
 	provider: ProviderType;
 	contextWindow: number;
+	/** On-disk size in bytes, when the runtime reports it (local models). */
+	sizeBytes?: number;
 	description: string;
 	supportsStreaming: boolean;
 	supportsVision: boolean;

@@ -50,9 +50,31 @@ export class OllamaProvider implements IAIProvider {
 		}
 	}
 
+	/** On-disk size per model name, from the last listing. */
+	private readonly _modelSizes = new Map<string, number>();
+
+	/**
+	 * Loading a model far larger than this machine's memory has frozen and
+	 * crashed the whole system before, not just the request. Refuse clearly
+	 * instead; sirius.ai.ollama.largeModelBytes raises or (0) disables the gate.
+	 */
+	private _guardModelSize(model: string): void {
+		const limit = vscode.workspace.getConfiguration('sirius.ai.ollama')
+			.get<number>('largeModelBytes', 12_000_000_000);
+		const size = this._modelSizes.get(model);
+		if (limit > 0 && size !== undefined && size > limit) {
+			throw new Error(
+				`Model "${model}" is ${(size / 1e9).toFixed(1)} GB — larger than the configured safety limit ` +
+				`(${(limit / 1e9).toFixed(0)} GB). Loading it can freeze this machine. ` +
+				'Prefer a smaller quantisation (Q4 of the same model), or raise "sirius.ai.ollama.largeModelBytes" knowingly.'
+			);
+		}
+	}
+
 	async *chat(request: ChatRequest): AsyncIterable<ChatChunk> {
 		const endpoint = this.getEndpoint();
 		const model = request.model || 'deepseek-coder-v3';
+		this._guardModelSize(model);
 
 		// Check if Ollama is running
 		try {
@@ -253,12 +275,18 @@ export class OllamaProvider implements IAIProvider {
 			if (!response.ok) { return []; }
 
 			const data = await response.json() as OllamaTagsResponse;
+			for (const m of data.models || []) {
+				if (m.size !== undefined) {
+					this._modelSizes.set(m.name, m.size);
+				}
+			}
 			const models: SiriusModel[] = (data.models || []).map(m => ({
 				id: m.name,
 				name: m.name,
 				provider: 'ollama' as ProviderType,
 				contextWindow: 128000,
-				description: `Local model — ${m.size ? (m.size / 1e9).toFixed(1) + 'B params' : 'unknown size'}`,
+				sizeBytes: m.size,
+				description: `Local model — ${m.size ? (m.size / 1e9).toFixed(1) + ' GB' : 'size unknown'}`,
 				supportsStreaming: true,
 				supportsVision: false,
 				supportsThinking: false,
