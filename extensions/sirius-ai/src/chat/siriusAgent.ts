@@ -5,6 +5,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { activeEditorContext, loadProjectRules } from './projectContext';
 
 /**
  * The panel's ask, edit and agent modes are served by whichever participant
@@ -314,8 +315,14 @@ function createLocalTools(stream: vscode.ChatResponseStream): LocalTool[] {
 }
 
 function buildMessages(chatContext: vscode.ChatContext, request: vscode.ChatRequest): vscode.LanguageModelChatMessage[] {
+	// Standing project instructions ride with every request, ahead of history.
+	const rules = loadProjectRules();
+	const preamble = rules.text
+		? `${PREAMBLE}\n\nProject instructions (from ${rules.sources.join(', ')}) — follow these:\n${rules.text}`
+		: PREAMBLE;
+
 	const messages: vscode.LanguageModelChatMessage[] = [
-		vscode.LanguageModelChatMessage.User(PREAMBLE)
+		vscode.LanguageModelChatMessage.User(preamble)
 	];
 
 	for (const turn of chatContext.history) {
@@ -342,9 +349,15 @@ function buildMessages(chatContext: vscode.ChatContext, request: vscode.ChatRequ
 		}
 	}
 
-	const prompt = attachments.length
+	let prompt = attachments.length
 		? `${request.prompt}\n\n(Attached: ${attachments.join(', ')})`
 		: request.prompt;
+
+	// What the user is looking at is context they meant implicitly.
+	const active = activeEditorContext();
+	if (active) {
+		prompt = `${active}\n\n${prompt}`;
+	}
 	messages.push(vscode.LanguageModelChatMessage.User(prompt));
 
 	return messages;
