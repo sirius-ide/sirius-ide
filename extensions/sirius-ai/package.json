@@ -242,6 +242,11 @@
 					"type": "number",
 					"default": 12000000000,
 					"description": "Refuse to load Ollama models larger than this many bytes — protection against freezing the machine with a model that far exceeds its memory. 0 disables the check."
+				},
+				"sirius.ai.nextEditSuggestions.enabled": {
+					"type": "boolean",
+					"default": false,
+					"description": "Predict your next edit after each change and offer it as a Tab-able diff (experimental; needs a local FIM model)."
 				}
 			}
 		},
@@ -431,6 +436,7 @@
 		"chatParticipantPrivate",
 		"chatProvider",
 		"languageModelThinkingPart",
-		"defaultChatParticipant"
+		"defaultChatParticipant",
+		"inlineCompletionsAdditions"
 	]
 }

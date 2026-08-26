@@ -16,6 +16,8 @@ export interface FimRequest {
 export interface FimBackend {
 	readonly id: string;
 	complete(request: FimRequest): Promise<string>;
+	/** Plain instruction-following generation, used by next-edit prediction. */
+	generate(prompt: string, maxTokens: number, signal: AbortSignal): Promise<string>;
 }
 
 /**
@@ -27,6 +29,25 @@ export interface FimBackend {
 /** Ollama's /api/generate takes prefix + suffix natively for FIM-trained models. */
 class OllamaFim implements FimBackend {
 	constructor(readonly id: string, private readonly endpoint: string, private readonly model: string) { }
+
+	async generate(prompt: string, maxTokens: number, signal: AbortSignal): Promise<string> {
+		const response = await fetch(`${this.endpoint}/api/generate`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			signal,
+			body: JSON.stringify({
+				model: this.model,
+				prompt,
+				stream: false,
+				options: { num_predict: maxTokens, temperature: 0.1 }
+			})
+		});
+		if (!response.ok) {
+			throw new Error(`Ollama ${response.status}`);
+		}
+		const body = await response.json() as { response?: string };
+		return body.response ?? '';
+	}
 
 	async complete(request: FimRequest): Promise<string> {
 		const response = await fetch(`${this.endpoint}/api/generate`, {
@@ -56,6 +77,20 @@ class OllamaFim implements FimBackend {
 /** llama.cpp's dedicated /infill endpoint. */
 class LlamaCppFim implements FimBackend {
 	constructor(readonly id: string, private readonly baseUrl: string) { }
+
+	async generate(prompt: string, maxTokens: number, signal: AbortSignal): Promise<string> {
+		const response = await fetch(`${this.baseUrl}/completion`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			signal,
+			body: JSON.stringify({ prompt, n_predict: maxTokens, temperature: 0.1 })
+		});
+		if (!response.ok) {
+			throw new Error(`llama.cpp ${response.status}`);
+		}
+		const body = await response.json() as { content?: string };
+		return body.content ?? '';
+	}
 
 	async complete(request: FimRequest): Promise<string> {
 		const response = await fetch(`${this.baseUrl}/infill`, {
