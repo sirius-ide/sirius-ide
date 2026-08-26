@@ -1,0 +1,8 @@
+{
+	"name": "sirius-probe",
+	"publisher": "siriustest",
+	"version": "0.0.1",
+	"engines": { "vscode": "*" },
+	"main": "./extension.js",
+	"activationEvents": ["onStartupFinished"]
+}
