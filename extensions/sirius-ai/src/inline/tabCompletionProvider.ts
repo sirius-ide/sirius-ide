@@ -6,6 +6,10 @@
 
 import * as vscode from 'vscode';
 import { FimBackend, resolveFimBackend } from './fimClient';
+import {
+	buildNesPrompt, locatePrediction, parseNesResponse,
+	NES_CONTEXT_LINES, RecentEditTracker
+} from './nextEditPredictor';
 
 const DEBOUNCE_MS = 180;
 const PREFIX_CHARS = 2000;
@@ -37,6 +41,7 @@ class CompletionCache {
 
 export class TabCompletionProvider implements vscode.InlineCompletionItemProvider {
 	private readonly cache = new CompletionCache();
+	private readonly recentEdits = new RecentEditTracker();
 	private inflight: AbortController | undefined;
 	private backend: FimBackend | undefined;
 	private backendProbedAt = 0;
@@ -48,10 +53,23 @@ export class TabCompletionProvider implements vscode.InlineCompletionItemProvide
 		token: vscode.CancellationToken
 	): Promise<vscode.InlineCompletionItem[]> {
 		const config = vscode.workspace.getConfiguration('sirius.ai');
-		if (!config.get<boolean>('inlineCompletions', false)) {
+		const completionsOn = config.get<boolean>('inlineCompletions', false);
+		const nesOn = config.get<boolean>('nextEditSuggestions.enabled', false);
+		if (!completionsOn && !nesOn) {
 			return [];
 		}
 		if (document.uri.scheme !== 'file' && document.uri.scheme !== 'untitled') {
+			return [];
+		}
+
+		// Next-edit prediction: a fresh human-scale edit implies the next one.
+		if (nesOn) {
+			const nextEdit = await this.predictNextEdit(document, position, token);
+			if (nextEdit) {
+				return [nextEdit];
+			}
+		}
+		if (!completionsOn) {
 			return [];
 		}
 
@@ -112,6 +130,54 @@ export class TabCompletionProvider implements vscode.InlineCompletionItemProvide
 				this.backend = undefined;
 			}
 			return [];
+		} finally {
+			if (this.inflight === controller) {
+				this.inflight = undefined;
+			}
+		}
+	}
+
+	private async predictNextEdit(
+		document: vscode.TextDocument,
+		position: vscode.Position,
+		token: vscode.CancellationToken
+	): Promise<vscode.InlineCompletionItem | undefined> {
+		const recent = this.recentEdits.freshEdit(document.uri);
+		if (!recent) {
+			return undefined;
+		}
+		if (!this.backend) {
+			this.backend = await resolveFimBackend();
+			if (!this.backend) {
+				return undefined;
+			}
+		}
+
+		const startLine = Math.max(0, position.line - NES_CONTEXT_LINES);
+		const endLine = Math.min(document.lineCount - 1, position.line + NES_CONTEXT_LINES);
+		const windowText = document.getText(new vscode.Range(startLine, 0, endLine, Number.MAX_SAFE_INTEGER));
+
+		this.inflight?.abort();
+		const controller = new AbortController();
+		this.inflight = controller;
+		token.onCancellationRequested(() => controller.abort());
+
+		try {
+			const raw = await this.backend.generate(buildNesPrompt(windowText, recent), 200, controller.signal);
+			const prediction = parseNesResponse(raw);
+			if (!prediction) {
+				return undefined;
+			}
+			const range = locatePrediction(document, prediction, recent.line);
+			if (!range || token.isCancellationRequested) {
+				return undefined;
+			}
+			const item = new vscode.InlineCompletionItem(prediction.newText, range);
+			(item as vscode.InlineCompletionItem & { isInlineEdit?: boolean; showRange?: vscode.Range }).isInlineEdit = true;
+			(item as vscode.InlineCompletionItem & { isInlineEdit?: boolean; showRange?: vscode.Range }).showRange = range;
+			return item;
+		} catch {
+			return undefined;
 		} finally {
 			if (this.inflight === controller) {
 				this.inflight = undefined;
