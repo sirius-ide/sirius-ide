@@ -12,6 +12,7 @@ import { registerSiriusTools } from './lm/toolRegistration';
 import { registerGitAssist } from './scm/gitAssist';
 import { registerSiriusAgent } from './chat/siriusAgent';
 import { registerEditorImporter } from './importer/editorImporter';
+import { registerProjectContextDebug } from './chat/projectContext';
 import { SiriusToolExecutor } from './tools/toolExecutor';
 import { SiriusInlineChatProvider } from './inline/inlineChatProvider';
 
@@ -68,6 +69,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	// ─── Import from Another Editor ──────────────────────────────────────
 	registerEditorImporter(context);
+	registerProjectContextDebug(context);
 
 	// ─── Inline Chat (Ctrl+I) ────────────────────────────────────────────
 	const inlineChat = new SiriusInlineChatProvider();
