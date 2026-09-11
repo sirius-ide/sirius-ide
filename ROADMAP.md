@@ -54,15 +54,16 @@ rebase instead of drifting.
 
 ## Phase 1c — What is genuinely ours to build
 
-- ⬜ **Tab / next-edit prediction** — the one Cursor feature upstream does not provide. Needs a fill-in-the-middle path, not a chat path, plus debounce, an LRU cache and cancellation. The current inline-completion provider has none of these and is correctly defaulted off.
-- ⬜ **Import from VS Code / Cursor / Windsurf** — settings, extensions and recent workspaces. Antigravity ships importers for all three plus Cider; it is the cheapest removal of the biggest switching barrier.
-- ⬜ **Wire the dead `product.json` hooks** — `generateCommitMessageCommand` and `resolveMergeConflictsCommand` are empty strings, so the SCM commit-message button and merge-conflict action already exist in the workbench and do nothing. One command each.
+- ✅ **Tab completion** — a real fill-in-the-middle path, not a chat path: native FIM against Ollama or llama.cpp, debounced, LRU-cached and cancellable (`inline/tabCompletionProvider.ts`, `inline/fimClient.ts`)
+- ✅ **Next-edit prediction** — predicts the next change after each edit and offers it as a Tab-able diff (`inline/nextEditPredictor.ts`). Default off; needs a local FIM model
+- ✅ **Import from VS Code / Cursor / Windsurf / VSCodium** — settings, extensions and recent workspaces (`importer/editorImporter.ts`), verified by the headless probe `test/harness/probes/import-from-vscode.js`
+- ✅ **Wired the dead `product.json` hooks** — `generateCommitMessageCommand` and `resolveMergeConflictsCommand` were empty strings, so the SCM commit-message sparkle and the merge-conflict action rendered and did nothing. Both live now (`scm/gitAssist.ts`)
 
 ## Phase 2 — Codebase intelligence
 
 - ⬜ **Codebase indexing** — embed the workspace (local or pluggable embeddings) for semantic retrieval. (Grow `context/contextEngine.ts` into an index with a vector store.)
 - ⬜ **Retrieval-augmented chat** — automatically pull the most relevant code into context.
-- ⬜ **Rules** — `.siriusrules` / `sirius.rules.md` to steer the agent per project (Cursor-rules / Antigravity-knowledge equivalent).
+- ✅ **Rules and ambient context** — project rules steer the agent per project, and the active editor's context is supplied automatically (`chat/projectContext.ts`), verified by `test/harness/probes/project-rules.js`
 - ⬜ **Repo memory / knowledge base** — persistent project facts the agent reuses across sessions.
 
 ## Phase 3 — Antigravity-class agents
@@ -81,27 +82,37 @@ rebase instead of drifting.
 - ⬜ Onboarding walkthrough content written for Sirius (the strings are correct; the walkthrough still teaches upstream's feature tour)
 - ⬜ Sign the Windows installer — SmartScreen warns on first run without it
 - ⬜ macOS builds — packaging exists, but needs an Apple Developer certificate for notarisation
-- ⬜ Deploy the update server and point `updateUrl` at it (it is `https://update.siriuside.com` today)
+- ✅ **Update server deployed** — `update.siriuside.com` is live and serving, backed by an R2 manifest with GitHub as fallback; downloads ride `dl.siriuside.com` at zero egress
 - ⬜ Settings UI for model providers and API keys
 - ⬜ Docs site
 
 ---
 
-## Near-term next steps (suggested order)
+## Near-term next steps
 
-**v1.118.0 shipped 2026-08-25** — first public release, all three platforms,
-built by CI from a tag, provenance-attested, mirrored to R2, and served by the
-production update endpoint. The remaining items need accounts rather than code.
+**Released: `v1.118.4` (2026-08-26).** Five releases so far, all three platform builds
+from CI, provenance-attested, mirrored to R2, served by the production update endpoint,
+and published to the Sirius pacman repository for Arch.
 
-1. ~~Tag a release~~ — **done**: `v1.118.0`, five cuts to get Windows through
-   Microsoft-internal packaging paths that `quality: stable` switches on.
-2. ~~Deploy the update server~~ — **done**: `update.siriuside.com`, serving
-   `dl.siriuside.com` (R2, zero egress) URLs with sha256 per asset.
-3. **Publish `sirius-ide-bin` to the AUR** — bump `pkgver` to 1.118.0 and run
-   `updpkgsums` against the live release. Needs the AUR account + SSH key.
-4. **Route edits through the chat-editing session** instead of
-   `workspace.fs.writeFile`, so file writes get a diff, preview and undo.
-5. **Tab / next-edit prediction** — the one Cursor feature upstream does not
-   provide, and the clearest reason to choose Sirius over stock VS Code.
+`HEAD` is 2 commits past `v1.118.4` — next-edit prediction and project rules are built
+but unreleased.
+
+**A full, current audit of what is done, what is live, what is verified and what is
+still open lives in [PROJECT-STATE.md](PROJECT-STATE.md).** It is the authoritative
+status document; this roadmap is the feature plan.
+
+The open items, highest value first:
+
+1. **`.deb` / `.rpm` have never actually shipped** — `INSTALL.md` promises them but the
+   CI step is `continue-on-error` and fails silently on every run. Fix the step or the
+   docs; today users are told to download something that does not exist.
+2. **Automate the Arch repo** — packages are built and uploaded entirely by hand, the
+   one un-scripted stage in the release train.
+3. **Route edits through the chat-editing session** instead of `workspace.fs.writeFile`,
+   so file writes get a diff, preview and undo.
+4. **A website** — `siriuside.com` has no DNS record; every user-facing URL points at
+   GitHub.
+5. **Exercise Anthropic and Gemini against live APIs** — both are wired and shape-correct
+   but have only been proven against stubs and local models.
 
 > Pick the next item and Sirius will implement it end to end.
