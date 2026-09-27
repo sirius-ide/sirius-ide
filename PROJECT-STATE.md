@@ -411,6 +411,34 @@ Each of these cost real time.
   `code.iss` line 108 requires the staged updater binaries unconditionally.
 - **arm64 must build on an arm64 runner.** Cross-compiling on x64 builds Electron's
   native modules for the wrong host and fails late and confusingly.
+- **arm64 therefore ships a tarball ONLY — no `.deb`, no `.rpm`.** Installable Linux
+  packages require the glibc-2.28 sysroot, and its aarch64 toolchain is a Canadian
+  cross whose compilers are *x86_64* ELF binaries — they cannot execute on
+  `ubuntu-24.04-arm` at all. A native arm64 build floors at the runner's glibc 2.38
+  and GLIBCXX_3.4.31, over every cap in the aarch64 reference dep-lists, and apt/dnf
+  on Debian 12, Ubuntu 22.04 and RHEL/Rocky 9 correctly refuse such a package. Do NOT
+  "finish the matrix" by setting `FAIL_BUILD_FOR_NEW_DEPENDENCIES = false` or by
+  regenerating the lists from a runner build: a package that will not install is
+  worse than a missing one. The only route to arm64 packages is upstream's
+  sysroot cross-build on an x64 runner, which is a separate, separately-rehearsed
+  change.
+- **x64 packages only install because `build/azure-pipelines/linux/setup-env.sh` is
+  sourced in the SAME `run:` block as `npm ci`.** GitHub Actions gives every step a
+  fresh shell and the script only *exports* CC/CXX/CXXFLAGS/LDFLAGS. Split them and
+  `npm ci` silently falls back to the runner's gcc; nothing fails until prepare-deb,
+  two steps later, with "The dependencies list has changed". `build/` must also be
+  `npm ci`'d BEFORE that step — `libcxx-fetcher.ts` imports `@electron/get` from
+  `build/node_modules`, which the root postinstall only creates afterwards.
+- **Sirius ships the public Electron, upstream's reference dep-lists assume
+  Microsoft's.** `product.json` has no `electronRepository`, so the binary links
+  `libcups.so.2`; the amd64/x86_64 lists had no cups entry. Every Electron bump can
+  surface another such delta — the "Old:/New:" diff `prepare-deb` prints is the
+  designed diagnostic, not a wall to route around.
+- **`resources/linux/debian/postrm.template` used to delete Microsoft's apt source and
+  signing key on uninstall.** Upstream's teardown keyed on a debconf question Sirius no
+  longer declares, so `RET` kept its literal `true` and the removal ran unconditionally
+  — breaking updates for a real VS Code installed beside Sirius. Latent only because no
+  `.deb` had ever shipped; fixed before the first one does.
 - **The old deb `postinst` installed Microsoft's apt repository and signing key onto
   the user's machine.** Removed. Do not let a rebase bring it back.
 - **Four Windows AppIds contained non-hex characters** and would have broken the Inno
@@ -435,6 +463,12 @@ git tag v1.118.5 && git push origin sirius --tags
 # 3. CI builds linux x64/arm64 + win32, attests, releases, mirrors to R2,
 #    writes latest-stable.json. Watch it:
 gh run watch --repo sirius-ide/sirius-ide
+#    Green is not proof of packages, but RED for packaging is now a real failure:
+#    the "Packaging gate" fails the linux job and Publish is skipped by design.
+#    Read the step summary. If you have decided to ship without deb/rpm anyway,
+#    dispatch against the TAG (a branch dispatch is skipped by the Publish gate;
+#    "Re-run failed jobs" replays the push event with no inputs):
+#    gh workflow run sirius-release.yml --ref v1.118.5 -f allow_missing_packages=true
 
 # 4. Confirm the update server sees it
 curl https://update.siriuside.com/api/update/linux-x64/stable/0000000000000000000000000000000000000000

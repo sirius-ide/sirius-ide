@@ -11,6 +11,10 @@ on:
         description: 'Publish to the insider channel'
         type: boolean
         default: false
+      allow_missing_packages:
+        description: 'Ship even if the .deb/.rpm failed to build'
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -23,18 +27,42 @@ permissions:
 jobs:
   linux:
     name: Linux ${{ matrix.arch }}
-    # Native runners per architecture. Cross-compiling arm64 on an x64 runner
-    # means Electron's native modules are built for the wrong host, which fails
-    # late and confusingly. GitHub's arm64 runners are free for public repos.
     runs-on: ${{ matrix.runner }}
+    # The build jobs run `npm ci` with ignore-scripts=false — arbitrary lifecycle
+    # scripts from the whole dependency tree. They have no reason to hold the
+    # workflow-level write token; only Publish does.
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
         include:
+          # x64 compiles its native modules inside the glibc-2.28 sysroot with
+          # Chromium's clang and a statically linked libc++ (see "Install
+          # dependencies"). That, and only that, is what makes the deb/rpm
+          # installable on Debian 12, Ubuntu 22.04 and RHEL/Rocky 9.
+          # ubuntu-22.04 on purpose: the rpm dependency strings come from the
+          # RUNNER's `/usr/lib/rpm/find-requires` and must match
+          # build/linux/rpm/dep-lists.ts byte for byte, and that list was
+          # generated on upstream's 22.04 agent. (The deb side is different: it
+          # runs a Chromium-pinned dpkg-shlibdeps.pl fetched at prepare time, so
+          # when 22.04 retires, re-check the rpm list first.)
           - arch: x64
-            runner: ubuntu-latest
+            runner: ubuntu-22.04
+            packages: 'true'
+          # arm64 ships a TARBALL ONLY — no deb, no rpm, deliberately.
+          # Cross-compiling arm64 on an x64 runner builds Electron's native
+          # modules for the wrong host (PROJECT-STATE.md section 11), and the
+          # sysroot cross-toolchain that would fix that is an x86_64 ELF binary,
+          # so it cannot execute on this runner at all. A native arm64 build
+          # therefore floors at the runner's glibc (2.38+) and libstdc++
+          # (GLIBCXX_3.4.3x), which is over every cap in the aarch64 reference
+          # dep-lists: the packages either refuse to generate or, if forced
+          # through, are rejected by apt and dnf on all three target distros.
+          # Shipping no arm64 package beats shipping one nobody can install.
           - arch: arm64
             runner: ubuntu-24.04-arm
+            packages: 'false'
     steps:
       - uses: actions/checkout@v4
 
@@ -48,34 +76,176 @@ jobs:
       - name: Pin npm below the version the build rejects
         run: npm install -g npm@10
 
+      # python-is-python3: setup-env.sh pipes Chromium's update.py into `python`,
+      # not `python3`, and Ubuntu ships no unversioned alias. The runtime
+      # libraries after libnss3 are what the Electron binary hard-links; the
+      # smoke step below is the first thing in this job that executes it.
       - name: Install build prerequisites
         run: |
           sudo apt-get update
           sudo apt-get install -y libkrb5-dev libsecret-1-dev libx11-dev libxkbfile-dev \
-            fakeroot rpm libnss3 libgtk-3-0
+            fakeroot rpm dpkg-dev pkg-config python-is-python3 \
+            libnss3 libnspr4 libgtk-3-0 libgbm1 libatspi2.0-0 libatk-bridge2.0-0 libcups2 \
+            libxkbcommon0 libdrm2 libxdamage1 libxcomposite1 libxfixes3 libxrandr2
+          # Ubuntu 24.04 renamed libasound2 to libasound2t64; the arm64 runner is 24.04.
+          sudo apt-get install -y libasound2t64 || sudo apt-get install -y libasound2
 
-      - name: Install dependencies
+      # ~290 MB of toolchain. The pinned versions live in four different files —
+      # the sysroot release tag in install-sysroot.ts, the Chromium revision in
+      # setup-env.sh, the Electron target in .npmrc and the libc++ artifact
+      # version libcxx-fetcher.ts reads from package.json — so hash those rather
+      # than transcribing version numbers that would silently go stale.
+      - name: Cache sysroot and clang toolchain
+        if: matrix.packages == 'true'
+        uses: actions/cache@v4
+        with:
+          path: |
+            .build/sysroots
+            .build/CR_Clang
+            .build/libcxx-objects
+            .build/libcxx_headers
+            .build/libcxxabi_headers
+          key: linux-toolchain-${{ matrix.arch }}-${{ hashFiles('build/azure-pipelines/linux/setup-env.sh', 'build/linux/debian/install-sysroot.ts', 'build/checksums/vscode-sysroot.txt', '.npmrc', 'package.json') }}
+
+      # setup-env.sh runs build/linux/libcxx-fetcher.ts, which imports
+      # @electron/get, extract-zip and debug. Those are build/package.json
+      # devDependencies; the root `npm ci` only populates build/node_modules from
+      # its postinstall, i.e. after setup-env.sh needs them. Upstream installs
+      # build/ first for exactly this reason, with the token: build/'s
+      # @vscode/ripgrep pulls its binary from GitHub in an install script.
+      - name: Install build-script dependencies
+        if: matrix.packages == 'true'
+        working-directory: build
         run: npm ci
         env:
-          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+          GITHUB_TOKEN: ${{ github.token }}
 
+      # ONE step, deliberately. setup-env.sh only *exports* CC/CXX/CXXFLAGS/
+      # LDFLAGS, and Actions gives every `run:` a fresh shell — sourcing it in a
+      # step of its own configures a shell that immediately exits, and `npm ci`
+      # then quietly uses the runner's gcc and libstdc++. That failure is silent
+      # until prepare-deb, where dependencies-generator.ts throws over libstdc++
+      # and libc6 (>= 2.39) entries the amd64 reference list does not contain.
+      # Do NOT route the flags through $GITHUB_ENV either: they would leak
+      # `-nostdinc++ -stdlib=libc++ --sysroot=...` into every later step.
+      # `npm ci` runs build/npm/preinstall.ts itself (it is the preinstall
+      # lifecycle script), inside this same toolchain env.
+      - name: Install dependencies
+        run: |
+          set -e
+          if [ "${{ matrix.packages }}" = 'true' ]; then
+            export VSCODE_ARCH='${{ matrix.arch }}'
+            export npm_config_arch='${{ matrix.arch }}'
+            source ./build/azure-pipelines/linux/setup-env.sh
+          fi
+          # The token was only for install-sysroot.ts (api.github.com's anonymous
+          # budget is 60 requests/hour per egress IP). It must not reach the
+          # lifecycle scripts `npm ci` is about to run with ignore-scripts=false.
+          unset GITHUB_TOKEN
+          npm ci
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+          GITHUB_TOKEN: ${{ github.token }}
+
+      # No toolchain env here on purpose: the packaging tasks compile no native
+      # code. Every .node was built by `npm ci` above; this bundles and copies.
       - name: Build
         run: npm run gulp vscode-linux-${{ matrix.arch }}-min
         env:
           NODE_OPTIONS: --max-old-space-size=8192
+
+      # The check that turns "the package installs" into "the package runs".
+      # Scope mirrors dependencies-generator.ts exactly, so a pass here means the
+      # dep-list comparison below cannot be surprised. x64 must be libc++-only
+      # with a glibc-2.28 floor — that is what the amd64 reference lists encode.
+      # arm64 is built natively and is KNOWN to exceed this; it runs advisory so
+      # the real numbers stay in the log without failing a leg that never
+      # promised packages.
+      - name: Verify ABI floor
+        continue-on-error: ${{ matrix.packages != 'true' }}
+        env:
+          APP_DIR: ${{ github.workspace }}/../VSCode-linux-${{ matrix.arch }}
+          MAX_GLIBC: '2.28'
+          MAX_GLIBCXX: ${{ matrix.arch == 'x64' && 'none' || '3.4.26' }}
+        run: bash ./build/sirius/abi-floor.sh
+
+      # dlopen every rebuilt native module under the real Electron ABI — the
+      # .node files themselves, not the package entry points, which lazily load
+      # and swallow errors. ~3s, no display needed, and the cheapest possible
+      # proof that swapping libstdc++ for libc++ did not break the modules the
+      # editor loads at startup. Advisory on the tarball-only arch: an arm64
+      # runtime problem must not block the x64 release this job exists for.
+      - name: Smoke - native modules load
+        continue-on-error: ${{ matrix.packages != 'true' }}
+        run: |
+          cd "${{ github.workspace }}/../VSCode-linux-${{ matrix.arch }}"
+          ELECTRON_RUN_AS_NODE=1 ./sirius -e '
+            const { execSync } = require("child_process");
+            const path = require("path");
+            const files = execSync("find resources/app/node_modules -name \"*.node\" -not -path \"*/obj.target/*\"", { encoding: "utf8" })
+              .trim().split("\n").filter(Boolean);
+            const windowsOnly = /windows-foreground-love|deviceid\/build\/Release\/windows\.node|win32-|-msvc-/;
+            let ok = 0, bad = 0;
+            for (const f of files) {
+              if (windowsOnly.test(f)) { console.log("skip " + f); continue; }
+              try { process.dlopen({ exports: {} }, path.resolve(f)); ok++; console.log("ok   " + f); }
+              catch (e) { bad++; console.log("FAIL " + f + " :: " + String(e.message).split("\n")[0]); }
+            }
+            console.log(ok + " loaded, " + bad + " failed");
+            if (ok < 7) { console.log("::error::expected at least 7 native modules to load, got " + ok); process.exit(1); }
+            process.exit(bad ? 1 : 0);'
 
       - name: Package tarball
         run: |
           tar -czf sirius-linux-${{ matrix.arch }}.tar.gz -C .. VSCode-linux-${{ matrix.arch }}
           sha256sum sirius-linux-${{ matrix.arch }}.tar.gz > sirius-linux-${{ matrix.arch }}.tar.gz.sha256
 
-      - name: Build deb and rpm
+      # The `-build-deb` / `-build-rpm` tasks do NOT chain their `-prepare-` half
+      # (only the snap task does, build/gulpfile.vscode.linux.ts:293-306). Calling
+      # build alone runs dpkg-deb in .build/linux/deb/<arch>, a directory only
+      # prepare creates, and Node reports the missing cwd as `spawn /bin/sh
+      # ENOENT` — a missing shell, which it is not. deb and rpm also get their own
+      # steps: under one `bash -e` block a failing rpm discarded a .deb that had
+      # already built, because the copy-out never ran.
+      - name: Package deb
+        id: deb
+        if: matrix.packages == 'true'
         continue-on-error: true
+        shell: bash
+        env:
+          VSCODE_ARCH: ${{ matrix.arch }}
+          GITHUB_TOKEN: ${{ github.token }}
+          # prepare-deb resolves the sysroot again; point it at the copy
+          # setup-env.sh already fetched so it short-circuits on the .stamp file
+          # instead of pulling another 112 MB into /tmp.
+          VSCODE_SYSROOT_DIR: ${{ github.workspace }}/.build/sysroots/glibc-2.28-gcc-10.5.0
         run: |
+          set -eo pipefail
+          npm run gulp vscode-linux-${{ matrix.arch }}-prepare-deb
           npm run gulp vscode-linux-${{ matrix.arch }}-build-deb
-          npm run gulp vscode-linux-${{ matrix.arch }}-build-rpm
-          find .build/linux -name '*.deb' -o -name '*.rpm' | while read -r f; do cp "$f" .; done
+          find .build/linux/deb -name '*.deb' -exec cp -v {} . \;
+          compgen -G '*.deb' > /dev/null
 
+      - name: Package rpm
+        id: rpm
+        if: matrix.packages == 'true'
+        continue-on-error: true
+        shell: bash
+        env:
+          VSCODE_ARCH: ${{ matrix.arch }}
+        run: |
+          set -eo pipefail
+          npm run gulp vscode-linux-${{ matrix.arch }}-prepare-rpm
+          npm run gulp vscode-linux-${{ matrix.arch }}-build-rpm
+          find .build/linux/rpm -name '*.rpm' -exec cp -v {} . \;
+          compgen -G '*.rpm' > /dev/null
+
+      # Upload BEFORE the gate: a packaging failure must fail the job, but it
+      # must not also throw away the tarball and whichever package did build —
+      # those are what you inspect to diagnose it, and what a deliberate
+      # ship-without-packages would publish. *.deb/*.rpm match nothing on the
+      # tarball-only arch; the tarball pattern still matches, so the upload
+      # succeeds with a warning rather than failing.
       - uses: actions/upload-artifact@v4
         with:
           name: linux-${{ matrix.arch }}
@@ -84,12 +254,58 @@ jobs:
             *.deb
             *.rpm
 
+      # INSTALL.md promises both formats for x64. A missing package is a release
+      # regression, not a footnote in a job summary nobody opens on a green run —
+      # which is exactly how this hid for five releases. The per-package steps
+      # tolerate failure only so one cannot discard the other's output; THIS step
+      # is what fails the job, and a failed linux job skips Publish.
+      # Recovery, once you have decided to ship without them anyway:
+      #   gh workflow run sirius-release.yml --ref <tag> -f allow_missing_packages=true
+      # (dispatch against the TAG, not the branch — a branch dispatch is skipped
+      # by the Publish gate. "Re-run failed jobs" replays the push event with no
+      # inputs, so it cannot reach this path.)
+      - name: Packaging gate
+        if: (success() || failure()) && matrix.packages == 'true'
+        shell: bash
+        run: |
+          shopt -s nullglob
+          debs=(*.deb); rpms=(*.rpm)
+          deb="${debs[*]}"; rpm="${rpms[*]}"
+          {
+            echo "### Linux ${{ matrix.arch }} packaging"
+            echo
+            echo "| package | step | files |"
+            echo "| --- | --- | --- |"
+            echo "| deb | ${{ steps.deb.outcome }} | ${deb:-none} |"
+            echo "| rpm | ${{ steps.rpm.outcome }} | ${rpm:-none} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ -z "${{ steps.deb.outcome }}" ]; then
+            echo "packaging did not run — the job failed earlier; see the steps above"
+            exit 0
+          fi
+          fail=0
+          [ -n "$deb" ] || { echo "::error title=No .deb for ${{ matrix.arch }}::'Package deb' outcome: ${{ steps.deb.outcome }}"; fail=1; }
+          [ -n "$rpm" ] || { echo "::error title=No .rpm for ${{ matrix.arch }}::'Package rpm' outcome: ${{ steps.rpm.outcome }}"; fail=1; }
+          if [ "$fail" = 1 ] && [ "${{ inputs.allow_missing_packages || 'false' }}" != 'true' ]; then
+            echo "INSTALL.md promises both packages. To ship without them anyway:"
+            echo "  gh workflow run sirius-release.yml --ref <tag> -f allow_missing_packages=true"
+            exit 1
+          fi
+
+      - name: Note the tarball-only arch
+        if: always() && matrix.packages != 'true'
+        run: |
+          echo "### Linux ${{ matrix.arch }}: tarball only" >> "$GITHUB_STEP_SUMMARY"
+          echo "No .deb/.rpm by design — see the matrix comment in this workflow." >> "$GITHUB_STEP_SUMMARY"
+
   windows:
     name: Windows x64
     # Pinned: windows-latest now carries Visual Studio 18, which node-gyp 11
     # cannot classify ("unknown version undefined"), so native modules fail to
     # configure. The 2022 image carries VS2022, which it fully understands.
     runs-on: windows-2022
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -123,9 +339,16 @@ jobs:
   release:
     name: Publish
     needs: [linux, windows]
-    # Windows signing is not set up yet, so a failed Windows build must not
-    # block a Linux release.
-    if: always() && needs.linux.result == 'success'
+    # A release is a tag. Without the ref_type guard a workflow_dispatch on a
+    # BRANCH reaches this job — and `sirius` is the repository default branch, so
+    # it is the pre-selected option in the Run-workflow dropdown. That would mint
+    # real provenance attestations for untagged mid-branch binaries and write
+    # latest-stable.json with productVersion "sirius", which the update worker
+    # serves to every installed editor as its primary source, with no
+    # version-ordering check and no way back. `always()` is the separate,
+    # deliberate allowance: Windows signing is not set up yet, so a failed
+    # Windows build must not block a Linux release.
+    if: always() && github.ref_type == 'tag' && needs.linux.result == 'success'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -144,6 +367,9 @@ jobs:
 
       - uses: softprops/action-gh-release@v2
         with:
+          # Explicit rather than inherited from the ref: the job is already
+          # tag-only, and this makes that visible at the point it matters.
+          tag_name: ${{ github.ref_name }}
           files: dist/*
           prerelease: ${{ inputs.prerelease || false }}
           generate_release_notes: true
@@ -151,15 +377,21 @@ jobs:
       # Mirror the assets to R2 so downloads ride the zero-egress CDN path.
       # Gated on a repo *variable* so CI stays green before Cloudflare is wired;
       # the keys are an R2 API token scoped to this one bucket, nothing wider.
+      # R2_ENDPOINT carries the Cloudflare account id. It is an identifier, not a
+      # credential — the endpoint rejects unsigned requests — and it is STILL
+      # visible in this step's rendered env block, because repository variables
+      # are not masked. Moving it to a repository secret would mask it; that
+      # needs the secret to exist first. See PROJECT-STATE §7.
       - name: Mirror release to R2
         if: vars.R2_ENDPOINT != ''
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           AWS_DEFAULT_REGION: auto
+          R2_ENDPOINT: ${{ vars.R2_ENDPOINT }}
         run: |
           aws s3 cp dist/ "s3://sirius-releases/releases/${{ github.ref_name }}/" \
-            --recursive --endpoint-url "${{ vars.R2_ENDPOINT }}"
+            --recursive --endpoint-url "$R2_ENDPOINT"
 
       # The manifest the update worker reads instead of the GitHub API — a
       # bucket read has no rate limits, so update checks cannot flake.
@@ -169,6 +401,7 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           AWS_DEFAULT_REGION: auto
+          R2_ENDPOINT: ${{ vars.R2_ENDPOINT }}
           TAG: ${{ github.ref_name }}
           QUALITY: ${{ inputs.prerelease && 'insider' || 'stable' }}
         run: |
@@ -186,4 +419,4 @@ jobs:
           }, open('latest.json', 'w'))
           PYEOF
           aws s3 cp latest.json "s3://sirius-releases/latest-$QUALITY.json" \
-            --endpoint-url "${{ vars.R2_ENDPOINT }}"
+            --endpoint-url "$R2_ENDPOINT"

@@ -23,6 +23,10 @@ export const recommendedDeps = [
 ];
 
 export const referenceGeneratedDepsByArch = {
+	// Sirius: `libcups2 (>= 1.6.0)` is ADDED to amd64 because Sirius ships the
+	// public electron/electron build, which links libcups (see rpm/dep-lists.ts).
+	// The version constraint is upstream's for the same bullseye sysroot; the first
+	// rehearsal's "Old:/New:" diff confirms it.
 	'amd64': [
 		'ca-certificates',
 		'libasound2 (>= 1.0.17)',
@@ -37,6 +41,7 @@ export const referenceGeneratedDepsByArch = {
 		'libc6 (>= 2.28)',
 		'libc6 (>= 2.4)',
 		'libcairo2 (>= 1.6.0)',
+		'libcups2 (>= 1.6.0)',
 		'libcurl3-gnutls | libcurl3-nss | libcurl4 | libcurl3',
 		'libdbus-1-3 (>= 1.9.14)',
 		'libexpat1 (>= 2.1~beta3)',
