@@ -5,7 +5,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { ChatMessage, ProviderType, SiriusModel, ToolCallRequest, ToolCallResult, ToolDefinition } from '../types';
+import { ChatMessage, ImagePart, ProviderType, SiriusModel, ToolCallRequest, ToolCallResult, ToolDefinition } from '../types';
 import { ModelRouter } from '../providers/modelRouter';
 
 /** The vendor Sirius registers under. Must match `languageModelChatProviders` in package.json. */
@@ -52,7 +52,7 @@ function toLmId(provider: ProviderType, modelId: string): string {
 	return `${provider}/${modelId}`;
 }
 
-function fromLmId(id: string): { provider: ProviderType; modelId: string } {
+export function fromLmId(id: string): { provider: ProviderType; modelId: string } {
 	const slash = id.indexOf('/');
 	if (slash === -1) {
 		return { provider: 'ollama', modelId: id };
@@ -88,6 +88,20 @@ export class SiriusLanguageModelProvider implements vscode.LanguageModelChatProv
 		this._onDidChange.dispose();
 	}
 
+	/**
+	 * Every model the editor was last told about, by its lm id.
+	 *
+	 * The router only knows the static lists; local runtimes are discovered here
+	 * and nowhere else, so this is the one place a discovered Ollama model's
+	 * `sizeBytes` can be looked up afterwards. The agent uses it to pick a tool
+	 * tier — the context window alone cannot tell a 1.5B from a 32B.
+	 */
+	private readonly _known = new Map<string, SiriusModel>();
+
+	getKnownModel(lmId: string): SiriusModel | undefined {
+		return this._known.get(lmId);
+	}
+
 	// ─── Model discovery ─────────────────────────────────────────────────────
 
 	async provideLanguageModelChatInformation(
@@ -117,8 +131,12 @@ export class SiriusLanguageModelProvider implements vscode.LanguageModelChatProv
 			return [];
 		}
 
+		this._known.clear();
 		const described = resolved.flatMap(({ provider, models }) =>
-			models.map(model => this._describe(provider.id, provider.name, model))
+			models.map(model => {
+				this._known.set(toLmId(provider.id, model.id), model);
+				return this._describe(provider.id, provider.name, model);
+			})
 		);
 
 		// The panel's "Auto" resolves to whichever model is marked default; with
@@ -179,7 +197,7 @@ export class SiriusLanguageModelProvider implements vscode.LanguageModelChatProv
 		token: vscode.CancellationToken
 	): Promise<void> {
 		const { provider, modelId } = fromLmId(model.id);
-		const converted = this._toChatMessages(messages);
+		const converted = withVisionGuard(this._toChatMessages(messages), model.capabilities?.imageInput === true);
 		const tools = this._toToolDefinitions(options.tools);
 
 		for await (const chunk of this.router.chatWithProvider(provider, modelId, converted, tools)) {
@@ -243,6 +261,7 @@ export class SiriusLanguageModelProvider implements vscode.LanguageModelChatProv
 		for (const message of messages) {
 			const isAssistant = message.role === vscode.LanguageModelChatMessageRole.Assistant;
 			let text = '';
+			const images: ImagePart[] = [];
 			const toolCalls: ToolCallRequest[] = [];
 			const toolResults: ToolCallResult[] = [];
 
@@ -251,13 +270,17 @@ export class SiriusLanguageModelProvider implements vscode.LanguageModelChatProv
 					toolNames.set(part.callId, part.name);
 					toolCalls.push({ id: part.callId, name: part.name, arguments: part.input as Record<string, unknown> });
 				} else if (isToolResultPart(part)) {
+					const flattened = flattenResultContent(part.content);
 					toolResults.push({
 						id: part.callId,
 						name: toolNames.get(part.callId) ?? '',
-						content: flattenResultContent(part.content)
+						content: flattened.text,
+						...(flattened.images.length ? { images: flattened.images } : {})
 					});
 				} else if (isTextPart(part)) {
 					text += part.value;
+				} else if (isImageDataPart(part)) {
+					images.push(toImagePart(part));
 				}
 			}
 
@@ -267,8 +290,15 @@ export class SiriusLanguageModelProvider implements vscode.LanguageModelChatProv
 
 			if (toolCalls.length > 0) {
 				converted.push({ role: 'assistant', content: text, timestamp, toolCalls });
-			} else if (text) {
-				converted.push({ role: isAssistant ? 'assistant' : 'user', content: text, timestamp });
+			} else if (text || images.length) {
+				// An image-only turn is legitimate — a pasted screenshot with no
+				// words — so presence of either is enough to emit the message.
+				converted.push({
+					role: isAssistant ? 'assistant' : 'user',
+					content: text,
+					timestamp,
+					...(images.length ? { images } : {})
+				});
 			}
 		}
 
@@ -294,6 +324,41 @@ export class SiriusLanguageModelProvider implements vscode.LanguageModelChatProv
 		// Roughly four characters per token across the tokenizers in use here.
 		return Math.ceil(content.length / 4);
 	}
+}
+
+// ─── Vision guard ────────────────────────────────────────────────────────────
+
+/**
+ * Keep images only for models that can see them.
+ *
+ * Most local models are text-only. Sending them an image block is at best a
+ * provider error and at worst silently ignored, so the model answers as if the
+ * user attached nothing. Replacing each image with a short note is the honest
+ * degradation: the model knows something was attached and can say it cannot
+ * view it, rather than confidently describing a screenshot it never received.
+ */
+function withVisionGuard(messages: ChatMessage[], canSee: boolean): ChatMessage[] {
+	if (canSee) {
+		return messages;
+	}
+	return messages.map(message => {
+		const { images, toolResults, ...rest } = message;
+		const note = (count: number) =>
+			`\n[${count} image${count === 1 ? '' : 's'} attached — this model cannot view images]`;
+		const stripped: ChatMessage = { ...rest };
+		if (images?.length) {
+			stripped.content = (message.content + note(images.length)).trim();
+		}
+		if (toolResults) {
+			stripped.toolResults = toolResults.map(result => {
+				const { images: resultImages, ...resultRest } = result;
+				return resultImages?.length
+					? { ...resultRest, content: (result.content + note(resultImages.length)).trim() }
+					: resultRest;
+			});
+		}
+		return stripped;
+	});
 }
 
 // ─── Part predicates ─────────────────────────────────────────────────────────
@@ -322,7 +387,45 @@ function isToolResultPart(part: unknown): part is vscode.LanguageModelToolResult
 	return typeof candidate.callId === 'string' && Array.isArray(candidate.content);
 }
 
-/** Tool results are themselves an array of parts; providers want plain text. */
-function flattenResultContent(content: readonly unknown[]): string {
-	return content.map(part => (isTextPart(part) ? part.value : '')).join('').trim();
+/**
+ * An image arriving from the editor as a `LanguageModelDataPart`.
+ *
+ * Matched on shape, like the other predicates — these cross the extension-host
+ * boundary, so `instanceof` is unreliable across realms. `data` survives that
+ * crossing as a Uint8Array or as an array-like of bytes depending on the host,
+ * so the check stays deliberately loose and the decode below handles both.
+ */
+function isImageDataPart(part: unknown): part is vscode.LanguageModelDataPart {
+	if (typeof part !== 'object' || part === null) {
+		return false;
+	}
+	const candidate = part as vscode.LanguageModelDataPart;
+	return typeof candidate.mimeType === 'string'
+		&& candidate.mimeType.startsWith('image/')
+		&& candidate.data !== undefined && candidate.data !== null;
+}
+
+/** Decode a data part's bytes to base64 without assuming which shape survived. */
+function toImagePart(part: vscode.LanguageModelDataPart): ImagePart {
+	const raw = part.data as unknown;
+	const bytes = raw instanceof Uint8Array ? raw : new Uint8Array(raw as ArrayLike<number>);
+	return { base64: Buffer.from(bytes).toString('base64'), mimeType: part.mimeType };
+}
+
+/**
+ * Tool results are themselves an array of parts. Text is concatenated; images
+ * are carried out separately so a screenshot tool's output can actually reach a
+ * vision model instead of being silently discarded.
+ */
+function flattenResultContent(content: readonly unknown[]): { text: string; images: ImagePart[] } {
+	let text = '';
+	const images: ImagePart[] = [];
+	for (const part of content) {
+		if (isTextPart(part)) {
+			text += part.value;
+		} else if (isImageDataPart(part)) {
+			images.push(toImagePart(part));
+		}
+	}
+	return { text: text.trim(), images };
 }

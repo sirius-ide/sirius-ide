@@ -65,7 +65,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	// participant — the role Copilot Chat plays upstream. Without it, the
 	// workbench's setup placeholder intercepts every request demanding a
 	// GitHub sign-in, and the model picker stays an inert "Auto".
-	registerSiriusAgent(context);
+	registerSiriusAgent(context, lmProvider);
 
 	// ─── Import from Another Editor ──────────────────────────────────────
 	registerEditorImporter(context);

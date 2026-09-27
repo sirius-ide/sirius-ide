@@ -6,6 +6,8 @@
 
 import * as vscode from 'vscode';
 import { activeEditorContext, loadProjectRules } from './projectContext';
+import type { SiriusLanguageModelProvider } from '../lm/languageModelProvider';
+import type { SiriusModel } from '../types';
 
 /**
  * The panel's ask, edit and agent modes are served by whichever participant
@@ -26,12 +28,81 @@ const PARTICIPANT_ID = 'sirius.default';
 const MAX_TOOL_ROUNDS = 25;
 const MAX_TOOL_RESULT_CHARS = 24_000;
 
-/** Native tools worth a model's attention; the rest is plumbing or later work. */
-const NATIVE_ALLOWLIST = new Set([
+/**
+ * Native workbench tools, in two tiers.
+ *
+ * Upstream ships a real agent toolset — terminal, tasks, todo lists, plan
+ * review, artifacts, subagents — and every one of them is registered whether or
+ * not Copilot is present. Offering all of it to a small local model produces
+ * tool-call JSON as prose (see the notes above), so the set scales with the
+ * model: CORE for everyone, EXTENDED once the context window says the model can
+ * hold the extra schemas without losing the plot.
+ *
+ * Deliberately absent: `task_complete` (signals the end of the workbench's own
+ * loop; ours ends when a round makes no calls), `terminal_selection` (needs a
+ * focused terminal mid-run), and the `vscode_get_*_confirmation` plumbing.
+ *
+ * Unreachable, so not listed: `setArtifacts` and `setArtifactRules` are
+ * core-agents-only like the edit tool — registered with the tools service but
+ * never exposed through `vscode.lm.tools`, as test/harness/probes/agent-tools.js
+ * shows. Listing them here would filter to nothing and quietly promise a
+ * capability the model never receives.
+ */
+const CORE_NATIVE = new Set([
 	'run_in_terminal',
 	'get_terminal_output',
 	'manage_todo_list'
 ]);
+
+const EXTENDED_NATIVE = new Set([
+	...CORE_NATIVE,
+	'send_to_terminal',
+	'kill_terminal',
+	'terminal_last_command',
+	'run_task',
+	'get_task_output',
+	'create_and_run_task',
+	'runTests',
+	'runSubagent',
+	'vscode_reviewPlan',
+	'vscode_askQuestions',
+	// The integrated browser (browserView/electron-browser/tools). These only
+	// exist in `vscode.lm.tools` while `workbench.browser.enableChatTools` and
+	// agent mode are on — with the gate closed the filter simply matches
+	// nothing. `read_page` is the accessibility snapshot, the right primary
+	// path for text-only local models; `screenshot_page` returns image/jpeg,
+	// which the LM bridge now carries through to vision models.
+	'open_browser_page',
+	'read_page',
+	'screenshot_page',
+	'navigate_page',
+	'click_element',
+	'type_in_page'
+]);
+
+/**
+ * Which tier a model earns.
+ *
+ * For a local model, bytes on disk is the honest signal: a Q4 7B is ~4.4 GB, a
+ * 1.5B about 1 GB, and the extra schemas overwhelm the small one. The context
+ * window cannot make that call — a 1.5B, a 7B and a 32B all report 32k — which
+ * the runtime probe demonstrated before this existed. Only Ollama reports size
+ * today (LM Studio and llama.cpp discovery do not), so anything without a size
+ * falls back to the window rule, where 32k still separates small local quants
+ * from frontier models.
+ */
+const EXTENDED_MIN_SIZE_BYTES = 4_000_000_000;
+const EXTENDED_MIN_INPUT_TOKENS = 32_000;
+
+function isExtendedTier(known: SiriusModel | undefined, maxInputTokens: number): boolean {
+	if (known?.sizeBytes !== undefined) {
+		return known.sizeBytes >= EXTENDED_MIN_SIZE_BYTES;
+	}
+	return maxInputTokens >= EXTENDED_MIN_INPUT_TOKENS;
+}
+
+/** Set at registration; the bridge is the only thing that knows a discovered model's size. */
+let lmProvider: SiriusLanguageModelProvider | undefined;
 
 const PREAMBLE =
 	'You are Sirius, the AI engineer inside Sirius IDE. Answer directly and concisely in markdown. ' +
@@ -48,10 +119,26 @@ function debug(line: string): void {
 	}
 }
 
-export function registerSiriusAgent(context: vscode.ExtensionContext): void {
+export function registerSiriusAgent(context: vscode.ExtensionContext, lm: SiriusLanguageModelProvider): void {
+	lmProvider = lm;
 	const participant = vscode.chat.createChatParticipant(PARTICIPANT_ID, handler);
 	participant.iconPath = new vscode.ThemeIcon('sparkle');
 	context.subscriptions.push(participant, output);
+
+	// The tier decision is otherwise only visible in the output channel, so
+	// expose it: test/harness/probes/agent-tools.js asserts on this.
+	context.subscriptions.push(vscode.commands.registerCommand('sirius.ai.debug.toolTier', async () => {
+		const models = await vscode.lm.selectChatModels({ vendor: 'sirius' });
+		return models.map(m => {
+			const known = lm.getKnownModel(m.id);
+			return {
+				id: m.id,
+				maxInputTokens: m.maxInputTokens,
+				sizeBytes: known?.sizeBytes,
+				tier: isExtendedTier(known, m.maxInputTokens) ? 'extended' : 'core'
+			};
+		});
+	}));
 }
 
 const handler: vscode.ChatRequestHandler = async (request, chatContext, stream, token) => {
@@ -68,14 +155,17 @@ const handler: vscode.ChatRequestHandler = async (request, chatContext, stream, 
 	}
 
 	const localTools = createLocalTools(stream);
+	const known = lmProvider?.getKnownModel(model.id);
+	const extended = isExtendedTier(known, model.maxInputTokens);
+	const allowlist = extended ? EXTENDED_NATIVE : CORE_NATIVE;
 	const tools: vscode.LanguageModelChatTool[] = [
 		...vscode.lm.tools
-			.filter(tool => tool.name.startsWith('sirius_') || NATIVE_ALLOWLIST.has(tool.name))
+			.filter(tool => tool.name.startsWith('sirius_') || allowlist.has(tool.name))
 			.map(tool => ({ name: tool.name, description: tool.description, inputSchema: tool.inputSchema })),
 		...localTools.map(tool => ({ name: tool.name, description: tool.description, inputSchema: tool.inputSchema }))
 	];
 	const toolNames = new Set(tools.map(tool => tool.name));
-	debug(`[request] model=${model.id} tools=${tools.length}`);
+	debug(`[request] model=${model.id} window=${model.maxInputTokens} size=${known?.sizeBytes ?? 'unknown'} tier=${extended ? 'extended' : 'core'} tools=${tools.length}`);
 
 	const messages = buildMessages(chatContext, request);
 

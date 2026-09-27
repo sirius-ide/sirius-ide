@@ -5,7 +5,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { SiriusSecretStore } from '../auth/secretStore';
-import { IAIProvider, SiriusModel, ChatRequest, ChatChunk, ChatMessage, ProviderType, ThinkingEffort, ToolCallRequest, StopReason } from '../types';
+import { IAIProvider, SiriusModel, ChatRequest, ChatChunk, ChatMessage, ImagePart, ProviderType, ThinkingEffort, ToolCallRequest, StopReason } from '../types';
 
 /** A content block in a response: text, thinking, or a tool call. */
 interface AnthropicContentBlock {
@@ -359,7 +359,7 @@ export class AnthropicProvider implements IAIProvider {
 					content: (message.toolResults ?? []).map(result => ({
 						type: 'tool_result',
 						tool_use_id: result.id,
-						content: result.content,
+						content: anthropicBlocks(result.content, result.images),
 						...(result.isError ? { is_error: true } : {})
 					}))
 				});
@@ -378,7 +378,7 @@ export class AnthropicProvider implements IAIProvider {
 				continue;
 			}
 
-			wire.push({ role: message.role, content: message.content });
+			wire.push({ role: message.role, content: anthropicBlocks(message.content, message.images) });
 		}
 
 		return wire;
@@ -544,4 +544,24 @@ export class AnthropicProvider implements IAIProvider {
 	async getAvailableModels(): Promise<SiriusModel[]> {
 		return this.models;
 	}
+}
+
+/**
+ * Anthropic content is a string or a block array. It stays a string when there
+ * are no images — that is the shape every existing request already sends — and
+ * becomes blocks only when an image has to ride along. An empty text block is
+ * rejected by the API, so text is only emitted when present.
+ */
+function anthropicBlocks(text: string, images: ImagePart[] | undefined): string | unknown[] {
+	if (!images?.length) {
+		return text;
+	}
+	const blocks: unknown[] = [];
+	if (text) {
+		blocks.push({ type: 'text', text });
+	}
+	for (const image of images) {
+		blocks.push({ type: 'image', source: { type: 'base64', media_type: image.mimeType, data: image.base64 } });
+	}
+	return blocks;
 }

@@ -71,7 +71,7 @@ rebase instead of drifting.
 - ⬜ **Agent Manager surface** — a dedicated "Mission Control" view listing autonomous agents, their current task, plan, and status. (Build on upstream `src/vs/sessions/` agent-sessions layer.)
 - ⬜ **Autonomous task agents** — give a goal; the agent plans, edits, runs commands/tests, and reports back, working in the background.
 - ⬜ **Artifacts** — first-class plans, task lists, walkthroughs, and screenshots the agent produces and you review.
-- ⬜ **Browser control** — let an agent drive a browser to verify changes and capture results (companion extension + CDP).
+- 🔨 **Browser control** — upstream already ships a Playwright-backed integrated browser with a full agent tool family (`open_browser_page`, `navigate_page`, `click_element`, `type_in_page`, `read_page` accessibility snapshot, `screenshot_page`, `run_playwright_code`, drag/hover/dialogs) behind `workbench.browser.enableChatTools`. Sirius turns that on by default and offers the tools in the agent's extended tier — proven live by `test/harness/probes/agent-tools.js` (29 → 38 tools). `read_page` is the primary path for text-only local models; `screenshot_page` reaches vision models through the image plumbing in the LM bridge. **Decided 2026-09-27:** integrated browser is the default; driving the user's own Chrome over CDP (for their real logged-in profile and sessions, which the integrated view cannot share) is a later opt-in, not a replacement
 - ⬜ **Multi-agent orchestration** — run several agents in parallel on subtasks.
 
 ## Phase 4 — Polish & distribution
