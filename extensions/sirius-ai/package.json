@@ -421,7 +421,10 @@
 					"agent"
 				]
 			}
-		]
+		],
+		"configurationDefaults": {
+			"workbench.browser.enableChatTools": true
+		}
 	},
 	"scripts": {
 		"compile": "gulp compile-extension:sirius-ai",

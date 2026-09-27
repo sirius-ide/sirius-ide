@@ -5,7 +5,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { IAIProvider, SiriusModel, ChatRequest, ChatChunk, ChatMessage, ProviderType, ToolCallRequest, StopReason } from '../types';
+import { IAIProvider, SiriusModel, ChatRequest, ChatChunk, ChatMessage, ImagePart, ProviderType, ToolCallRequest, StopReason } from '../types';
 
 /** A tool call as Ollama reports it. Ollama assigns no id, so we synthesise one. */
 interface OllamaToolCall {
@@ -23,7 +23,14 @@ interface OllamaChatResponse {
 
 /** The subset of /api/tags that this provider reads. */
 interface OllamaTagsResponse {
-	models?: Array<{ name: string; size?: number; details?: { parameter_size?: string; family?: string } }>;
+	models?: Array<{ name: string; size?: number; details?: OllamaModelDetails }>;
+}
+
+interface OllamaModelDetails {
+	parameter_size?: string;
+	family?: string;
+	/** Every architecture in the model; a vision model lists its projector here too. */
+	families?: string[];
 }
 
 export class OllamaProvider implements IAIProvider {
@@ -229,8 +236,21 @@ export class OllamaProvider implements IAIProvider {
 
 		for (const message of messages) {
 			if (message.role === 'tool') {
+				// Ollama's `images` field is documented for user turns, so a
+				// tool's images follow on one user message after every tool
+				// result of the round — the same contiguity rule as OpenAI, and
+				// the shape llava-class models are known to attend to.
+				const images: string[] = [];
+				const sources: string[] = [];
 				for (const result of message.toolResults ?? []) {
 					wire.push({ role: 'tool', tool_name: result.name, content: result.content });
+					if (result.images?.length) {
+						images.push(...result.images.map(image => image.base64));
+						sources.push(result.name);
+					}
+				}
+				if (images.length) {
+					wire.push({ role: 'user', content: `[image output of ${sources.join(', ')}]`, images });
 				}
 				continue;
 			}
@@ -246,7 +266,13 @@ export class OllamaProvider implements IAIProvider {
 				continue;
 			}
 
-			wire.push({ role: message.role, content: message.content });
+			// Ollama takes raw base64 in `images`, no data: prefix and no mime —
+			// it sniffs the bytes itself.
+			wire.push({
+				role: message.role,
+				content: message.content,
+				...(message.images?.length ? { images: ollamaImages(message.images) } : {})
+			});
 		}
 
 		return wire;
@@ -268,6 +294,41 @@ export class OllamaProvider implements IAIProvider {
 		return raw === 'length' ? 'max_tokens' : 'end_turn';
 	}
 
+	/**
+	 * What one installed model can actually do, from `/api/show`.
+	 *
+	 * `/api/tags` only says what is installed. `/api/show` carries the
+	 * architecture's real context length under `model_info.<arch>.context_length`
+	 * and, on current servers, an explicit `capabilities` list — `vision`,
+	 * `tools`, `thinking`. Both matter downstream: the context length is what
+	 * the agent's tool tiers key on, and a hardcoded 128k put a 1.5B model in
+	 * the extended tier alongside frontier models. Reads metadata only — it does
+	 * not load the model — so it is quick, and any failure (old server, slow
+	 * disk) degrades to `null` and the caller's fallbacks.
+	 */
+	private async _show(endpoint: string, name: string): Promise<{ contextLength?: number; capabilities?: string[] } | null> {
+		try {
+			const controller = new AbortController();
+			const timer = setTimeout(() => controller.abort(), 4000);
+			const response = await fetch(`${endpoint}/api/show`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ name }),
+				signal: controller.signal
+			});
+			clearTimeout(timer);
+			if (!response.ok) {
+				return null;
+			}
+			const data = await response.json() as { capabilities?: string[]; model_info?: Record<string, unknown> };
+			const entry = Object.entries(data.model_info ?? {}).find(([key]) => key.endsWith('.context_length'));
+			const contextLength = typeof entry?.[1] === 'number' ? entry[1] : undefined;
+			return { contextLength, capabilities: data.capabilities };
+		} catch {
+			return null;
+		}
+	}
+
 	async getAvailableModels(): Promise<SiriusModel[]> {
 		try {
 			const endpoint = this.getEndpoint();
@@ -275,27 +336,77 @@ export class OllamaProvider implements IAIProvider {
 			if (!response.ok) { return []; }
 
 			const data = await response.json() as OllamaTagsResponse;
-			for (const m of data.models || []) {
+			const installed = data.models || [];
+			for (const m of installed) {
 				if (m.size !== undefined) {
 					this._modelSizes.set(m.name, m.size);
 				}
 			}
-			const models: SiriusModel[] = (data.models || []).map(m => ({
-				id: m.name,
-				name: m.name,
-				provider: 'ollama' as ProviderType,
-				contextWindow: 128000,
-				sizeBytes: m.size,
-				description: `Local model — ${m.size ? (m.size / 1e9).toFixed(1) + ' GB' : 'size unknown'}`,
-				supportsStreaming: true,
-				supportsVision: false,
-				supportsThinking: false,
-				supportsImageGen: false
-			}));
+
+			// One /api/show per model, concurrently. Ten models is ten quick
+			// metadata reads, not ten model loads.
+			const shown = await Promise.all(installed.map(m => this._show(endpoint, m.name)));
+
+			const models: SiriusModel[] = installed.map((m, i) => {
+				const info = shown[i];
+				const capabilities = info?.capabilities;
+				return {
+					id: m.name,
+					name: m.name,
+					provider: 'ollama' as ProviderType,
+					// The architecture's real window when the server tells us; the
+					// old assumption only when it cannot.
+					contextWindow: info?.contextLength ?? 128000,
+					sizeBytes: m.size,
+					description: `Local model — ${m.size ? (m.size / 1e9).toFixed(1) + ' GB' : 'size unknown'}`,
+					supportsStreaming: true,
+					// `capabilities` is authoritative where present — including an
+					// authoritative *no*. The name/family heuristic is only for
+					// servers old enough not to report it.
+					supportsVision: capabilities ? capabilities.includes('vision') : looksVisionCapable(m.name, m.details),
+					supportsThinking: capabilities?.includes('thinking') ?? false,
+					supportsImageGen: false
+				};
+			});
 
 			return models;
 		} catch {
 			return [];
 		}
 	}
+}
+
+/** Ollama wants bare base64 strings — no `data:` prefix, no mime; it sniffs the bytes. */
+function ollamaImages(images: ImagePart[]): string[] {
+	return images.map(image => image.base64);
+}
+
+/**
+ * Whether a local model can see.
+ *
+ * `/api/tags` carries no capability flag, so this reads the two signals it does
+ * carry. `families` is authoritative when present: a multimodal model lists its
+ * vision projector alongside the language architecture (`clip` for the
+ * llava/moondream/minicpm-v lineage, `mllama` for llama3.2-vision, and the
+ * fused architectures qwen and gemma use). The name check is the fallback for
+ * older Ollama builds that omit `families`, and covers the models people
+ * actually pull. Getting this wrong in the `false` direction is the costly
+ * error — the vision guard then strips every image before llava sees it — so
+ * the heuristic leans towards `true` on any vision signal.
+ *
+ * `/api/show` returns an explicit `capabilities: ["vision", …]` on current
+ * Ollama and would be exact, at one request per model; worth adopting once
+ * discovery is cached rather than run on every refresh.
+ */
+function looksVisionCapable(name: string, details: OllamaModelDetails | undefined): boolean {
+	const families = (details?.families ?? []).map(f => f.toLowerCase());
+	if (families.some(f => f === 'clip' || f === 'mllama' || f.includes('vl') || f.includes('vision'))) {
+		return true;
+	}
+	if (families.some(f => f.startsWith('gemma3') || f.startsWith('qwen2') && families.length > 1)) {
+		return true;
+	}
+	const lower = name.toLowerCase();
+	// gemma3 and gemma3n are both multimodal, so no lookahead separating them.
+	return /llava|bakllava|moondream|minicpm-v|llama3\.2-vision|llama4|qwen2(\.5)?-?vl|gemma3|pixtral|granite3\.2-vision|mistral-small3\.[1-9]/.test(lower);
 }

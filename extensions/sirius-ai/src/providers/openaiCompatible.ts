@@ -6,7 +6,7 @@
 
 import * as vscode from 'vscode';
 import {
-	IAIProvider, SiriusModel, ChatRequest, ChatChunk, ChatMessage,
+	IAIProvider, SiriusModel, ChatRequest, ChatChunk, ChatMessage, ImagePart,
 	ProviderType, StopReason, ToolCallRequest
 } from '../types';
 import { SiriusSecretStore } from '../auth/secretStore';
@@ -278,8 +278,22 @@ export class OpenAICompatibleProvider implements IAIProvider {
 			}
 
 			if (message.role === 'tool') {
+				// The `tool` role only accepts a string, so a tool's images cannot
+				// ride on it. They follow on one user turn — after *every* tool
+				// message for this round, because the API requires the tool
+				// results to answer the assistant's calls contiguously; a user
+				// turn slipped between two of them is rejected.
+				const images: ImagePart[] = [];
+				const sources: string[] = [];
 				for (const result of message.toolResults ?? []) {
 					wire.push({ role: 'tool', tool_call_id: result.id, content: result.content });
+					if (result.images?.length) {
+						images.push(...result.images);
+						sources.push(result.name);
+					}
+				}
+				if (images.length) {
+					wire.push({ role: 'user', content: openaiContent(`[image output of ${sources.join(', ')}]`, images) });
 				}
 				continue;
 			}
@@ -297,7 +311,7 @@ export class OpenAICompatibleProvider implements IAIProvider {
 				continue;
 			}
 
-			wire.push({ role: message.role, content: message.content });
+			wire.push({ role: message.role, content: openaiContent(message.content, message.images) });
 		}
 
 		return wire;
@@ -524,4 +538,25 @@ export class OpenAICompatibleProvider implements IAIProvider {
 			return this._models;
 		}
 	}
+}
+
+/**
+ * OpenAI-shaped content: a string when there are no images (what every existing
+ * request sends), a part array carrying `image_url` data URIs when there are.
+ * This is the one shape all twelve endpoints behind this adapter share; local
+ * servers that cannot see images are already filtered out upstream by the
+ * vision guard, so nothing here has to special-case them.
+ */
+function openaiContent(text: string, images: ImagePart[] | undefined): string | unknown[] {
+	if (!images?.length) {
+		return text;
+	}
+	const parts: unknown[] = [];
+	if (text) {
+		parts.push({ type: 'text', text });
+	}
+	for (const image of images) {
+		parts.push({ type: 'image_url', image_url: { url: `data:${image.mimeType};base64,${image.base64}` } });
+	}
+	return parts;
 }

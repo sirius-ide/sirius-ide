@@ -5,7 +5,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { SiriusSecretStore } from '../auth/secretStore';
-import { IAIProvider, SiriusModel, ChatRequest, ChatChunk, ChatMessage, ProviderType, ImageGenRequest, ImageGenResult, StopReason, ToolCallRequest } from '../types';
+import { IAIProvider, SiriusModel, ChatRequest, ChatChunk, ChatMessage, ImagePart, ProviderType, ImageGenRequest, ImageGenResult, StopReason, ToolCallRequest } from '../types';
 
 /** A single part of a Gemini candidate's content. */
 interface GeminiPart {
@@ -206,14 +206,20 @@ export class GeminiProvider implements IAIProvider {
 			}
 
 			if (message.role === 'tool') {
+				// A tool's images ride as sibling `inlineData` parts on the same
+				// user turn as its `functionResponse` — Gemini's documented shape
+				// for a multimodal function result.
 				contents.push({
 					role: 'user',
-					parts: (message.toolResults ?? []).map(result => ({
-						functionResponse: {
-							name: result.name,
-							response: { result: result.content }
-						}
-					}))
+					parts: (message.toolResults ?? []).flatMap(result => [
+						{
+							functionResponse: {
+								name: result.name,
+								response: { result: result.content }
+							}
+						},
+						...geminiImageParts(result.images)
+					])
 				});
 				continue;
 			}
@@ -230,9 +236,14 @@ export class GeminiProvider implements IAIProvider {
 				continue;
 			}
 
+			// Gemini rejects an empty `text` part, so it is only emitted when there
+			// is text; an image-only turn is just its inlineData parts.
 			contents.push({
 				role: message.role === 'assistant' ? 'model' : 'user',
-				parts: [{ text: message.content }]
+				parts: [
+					...(message.content ? [{ text: message.content }] : []),
+					...geminiImageParts(message.images)
+				]
 			});
 		}
 
@@ -507,4 +518,9 @@ export class GeminiProvider implements IAIProvider {
 			return this.models;
 		}
 	}
+}
+
+/** Images as Gemini `inlineData` parts; empty when there are none. */
+function geminiImageParts(images: ImagePart[] | undefined): Array<Record<string, unknown>> {
+	return (images ?? []).map(image => ({ inlineData: { mimeType: image.mimeType, data: image.base64 } }));
 }

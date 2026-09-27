@@ -375,9 +375,19 @@ Ordered by how much they hurt. Nothing here is secretly done.
 
 Each of these cost real time.
 
-- **Removing Copilot removed 39 `languageModelTools`.** The workbench registers only
-  two of its own, so agent mode could reason but not read, edit, search or run
-  anything. Sirius must supply tools; that is why `lm/toolRegistration.ts` exists.
+- **The workbench's own tools are far richer than this file once claimed.** An earlier
+  audit recorded "only two of its own". The runtime probe
+  (`test/harness/probes/agent-tools.js`) shows **29** native tools in `vscode.lm.tools`
+  on a fresh profile — terminal, tasks, todo list, plan review, subagents, tests — and
+  **38** once `workbench.browser.enableChatTools` opens the Playwright integrated-browser
+  family (`read_page`, `screenshot_page`, `click_element`, …). Sirius turns that gate
+  on via `sirius-ai`'s `contributes.configurationDefaults`; `product.json` cannot carry
+  it (`IProductConfiguration` has no such field). What extensions *cannot* reach: the
+  edit tool and `setArtifacts`, which are core-agents-only. That gap is why
+  `lm/toolRegistration.ts` supplies read/search tools and the agent applies edits itself
+  through `stream.textEdit`. The agent offers natives in two tiers
+  (`chat/siriusAgent.ts`), sized by on-disk bytes for local models, so a 1.5B is not
+  handed sixteen schemas.
 - **Two Copilot-shaped mechanisms silently disabled `sirius-ai`** — the built-in chat
   enablement migration (waits for a sign-in that never comes) and extension
   unification (folded the extension into itself). Both now check whether they apply.

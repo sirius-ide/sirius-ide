@@ -99,6 +99,29 @@ export interface ToolCallResult {
 	name: string;
 	content: string;
 	isError?: boolean;
+	/**
+	 * Images the tool produced — a screenshot, a rendered diagram, a captured
+	 * video frame. The editor hands these over as `LanguageModelDataPart`s and
+	 * every provider wants them in a different envelope, so they travel as
+	 * decoded bytes and each provider encodes on the way out.
+	 */
+	images?: ImagePart[];
+}
+
+/**
+ * One image travelling towards a model.
+ *
+ * Providers disagree on the envelope — Anthropic wants
+ * `{type:'image',source:{type:'base64',media_type,data}}`, Gemini wants
+ * `{inlineData:{mimeType,data}}`, and OpenAI-compatible endpoints want an
+ * `image_url` holding a `data:` URI — so the shared shape stays the raw pair
+ * and the translation lives with the provider that needs it.
+ */
+export interface ImagePart {
+	/** Base64-encoded bytes, with no `data:` prefix. */
+	base64: string;
+	/** IANA type, e.g. `image/png`. */
+	mimeType: string;
 }
 
 /** Why the model stopped generating. */
@@ -117,6 +140,12 @@ export interface ChatMessage {
 	thinking?: string;
 	/** Optional image URL for image generation results */
 	imageUrl?: string;
+	/**
+	 * Images attached to this turn — a pasted screenshot, an image the user
+	 * dragged in, a frame a tool captured. Only sent to models whose
+	 * `supportsVision` is true; see the vision guard in the LM bridge.
+	 */
+	images?: ImagePart[];
 	/** Tool calls this assistant turn asked for. */
 	toolCalls?: ToolCallRequest[];
 	/** Results carried by a `tool` message, answering an earlier assistant turn. */
