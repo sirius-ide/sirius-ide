@@ -49,3 +49,6 @@ dist
 
 # Sirius IDE: local backup of the removed upstream Copilot extension (kept on disk, not versioned)
 extensions/copilot.disabled/
+
+# Python bytecode caches (build/sirius/make-icons.py)
+__pycache__/
