@@ -61,6 +61,14 @@ export interface SiriusModel {
 	supportsVision: boolean;
 	supportsThinking: boolean;
 	supportsImageGen: boolean;
+	/**
+	 * Whether the model takes a native `tools` field. `false` is authoritative —
+	 * Ollama reports it from /api/show and answers such a request with HTTP 400
+	 * — and switches the Ollama provider to prompted tools: schemas in the
+	 * prompt, reply constrained to a JSON envelope. `undefined` means unknown
+	 * and is treated as native.
+	 */
+	supportsTools?: boolean;
 	/** Maximum output tokens (some thinking models need higher limits) */
 	maxOutputTokens?: number;
 	/** Whether this model is deprecated and should show a warning */
