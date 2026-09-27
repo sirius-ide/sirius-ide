@@ -133,10 +133,15 @@ export class SiriusLanguageModelProvider implements vscode.LanguageModelChatProv
 
 		this._known.clear();
 		const described = resolved.flatMap(({ provider, models }) =>
-			models.map(model => {
-				this._known.set(toLmId(provider.id, model.id), model);
-				return this._describe(provider.id, provider.name, model);
-			})
+			models
+				// Image-generation models cannot chat. Offering them here put two
+				// Imagen entries in the editor's model picker that failed on the
+				// first message.
+				.filter(model => !model.supportsImageGen)
+				.map(model => {
+					this._known.set(toLmId(provider.id, model.id), model);
+					return this._describe(provider.id, provider.name, model);
+				})
 		);
 
 		// The panel's "Auto" resolves to whichever model is marked default; with

@@ -167,7 +167,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	const hasShownWelcome = context.globalState.get('sirius.ai.welcomeShown.v2', false);
 	if (!hasShownWelcome) {
 		vscode.window.showInformationMessage(
-			'★ Sirius AI v2 — Multi-model AI with Thinking, Tools, and Image Gen!',
+			'★ Sirius AI — multi-model chat with thinking, tools and agent mode. Add a provider key, or start Ollama and Sirius finds your models.',
 			'Set API Key',
 			'Select Model'
 		).then(selection => {

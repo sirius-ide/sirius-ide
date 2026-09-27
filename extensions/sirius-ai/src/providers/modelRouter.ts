@@ -5,7 +5,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { IAIProvider, SiriusModel, ChatRequest, ChatChunk, ChatMessage, ProviderType, ThinkingConfig, ThinkingEffort, ImageGenResult, ToolDefinition, SIRIUS_SYSTEM_PROMPT } from '../types';
+import { IAIProvider, SiriusModel, ChatRequest, ChatChunk, ChatMessage, ProviderType, ThinkingConfig, ThinkingEffort, ToolDefinition, SIRIUS_SYSTEM_PROMPT } from '../types';
 import { SiriusSecretStore, KEYED_PROVIDERS, PROVIDER_LABELS } from '../auth/secretStore';
 import { GeminiProvider } from './geminiProvider';
 import { AnthropicProvider } from './anthropicProvider';
@@ -162,12 +162,13 @@ export class ModelRouter {
 
 			const isConfigured = provider.isConfigured();
 
-			for (const model of provider.models) {
+			// Image-generation models cannot chat; picking one as the default sent
+			// every request to a model that cannot answer.
+			for (const model of provider.models.filter(m => !m.supportsImageGen)) {
 				const currentModel = this.getDefaultModel();
 				const isActive = currentModel.id === model.id;
 				const badges: string[] = [];
 				if (model.supportsThinking) { badges.push('🧠'); }
-				if (model.supportsImageGen) { badges.push('🎨'); }
 				if (model.supportsVision) { badges.push('👁️'); }
 
 				items.push({
@@ -209,7 +210,7 @@ export class ModelRouter {
 
 		const selected = await vscode.window.showQuickPick(items, {
 			title: '✨ Select AI Model',
-			placeHolder: 'Choose a model from any provider... (🧠=Thinking 🎨=ImageGen 👁️=Vision)',
+			placeHolder: 'Choose a model from any provider... (🧠=Thinking 👁️=Vision)',
 			matchOnDescription: true,
 			matchOnDetail: true
 		});
@@ -360,23 +361,6 @@ export class ModelRouter {
 		};
 
 		yield* provider.chat(request);
-	}
-
-	// ─── Image Generation ────────────────────────────────────────────────────
-
-	async generateImage(prompt: string): Promise<ImageGenResult | null> {
-		const gemini = this.providers.get('gemini') as GeminiProvider;
-		if (!gemini?.isConfigured()) {
-			vscode.window.showWarningMessage('⚠️ Gemini API key required for image generation. Run Sirius: Set API Key.');
-			return null;
-		}
-
-		try {
-			return await gemini.generateImage({ prompt });
-		} catch (error: any) {
-			vscode.window.showErrorMessage(`Image generation failed: ${error.message}`);
-			return null;
-		}
 	}
 
 	dispose(): void {

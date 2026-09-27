@@ -1,7 +1,7 @@
 {
 	"name": "sirius-ai",
 	"displayName": "Sirius AI",
-	"description": "Multi-model AI assistant for Sirius IDE — supports Google Gemini, Anthropic Claude, OpenAI GPT, and local Ollama models. Features: Thinking mode, Tool use, Image generation, Inline chat.",
+	"description": "Multi-model AI for Sirius IDE — Anthropic, Gemini, OpenAI, Ollama and eight more providers behind the editor's own chat, agent mode and inline chat. Thinking, native tool calling, vision input, Tab completion, next-edit prediction.",
 	"version": "2.0.0",
 	"publisher": "sirius",
 	"license": "SEE LICENSE IN LICENSE.txt",
@@ -203,9 +203,20 @@
 					"default": true,
 					"description": "Stream AI responses token by token"
 				},
+				"sirius.ai.enable": {
+					"type": "object",
+					"additionalProperties": {
+						"type": "boolean"
+					},
+					"default": {
+						"*": false
+					},
+					"markdownDescription": "Tab completion, per language. `\"*\"` is the default for every language; a language id such as `\"markdown\"` or `\"json\"` overrides it. This is the switch the chat status dashboard toggles. Completions need a local FIM model — Ollama or llama.cpp; see `#sirius.ai.completions.model#`."
+				},
 				"sirius.ai.inlineCompletions": {
 					"type": "boolean",
 					"default": false,
+					"deprecationMessage": "Use sirius.ai.enable — it is per language and is what the chat status dashboard toggles. true here still turns completions on everywhere.",
 					"description": "Enable AI-powered inline code completions (experimental)"
 				},
 				"sirius.ai.openai.baseUrl": {
@@ -246,7 +257,7 @@
 				"sirius.ai.nextEditSuggestions.enabled": {
 					"type": "boolean",
 					"default": false,
-					"description": "Predict your next edit after each change and offer it as a Tab-able diff (experimental; needs a local FIM model)."
+					"description": "Predict your next edit after each change and offer it as a Tab-able diff (experimental; needs a local FIM model). Requires Tab completion to be on — see sirius.ai.enable."
 				}
 			}
 		},
