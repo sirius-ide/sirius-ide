@@ -49,7 +49,7 @@ rebase instead of drifting.
 - ✅ **Retired the bespoke chat webview** — the editor's own panel was confirmed usable (it shows "Build with Agent", not a sign-in wall), so 1,700 lines came out: the 974-line webview, the context engine, the webview-only code actions, and the agent loop upstream now drives. The four selection commands seed the editor's chat instead
 - ✅ **Sirius supplies the agent tools** — removing Copilot took 39 `languageModelTools` with it and the workbench registers only two of its own, so agent mode could reason but not read, edit, search or run anything. Sirius's executor is contributed as `languageModelTools` and registered through `vscode.lm.registerTool`, with confirmation moved into `prepareInvocation` so writes are approved inline in the chat
 - ✅ **Fixed the editor disabling Sirius AI** — the extension was absent from the registry entirely, so no models, no tools, and a dead "Auto" in the model picker. Two Copilot-shaped mechanisms were disabling it: the built-in chat enablement migration, which keeps the chat extension dormant until a sign-in that Sirius does not have; and extension unification, which folds a completions extension into a chat extension and so disabled Sirius from itself. Both now check whether they apply
-- ⬜ **Route edits through the chat-editing session** instead of `workspace.fs.writeFile`, which today writes to disk with no diff, preview or undo
+- ✅ **Edits go through the chat-editing session** — `edit_file` streams `stream.textEdit`, so the editor's diff, checkpoint and accept/reject flow applies (since `cf02d47c535`; the roadmap lagged the code by a month). `create_file` refuses an existing path instead of prepending to it
 - ⬜ Then, free from upstream: Composer-class multi-file edits, @-mentions, checkpoints, MCP tools
 
 ## Phase 1c — What is genuinely ours to build
@@ -90,12 +90,14 @@ rebase instead of drifting.
 
 ## Near-term next steps
 
-**Released: `v1.118.4` (2026-08-26).** Five releases so far, all three platform builds
-from CI, provenance-attested, mirrored to R2, served by the production update endpoint,
-and published to the Sirius pacman repository for Arch.
-
-`HEAD` is 2 commits past `v1.118.4` — next-edit prediction and project rules are built
-but unreleased.
+**Released: `v1.118.5` (2026-09-27).** Six releases so far, all three platform builds
+from CI, provenance-attested, mirrored to R2 and served by the production update
+endpoint. v1.118.5 is the first to carry a `.deb` and an `.rpm`, after three CI
+rehearsals on the tag candidate with Publish gated off — each of which found a different
+defect before a tag was cut. It also ships next-edit prediction, project rules, image
+input to every provider, size-aware tool tiers, the integrated browser on by default,
+and prompted tools for local models with no native tool API. The Arch pacman repo is
+rebuilt by hand after each tag and lags until that is done.
 
 **A full, current audit of what is done, what is live, what is verified and what is
 still open lives in [PROJECT-STATE.md](PROJECT-STATE.md).** It is the authoritative
@@ -103,16 +105,19 @@ status document; this roadmap is the feature plan.
 
 The open items, highest value first:
 
-1. **`.deb` / `.rpm` have never actually shipped** — `INSTALL.md` promises them but the
-   CI step is `continue-on-error` and fails silently on every run. Fix the step or the
-   docs; today users are told to download something that does not exist.
-2. **Automate the Arch repo** — packages are built and uploaded entirely by hand, the
-   one un-scripted stage in the release train.
-3. **Route edits through the chat-editing session** instead of `workspace.fs.writeFile`,
-   so file writes get a diff, preview and undo.
-4. **A website** — `siriuside.com` has no DNS record; every user-facing URL points at
+1. **Automate the Arch repo** — packages are built and uploaded entirely by hand, the
+   one un-scripted stage in the release train, and the repo lags every tag until it runs.
+2. **A website** — `siriuside.com` has no DNS record; every user-facing URL points at
    GitHub.
-5. **Exercise Anthropic and Gemini against live APIs** — both are wired and shape-correct
-   but have only been proven against stubs and local models.
+3. **Prove the packages install** — the dependency floor is CI-gated (glibc ≤ 2.28,
+   libc++-only, byte-exact dep lists) and the published `.deb`/`.rpm` metadata checks
+   out; an `apt install` on Debian 12 and a `dnf install` on Rocky 9 in a container is
+   the remaining step.
+4. **Exercise Anthropic and Gemini against live APIs**, and a vision model against the
+   image-input path — all wired and probe-proven at the wire level, none exercised live.
+5. **Build the REH server** — `serverDownloadUrlTemplate` names an asset no job produces,
+   so remote extensions 404.
+6. **The new icon** — `build/sirius/make-icons.sh` from one tracked 2048 px source,
+   regenerating every platform icon file; in progress.
 
 > Pick the next item and Sirius will implement it end to end.

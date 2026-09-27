@@ -39,11 +39,11 @@ the docs — about thirty places, which is why it exists.
 | Fork + rebrand | ✅ complete (branding, icons, protocols, gallery, legal) |
 | Build from source | ✅ produces `VSCode-linux-x64` (~720 MB unpacked) |
 | Release CI | ✅ tag → Linux x64/arm64 + Windows x64, attested, mirrored to R2 |
-| Update server | ✅ **live** at `update.siriuside.com`, serving v1.118.4 |
+| Update server | ✅ **live** at `update.siriuside.com`, serving v1.118.5 (verified 2026-09-28: a real v1.118.4 client gets 200 → 1.118.5, a 1.118.5 client gets 204) |
 | Download CDN | ✅ **live** at `dl.siriuside.com` (R2, zero egress) |
-| Arch pacman repo | ✅ **live** — `sirius-ide-bin 1.118.4` published |
+| Arch pacman repo | ⚠️ **live but behind** — still serves `sirius-ide-bin 1.118.4`; v1.118.5 needs the manual rebuild (§12 step 5, hole 4) |
 | AUR | ❌ not published (see §11) |
-| deb / rpm | ✅ **built and gated on CI** since 2026-09-27 (rehearsal run 36335699671) — x64 only; arm64 is tarball-only by design (§11). Ships with the next tag |
+| deb / rpm | ✅ **shipped in v1.118.5** (2026-09-27) — the first ever; x64 only, arm64 is tarball-only by design (§11). Built and gated on every run since |
 | macOS | ❌ not built (needs Apple Developer cert) |
 | Windows signing | ❌ unsigned — SmartScreen warns |
 | Website | ❌ `siriuside.com` has no DNS record at all |
@@ -206,16 +206,17 @@ Server = https://dl.siriuside.com/arch/$arch
 
 ---
 
-## 7. Live infrastructure (verified 2026-09-11)
+## 7. Live infrastructure (verified 2026-09-28)
 
 | Endpoint | Status |
 | --- | --- |
-| `https://update.siriuside.com/api/update/linux-x64/stable/<commit>` | ✅ **200** → v1.118.4, points at dl CDN, sha256 present |
+| `https://update.siriuside.com/api/update/linux-x64/stable/<commit>` | ✅ **200** → v1.118.5 for a v1.118.4 commit, **204** for the v1.118.5 commit; dl CDN URL + sha256; win32-x64 likewise |
+| `https://dl.siriuside.com/releases/v1.118.5/<asset>` | ✅ **200** for both tarballs, the installer, the `.deb` and the `.rpm` |
 | `https://dl.siriuside.com/arch/x86_64/sirius.db` | ✅ **200** → contains `sirius-ide-bin-1.118.4-1` |
 | `https://dl.siriuside.com/` | 404 (expected — bucket root, not an index) |
 | `https://siriuside.com` | ❌ **no DNS record** |
 | `https://siriuside.dev` | ❌ **no DNS record** |
-| GitHub releases | ✅ 5 releases, latest v1.118.4 (2026-08-26) |
+| GitHub releases | ✅ 6 releases, latest v1.118.5 (2026-09-27) — the first with `.deb`/`.rpm` assets |
 
 **Cloudflare** — worker `sirius-update`, bucket `sirius-releases`, custom domains
 `update.` and `dl.`. Managed by `build/cloudflare/deploy.sh` (idempotent, addresses
@@ -299,6 +300,8 @@ Be precise about this; several things are wired but never exercised live.
 | Update protocol | ✅ live endpoint returns a well-formed `IUpdate` |
 | Windows installer | ⚠️ builds and uploads; **never installed and run by anyone** |
 | deb / rpm (x64) | ✅ **produced and gated on CI** (rehearsal 36335699671): sysroot toolchain, hard ABI floor (glibc ≤ 2.28, no libstdc++ DT_NEEDED across 16 binaries), dlopen smoke, byte-exact dep-list match, Packaging gate green |
+| The **published** v1.118.5 `.deb` / `.rpm` | ✅ inspected from the CDN (ranged fetch of the control/header sections): deb `Depends` floors at `libc6 (>= 2.28)`, `libcups2` present, **no `libstdc++6`**; `postrm` executable lines carry no Microsoft/apt-repo reference; rpm `GLIBC_2.28` max, `libcups` in, no `libstdc++`, Vendor `Clicksora, L.L.C.` |
+| Release provenance | ✅ `gh attestation verify commit.txt --owner sirius-ide` exit 0 (Sigstore bundle, cert issued at release time). It prints nothing on success outside a TTY — check the exit code |
 | deb / rpm installed on Debian 12 / Ubuntu 22.04 / RHEL 9 | ⚠️ **not yet** — the floor is proven by the gate; an install in a container is the remaining step |
 | Image input to models | ⚠️ wire format proven for all 4 providers by probe; **no vision model exercised live** (`ollama pull moondream` would close it) |
 | Integrated browser tools | ✅ 38 tools on a fresh profile, all seven browser ids present (`test/harness/probes/agent-tools.js`) |
@@ -315,7 +318,7 @@ Ordered by how much they hurt. Nothing here is secretly done.
 ### Blocking users right now
 
 1. **`.deb` and `.rpm` exist for x64 only.** Five releases shipped neither; the
-   chain is fixed and gated on CI as of 2026-09-27 (§11 records the four defects that
+   chain is fixed, gated on CI, and shipped in v1.118.5 (§11 records the four defects that
    were stacked behind the obvious one). What remains open is arm64: its packages need
    the glibc-2.28 sysroot, whose aarch64 compilers are x86_64 binaries that cannot run
    on the native arm64 runner, so arm64 is tarball-only until an upstream-style
@@ -340,7 +343,10 @@ Ordered by how much they hurt. Nothing here is secretly done.
    in the release train** — every release needs a human to remember it, and there is no
    script recording how it was done. Write one.
 
-5. **2 commits unreleased** past `v1.118.4` — next-edit prediction and project rules.
+5. **The Arch repo lags every release until someone runs the manual rebuild.** The
+   update server advertised v1.118.5 within minutes of the tag; `sirius-ide-bin` on
+   `dl.siriuside.com/arch` still says 1.118.4 until §12 step 5 is done by hand. Hole 4 is
+   the cure; until then this reopens on every tag.
 
 6. **Dependabot "devcontainers" runs fail** on every trigger (2026-08-31, 09-07).
    Noise, but it makes CI health unreadable at a glance.
