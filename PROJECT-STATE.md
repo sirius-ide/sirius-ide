@@ -92,7 +92,11 @@ patch. Full reasoning in [build/update-server/VERSIONING.md](build/update-server
 - `extensions/theme-sirius-star/` — Sirius Star Dark
 - `build/update-server/` — Cloudflare worker + docs
 - `build/cloudflare/` — `deploy.sh` + token recipe
-- `build/sirius/` — `set-identity.mjs`, `bootstrap-github.sh`
+- `build/sirius/` — `set-identity.mjs`, `bootstrap-github.sh`, `abi-floor.sh` (the glibc /
+  libc++ gate), `make-icons.py` (every platform icon from one source)
+- `resources/sirius/` — the icon sources: `icon.png` (2048 px master) and `icon-small.png`
+  (the simplified mark for 48 px and under). Every icon file under `resources/{linux,win32,
+  darwin,server}` is generated from these two
 - `test/harness/` — headless probe rig
 - `.github/workflows/sirius-release.yml`
 - `README.md`, `ROADMAP.md`, `INSTALL.md`, `PRIVACY.md`, `AGENTS.md`, this file
@@ -469,6 +473,13 @@ Each of these cost real time.
   (`sirius.ai.advanced`) is deliberately NOT declared: the workbench registers its
   schema itself inside the Copilot sign-in path Sirius never enters, and declaring an
   unread setting would be a promise of its own.
+- **The platform icons are generated — do not hand-edit them.** `resources/linux/code.png`,
+  the Windows ICO, tiles and Inno bitmaps, the macOS ICNS and the server favicon/PWA PNGs
+  all come from `python3 build/sirius/make-icons.py resources/sirius/icon.png --small
+  resources/sirius/icon-small.png --installer`. Detailed art stops reading below ~48 px
+  (a lens flare becomes a stray dot), which is why there are two sources. ImageMagick's
+  ICNS writer here emits a bare PNG and Pillow's omits the non-retina small entries, so
+  the script packs the ICNS container itself.
 - **The old deb `postinst` installed Microsoft's apt repository and signing key onto
   the user's machine.** Removed. Do not let a rebase bring it back.
 - **Four Windows AppIds contained non-hex characters** and would have broken the Inno
