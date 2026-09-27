@@ -27,17 +27,17 @@ export const referenceGeneratedDepsByArch = {
 	//    electron/electron release (product.json has no `electronRepository`),
 	//    which links libcups; upstream's list was generated against Microsoft's
 	//    cups-less Electron build. Remove it again if that ever changes.
-	//  - `libc.so.6(GLIBC_2.27)`, `libc.so.6(GLIBC_2.5)`, `librt.so.1()` and
-	//    `librt.so.1(GLIBC_2.2.5)` are ABSENT. Upstream gets them from
-	//    bin/<tunnelApplicationName>; Sirius does not build the Rust CLI, so
-	//    dependencies-generator.ts skips that file. Restore them the moment Sirius
-	//    ships the tunnel or any Rust/napi module (librt + GLIBC_2.27 is the Rust
-	//    `-lrt -lutil` signature).
+	//  - `libc.so.6(GLIBC_2.27)`, `libc.so.6(GLIBC_2.5)`, `librt.so.1()`,
+	//    `librt.so.1(GLIBC_2.2.5)` and `libgcc_s.so.1(GCC_4.2.0)` are ABSENT.
+	//    Upstream gets them from bin/<tunnelApplicationName>; Sirius does not
+	//    build the Rust CLI, so dependencies-generator.ts skips that file. Restore
+	//    them the moment Sirius ships the tunnel or any Rust/napi module (librt +
+	//    GLIBC_2.27 is the Rust `-lrt -lutil` signature; GCC_4.2.0 is its unwinder).
 	// The comparison in dependencies-generator.ts is EXACT array equality — a
-	// missing entry fails as hard as a new one — and the first rehearsal's
-	// "Old:/New:" diff is what confirms these. If it shows GLIBC_2.27 back in New,
-	// the sysroot build reintroduced that tier from a non-tunnel binary: restore
-	// that one line, not all four. Expect this block to conflict on upstream syncs.
+	// missing entry fails as hard as a new one. All five deltas were confirmed by
+	// the "Old:/New:" diff of the first CI rehearsal (run 36334123208): four were
+	// predicted, GCC_4.2.0 was the one the run had to answer. Expect this block to
+	// conflict on upstream syncs.
 	'x86_64': [
 		'ca-certificates',
 		'ld-linux-x86-64.so.2()(64bit)',
@@ -89,7 +89,6 @@ export const referenceGeneratedDepsByArch = {
 		'libgcc_s.so.1(GCC_3.0)(64bit)',
 		'libgcc_s.so.1(GCC_3.3)(64bit)',
 		'libgcc_s.so.1(GCC_4.0.0)(64bit)',
-		'libgcc_s.so.1(GCC_4.2.0)(64bit)',
 		'libgio-2.0.so.0()(64bit)',
 		'libglib-2.0.so.0()(64bit)',
 		'libgobject-2.0.so.0()(64bit)',
