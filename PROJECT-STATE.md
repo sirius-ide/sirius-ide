@@ -1,6 +1,6 @@
 # Sirius IDE — Project State
 
-**Last full audit: 2026-09-11** · `HEAD = ec22aad7a1c` · released `v1.118.4` · shipping
+**Last full audit: 2026-09-27** · released `v1.118.4` · `v1.118.5` candidate rehearsed on CI (dispatch on `sirius` with the tag-gated Publish skipped) · shipping
 
 This file is the single place a new session should start. It records what exists,
 what is deployed, what has actually been verified, and — explicitly — what is still
@@ -43,7 +43,7 @@ the docs — about thirty places, which is why it exists.
 | Download CDN | ✅ **live** at `dl.siriuside.com` (R2, zero egress) |
 | Arch pacman repo | ✅ **live** — `sirius-ide-bin 1.118.4` published |
 | AUR | ❌ not published (see §11) |
-| deb / rpm | ❌ **never actually shipped** despite INSTALL.md (see §11) |
+| deb / rpm | ✅ **built and gated on CI** since 2026-09-27 (rehearsal run 36335699671) — x64 only; arm64 is tarball-only by design (§11). Ships with the next tag |
 | macOS | ❌ not built (needs Apple Developer cert) |
 | Windows signing | ❌ unsigned — SmartScreen warns |
 | Website | ❌ `siriuside.com` has no DNS record at all |
@@ -52,8 +52,8 @@ the docs — about thirty places, which is why it exists.
 | Tab completion | ✅ FIM-based, shipped |
 | Next-edit prediction | ✅ shipped (default off, needs local FIM model) |
 | Project rules | ✅ shipped (Phase 2 opened) |
-| Working tree | clean, `origin/sirius` in sync |
-| Unreleased | 2 commits past `v1.118.4` |
+| Working tree | see `git status`; this file lags the log |
+| Unreleased | `git log --oneline v1.118.4..HEAD` — do not trust a number written here |
 
 ---
 
@@ -298,7 +298,12 @@ Be precise about this; several things are wired but never exercised live.
 | Gemini tool calling | ⚠️ wire format verified by stub; **never exercised against the live API** |
 | Update protocol | ✅ live endpoint returns a well-formed `IUpdate` |
 | Windows installer | ⚠️ builds and uploads; **never installed and run by anyone** |
-| deb / rpm | ❌ **never produced** (see below) |
+| deb / rpm (x64) | ✅ **produced and gated on CI** (rehearsal 36335699671): sysroot toolchain, hard ABI floor (glibc ≤ 2.28, no libstdc++ DT_NEEDED across 16 binaries), dlopen smoke, byte-exact dep-list match, Packaging gate green |
+| deb / rpm installed on Debian 12 / Ubuntu 22.04 / RHEL 9 | ⚠️ **not yet** — the floor is proven by the gate; an install in a container is the remaining step |
+| Image input to models | ⚠️ wire format proven for all 4 providers by probe; **no vision model exercised live** (`ollama pull moondream` would close it) |
+| Integrated browser tools | ✅ 38 tools on a fresh profile, all seven browser ids present (`test/harness/probes/agent-tools.js`) |
+| Tiered / size-aware native tools | ✅ probe-proven: 1.5B → core, ≥ 6 GB → extended |
+| Prompted tools on a no-tools model | ✅ probe-proven end to end (`test/harness/probes/prompted-tools.js`): real tool call in 2.6 s, streamed answer in 197 parts |
 | macOS | ❌ never built |
 
 ---
@@ -309,11 +314,12 @@ Ordered by how much they hurt. Nothing here is secretly done.
 
 ### Blocking users right now
 
-1. **`.deb` and `.rpm` have never shipped.** `INSTALL.md` tells Debian/Ubuntu and
-   Fedora users to download them from the latest release — **there are none, in any of
-   the five releases**. The workflow's deb/rpm step is `continue-on-error: true`, so it
-   fails silently every run. Either fix the step (and find out why it fails) or correct
-   INSTALL.md. Today the docs promise something that does not exist.
+1. **`.deb` and `.rpm` exist for x64 only.** Five releases shipped neither; the
+   chain is fixed and gated on CI as of 2026-09-27 (§11 records the four defects that
+   were stacked behind the obvious one). What remains open is arm64: its packages need
+   the glibc-2.28 sysroot, whose aarch64 compilers are x86_64 binaries that cannot run
+   on the native arm64 runner, so arm64 is tarball-only until an upstream-style
+   cross-build on an x64 runner is set up and rehearsed. INSTALL.md says so.
 
 2. **No website.** `siriuside.com` and `siriuside.dev` have no DNS records. Every
    user-facing URL in `product.json` points at GitHub instead. The Cloudflare token
@@ -474,9 +480,19 @@ Each of these cost real time.
 # 0. Node 22 on PATH, npm 10
 nvm use && npm install -g npm@10
 
-# 1. Bump version in package.json (patch for Sirius-only work)
-# 2. Commit, tag, push — the tag IS the ship process
-git tag v1.118.5 && git push origin sirius --tags
+# 1. Rehearse first: `gh workflow run sirius-release.yml --ref sirius` runs the
+#    whole build on the tag candidate with Publish skipped (branch dispatch fails
+#    the `github.ref_type == 'tag'` gate). Read the Packaging gate summary.
+# 2. Bump — exactly three lines, by hand, never `npm install` (that rewrote the
+#    whole lock once): package.json:3, package-lock.json:3, package-lock.json:9.
+#    Commit subject is the bare version, as every prior bump (d4ad0d51114).
+git commit -m "1.118.5"
+# 3. Push the branch first (silent — nothing triggers on a branch push), then an
+#    ANNOTATED tag pushed BY NAME. All shipped tags are annotated; `--tags` would
+#    push every stray local tag.
+git push origin sirius
+git tag -a v1.118.5 -m "Sirius IDE 1.118.5"
+git push origin v1.118.5      # <- this is the ship
 
 # 3. CI builds linux x64/arm64 + win32, attests, releases, mirrors to R2,
 #    writes latest-stable.json. Watch it:
