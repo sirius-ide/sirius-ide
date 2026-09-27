@@ -359,9 +359,15 @@ Ordered by how much they hurt. Nothing here is secretly done.
 12. **Gemini and Anthropic never exercised live** (see §9). A single real request each
     would close it.
 
-13. **`ROADMAP.md` lags `HEAD`.** It was last written 2026-08-25 and still lists Tab
-    prediction, the importer and the SCM hooks as planned — all three shipped on
-    2026-08-25/26. Read the git log, not just the roadmap.
+13. **Remote development points at a server that is never built.** `product.json`
+    sets `serverDownloadUrlTemplate` to `sirius-server-${os}-${arch}.tar.gz` on the
+    release, but no job in `sirius-release.yml` builds the REH server, so Open
+    Remote-SSH (and any remote extension that reads the template) 404s. Nothing in
+    `src/vs` reads the key — only third-party remote extensions do. The fix is a
+    `vscode-reh-linux-${arch}-min` job producing that exact asset name (~15 min per
+    arch; the tunnel CLI is not required for REH). Until then the template is an
+    honest pointer to a missing file, and removing it would only change the failure
+    from a 404 to "no download URL".
 
 ### Structural
 
@@ -439,6 +445,18 @@ Each of these cost real time.
   longer declares, so `RET` kept its literal `true` and the removal ran unconditionally
   — breaking updates for a real VS Code installed beside Sirius. Latent only because no
   `.deb` had ever shipped; fixed before the first one does.
+- **Three `product.json` `defaultChatAgent` keys looked equally dead and were not.**
+  `completionsEnablementSetting` (`sirius.ai.enable`) is read by the chat status
+  dashboard as a per-language object (`editor/common/services/completionsEnablement.ts`:
+  explicit language wins, `*` falls back, non-object means off) — it had to be declared
+  and honoured by the Tab completion provider, or the dashboard's toggle wrote to a key
+  nothing read. `chatExtensionOutputExtensionStateCommand`
+  (`sirius.ai.debug.extensionState`) is executed before "Show Chat Extension Output",
+  and `chatExtensionOutputId` names an output channel that must actually exist — it is
+  "Sirius AI", so the agent's channel was renamed to match. `completionsAdvancedSetting`
+  (`sirius.ai.advanced`) is deliberately NOT declared: the workbench registers its
+  schema itself inside the Copilot sign-in path Sirius never enters, and declaring an
+  unread setting would be a promise of its own.
 - **The old deb `postinst` installed Microsoft's apt repository and signing key onto
   the user's machine.** Removed. Do not let a rebase bring it back.
 - **Four Windows AppIds contained non-hex characters** and would have broken the Inno

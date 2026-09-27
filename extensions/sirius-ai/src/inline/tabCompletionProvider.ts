@@ -17,6 +17,22 @@ const SUFFIX_CHARS = 600;
 const CACHE_SIZE = 64;
 const MAX_LINES_DEFAULT = 12;
 
+/**
+ * Mirrors the workbench's own reading of the completions switch
+ * (editor/common/services/completionsEnablement.ts): an explicit per-language
+ * value wins, `*` is the fallback, and anything that is not an object is off.
+ */
+function isEnabledFor(enable: unknown, languageId: string): boolean {
+	if (typeof enable !== 'object' || enable === null) {
+		return false;
+	}
+	const map = enable as Record<string, unknown>;
+	if (map[languageId] !== undefined) {
+		return Boolean(map[languageId]);
+	}
+	return Boolean(map['*']);
+}
+
 /** Small LRU keyed by exact context, so a re-trigger at the same spot is free. */
 class CompletionCache {
 	private readonly entries = new Map<string, string>();
@@ -53,9 +69,19 @@ export class TabCompletionProvider implements vscode.InlineCompletionItemProvide
 		token: vscode.CancellationToken
 	): Promise<vscode.InlineCompletionItem[]> {
 		const config = vscode.workspace.getConfiguration('sirius.ai');
-		const completionsOn = config.get<boolean>('inlineCompletions', false);
-		const nesOn = config.get<boolean>('nextEditSuggestions.enabled', false);
-		if (!completionsOn && !nesOn) {
+		// `sirius.ai.enable` is what product.json names as the product's
+		// completions switch, so it is what the workbench's chat status dashboard
+		// reads and toggles — per language, with `*` as the fallback, and a
+		// non-object meaning off (mirrors editor/common/services/completionsEnablement.ts).
+		// Until it was declared here, that toggle wrote to a key nothing read.
+		// `inlineCompletions` is the older boolean and still turns everything on.
+		const completionsOn = config.get<boolean>('inlineCompletions', false)
+			|| isEnabledFor(config.get<Record<string, boolean>>('enable'), document.languageId);
+		// The dashboard renders next-edit suggestions as dependent on completions
+		// (its checkbox is disabled while completions are off), so the provider
+		// honours the same dependency rather than quietly disagreeing with the UI.
+		const nesOn = completionsOn && config.get<boolean>('nextEditSuggestions.enabled', false);
+		if (!completionsOn) {
 			return [];
 		}
 		if (document.uri.scheme !== 'file' && document.uri.scheme !== 'untitled') {

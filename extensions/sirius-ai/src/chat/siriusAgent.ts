@@ -110,7 +110,11 @@ const PREAMBLE =
 	'Call tools through the tool-calling mechanism; never write tool-call JSON as text. ' +
 	'For greetings or questions, just answer.';
 
-const output = vscode.window.createOutputChannel('Sirius Agent');
+// Named to match product.json's `chatExtensionOutputId`
+// (`sirius.sirius-ai.Sirius AI.log`): the workbench's "show chat extension
+// output" action resolves the channel by that name, and no channel of that
+// name existed.
+const output = vscode.window.createOutputChannel('Sirius AI');
 
 function debug(line: string): void {
 	output.appendLine(line);
@@ -138,6 +142,43 @@ export function registerSiriusAgent(context: vscode.ExtensionContext, lm: Sirius
 				tier: isExtendedTier(known, m.maxInputTokens) ? 'extended' : 'core'
 			};
 		});
+	}));
+
+	// product.json names this as `chatExtensionOutputExtensionStateCommand`: the
+	// workbench's "Show Chat Extension Output" action runs it (racing a 5s
+	// timeout) before revealing the channel above, so whatever is written here
+	// is what a user pastes into a bug report. Until now the command did not
+	// exist and the action logged a failure and showed a channel that also did
+	// not exist.
+	context.subscriptions.push(vscode.commands.registerCommand('sirius.ai.debug.extensionState', async () => {
+		const config = vscode.workspace.getConfiguration('sirius.ai');
+		const models = await vscode.lm.selectChatModels({ vendor: 'sirius' });
+		const state = {
+			at: new Date().toISOString(),
+			extension: vscode.extensions.getExtension('sirius.sirius-ai')?.packageJSON?.version,
+			settings: {
+				defaultProvider: config.get('defaultProvider'),
+				defaultModel: config.get('defaultModel'),
+				thinking: config.get('thinking'),
+				inlineCompletions: config.get('inlineCompletions'),
+				nextEditSuggestions: config.get('nextEditSuggestions'),
+				browserTools: vscode.workspace.getConfiguration().get('workbench.browser.enableChatTools')
+			},
+			models: models.map(m => {
+				const known = lm.getKnownModel(m.id);
+				return {
+					id: m.id,
+					window: m.maxInputTokens,
+					sizeBytes: known?.sizeBytes,
+					vision: known?.supportsVision,
+					tier: isExtendedTier(known, m.maxInputTokens) ? 'extended' : 'core'
+				};
+			}),
+			nativeTools: vscode.lm.tools.map(t => t.name).sort()
+		};
+		output.appendLine('── extension state ──');
+		output.appendLine(JSON.stringify(state, null, 2));
+		output.show(true);
 	}));
 }
 
@@ -381,7 +422,7 @@ function createLocalTools(stream: vscode.ChatResponseStream): LocalTool[] {
 		},
 		{
 			name: 'create_file',
-			description: 'Create a new file with the given contents.',
+			description: 'Create a new file with the given contents. Fails if the file already exists — use edit_file for that.',
 			inputSchema: {
 				type: 'object',
 				properties: {
@@ -392,6 +433,17 @@ function createLocalTools(stream: vscode.ChatResponseStream): LocalTool[] {
 			},
 			async run(input) {
 				const uri = workspaceUri(String(input.path ?? ''));
+				// `createFile` with ignoreIfExists reported success on a path that
+				// already existed, and the insert below then PREPENDED the new content
+				// to that file. Refuse instead: a model asking to "create" something
+				// that exists has lost track of the tree, and edit_file is the tool
+				// for a file that is already there.
+				try {
+					await vscode.workspace.fs.stat(uri);
+					return `${input.path} already exists. Read it, then use edit_file to change it — or choose another path.`;
+				} catch {
+					// FileNotFound is the expected outcome; fall through and create.
+				}
 				const edit = new vscode.WorkspaceEdit();
 				edit.createFile(uri, { ignoreIfExists: true });
 				await vscode.workspace.applyEdit(edit);
