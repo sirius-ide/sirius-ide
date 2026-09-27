@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Copyright (c) Microsoft Corporation. All rights reserved.
+# Copyright (c) Clicksora, L.L.C. All rights reserved.
 # Licensed under the MIT License. See License.txt in the project root for license information.
 
 rm -f /usr/bin/@@NAME@@
@@ -15,20 +15,13 @@ if hash update-mime-database 2>/dev/null; then
 	update-mime-database /usr/share/mime
 fi
 
-RET=true
-if [ -e '/usr/share/debconf/confmodule' ]; then
-	. /usr/share/debconf/confmodule
-	db_get @@NAME@@/add-microsoft-repo || true
-fi
-if [ "$RET" = "true" ]; then
-	eval $(apt-config shell APT_SOURCE_PARTS Dir::Etc::sourceparts/d)
-	CODE_SOURCE_PART=${APT_SOURCE_PARTS}vscode.sources
-	rm -f $CODE_SOURCE_PART
-
-	CODE_TRUSTED_PART=/usr/share/keyrings/microsoft.gpg
-	rm -f $CODE_TRUSTED_PART
-fi
-
+# Sirius never adds an apt repository or signing key (see postinst), so there is
+# nothing of ours to remove here — and nothing of anyone else's. Upstream's hook
+# deleted vscode.sources and microsoft.gpg on the way out; with the debconf
+# question it keyed on no longer declared, RET kept its literal "true" and the
+# removal ran unconditionally, breaking updates for a real VS Code installed
+# beside Sirius.
 if [ "$1" = "purge" ] && [ -e '/usr/share/debconf/confmodule' ]; then
+	. /usr/share/debconf/confmodule
 	db_purge
 fi

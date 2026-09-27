@@ -19,7 +19,8 @@ sudo pacman -Syu sirius-ide-bin
 Updates arrive with your normal `pacman -Syu`. The repository is served from
 the same zero-egress CDN as every Sirius download, and the package is built
 from the same release assets whose provenance you can verify with
-`gh attestation verify`.
+`gh attestation verify`. It currently serves `x86_64` only — on an aarch64 Arch
+install, `$arch` resolves to a path that does not exist yet; use the tarball below.
 
 An AUR package will follow once the AUR reopens new-account registration
 (paused during their malicious-packages incident); the repository above is the
@@ -30,20 +31,24 @@ choose it.
 ## Debian, Ubuntu
 
 ```bash
-sudo apt install ./sirius-ide_<version>_amd64.deb
+sudo apt install ./sirius_*_amd64.deb
 ```
 
 Download the `.deb` from the [latest release](https://github.com/sirius-ide/sirius-ide/releases/latest).
+The package is named `sirius` and its version carries a build stamp, so the glob
+is deliberate. x86_64 only for now — on arm64 use the tarball below.
 
 Unlike upstream VS Code, this package does **not** add a third-party apt
 repository or signing key to your system. Update by installing a newer `.deb`,
 or let the editor notify you when one is available.
 
-## Fedora, RHEL, openSUSE
+## Fedora, RHEL
 
 ```bash
-sudo dnf install ./sirius-ide-<version>.x86_64.rpm
+sudo dnf install ./sirius-*.x86_64.rpm
 ```
+
+Same naming note as the `.deb`, and x86_64 only for now.
 
 ## Any Linux (tarball)
 
@@ -114,7 +119,7 @@ chat panel.
 
 | How you installed | How it updates |
 | --- | --- |
-| AUR | `yay -Syu` |
+| Sirius pacman repo | `sudo pacman -Syu` |
 | `.deb` / `.rpm` | Install a newer package |
 | Tarball | The editor notifies you and opens the download page |
 | Windows installer | In place, automatically |
