@@ -138,10 +138,14 @@ jobs:
             export npm_config_arch='${{ matrix.arch }}'
             source ./build/azure-pipelines/linux/setup-env.sh
           fi
-          # The token was only for install-sysroot.ts (api.github.com's anonymous
-          # budget is 60 requests/hour per egress IP). It must not reach the
-          # lifecycle scripts `npm ci` is about to run with ignore-scripts=false.
-          unset GITHUB_TOKEN
+          # The token stays for `npm ci` too. install-sysroot.ts needs it, and so
+          # does @vscode/ripgrep's postinstall, which fetches its binary from
+          # api.github.com — anonymously that is 60 requests/hour shared across
+          # every runner behind the same egress IP, and the Windows leg of
+          # rehearsal 36335699671 hit exactly that 403. It is the job-scoped,
+          # read-only, auto-expiring token these jobs are already limited to
+          # (`permissions: contents: read`), reaching lockfile-pinned lifecycle
+          # scripts — the posture every VS Code build runs with.
           npm ci
         env:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
@@ -312,9 +316,15 @@ jobs:
         with:
           node-version-file: .nvmrc
       - run: npm install -g npm@10
+      # @vscode/ripgrep's postinstall fetches its binary from api.github.com.
+      # Anonymous, that is 60 requests/hour shared across every runner behind
+      # the same egress IP: rehearsal run 36335699671 failed here with HTTP 403
+      # after five retries. The job-scoped read-only token lifts the limit —
+      # the same thing upstream does on every platform.
       - run: npm ci
         env:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+          GITHUB_TOKEN: ${{ github.token }}
       - name: Build
         run: npm run gulp vscode-win32-x64-min
         env:
