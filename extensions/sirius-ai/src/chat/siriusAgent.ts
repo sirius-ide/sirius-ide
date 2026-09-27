@@ -95,6 +95,11 @@ const EXTENDED_MIN_SIZE_BYTES = 4_000_000_000;
 const EXTENDED_MIN_INPUT_TOKENS = 32_000;
 
 function isExtendedTier(known: SiriusModel | undefined, maxInputTokens: number): boolean {
+	// A model on prompted tools carries every schema in its prompt and writes
+	// the call envelope itself; the small set is the one it can follow.
+	if (known?.supportsTools === false) {
+		return false;
+	}
 	if (known?.sizeBytes !== undefined) {
 		return known.sizeBytes >= EXTENDED_MIN_SIZE_BYTES;
 	}
@@ -139,6 +144,7 @@ export function registerSiriusAgent(context: vscode.ExtensionContext, lm: Sirius
 				id: m.id,
 				maxInputTokens: m.maxInputTokens,
 				sizeBytes: known?.sizeBytes,
+				supportsTools: known?.supportsTools,
 				tier: isExtendedTier(known, m.maxInputTokens) ? 'extended' : 'core'
 			};
 		});

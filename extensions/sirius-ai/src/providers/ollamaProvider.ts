@@ -5,7 +5,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { IAIProvider, SiriusModel, ChatRequest, ChatChunk, ChatMessage, ImagePart, ProviderType, ToolCallRequest, StopReason } from '../types';
+import { IAIProvider, SiriusModel, ChatRequest, ChatChunk, ChatMessage, ImagePart, ProviderType, ToolCallRequest, ToolDefinition, StopReason } from '../types';
 
 /** A tool call as Ollama reports it. Ollama assigns no id, so we synthesise one. */
 interface OllamaToolCall {
@@ -95,13 +95,25 @@ export class OllamaProvider implements IAIProvider {
 			return;
 		}
 
+		// A model the server reports as lacking the `tools` capability cannot take
+		// the native field — Ollama answers HTTP 400 "<model> does not support
+		// tools", so until this existed such a model could not be used in agent
+		// mode at all. It gets the tools another way: their schemas in the system
+		// prompt, and `format` constraining the reply to a JSON envelope the
+		// stream parser understands. Constrained decoding is what makes this
+		// dependable where a regex over free text was not.
+		const prompted = !!request.tools?.length && this._toolSupport.get(model) === false;
+
 		// Build messages
 		const messages: Array<Record<string, unknown>> = [];
 
-		if (request.systemPrompt) {
-			messages.push({ role: 'system', content: request.systemPrompt });
+		const systemPrompt = prompted
+			? [request.systemPrompt, promptedToolSpec(request.tools!)].filter(Boolean).join('\n\n')
+			: request.systemPrompt;
+		if (systemPrompt) {
+			messages.push({ role: 'system', content: systemPrompt });
 		}
-		messages.push(...this._toWireMessages(request.messages));
+		messages.push(...this._toWireMessages(request.messages, prompted));
 
 		const payload: Record<string, unknown> = {
 			model,
@@ -113,9 +125,10 @@ export class OllamaProvider implements IAIProvider {
 			}
 		};
 
-		// Ollama takes the OpenAI function envelope. Models that lack the `tools`
-		// capability ignore the field rather than failing.
-		if (request.tools?.length) {
+		if (prompted) {
+			payload.format = PROMPTED_TOOLS_ENVELOPE;
+		} else if (request.tools?.length) {
+			// Ollama takes the OpenAI function envelope.
 			payload.tools = request.tools.map(t => ({
 				type: 'function',
 				function: {
@@ -151,6 +164,11 @@ export class OllamaProvider implements IAIProvider {
 				const decoder = new TextDecoder();
 				const toolCalls: ToolCallRequest[] = [];
 				let buffer = '';
+				// Prompted mode: the content IS the envelope, so it is held back
+				// from the user — except the `final` string, which streams out as
+				// it is generated so an answer still appears token by token.
+				let envelope = '';
+				const finalStreamer = prompted ? new FinalStreamer() : undefined;
 
 				while (true) {
 					const { done, value } = await reader.read();
@@ -180,26 +198,58 @@ export class OllamaProvider implements IAIProvider {
 							yield { content: '', thinking: parsed.message.thinking, done: false };
 						}
 
+						const text = parsed.message?.content || '';
+						if (finalStreamer) {
+							envelope += text;
+							const shown = finalStreamer.push(text);
+							if (shown) {
+								yield { content: shown, done: false };
+							}
+						}
+
 						if (parsed.done) {
+							const usage = {
+								promptTokens: parsed.prompt_eval_count || 0,
+								completionTokens: parsed.eval_count || 0,
+								totalTokens: (parsed.prompt_eval_count || 0) + (parsed.eval_count || 0)
+							};
+							if (finalStreamer) {
+								const decoded = parseEnvelope(envelope, toolCalls.length);
+								toolCalls.push(...decoded.toolCalls);
+								yield {
+									content: finalStreamer.remainder(decoded, envelope, toolCalls.length > 0),
+									done: true,
+									stopReason: toolCalls.length > 0 ? 'tool_use' : this._toStopReason(parsed.done_reason),
+									toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
+									usage
+								};
+								return;
+							}
 							yield {
-								content: parsed.message?.content || '',
+								content: text,
 								done: true,
 								stopReason: toolCalls.length > 0 ? 'tool_use' : this._toStopReason(parsed.done_reason),
 								toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
-								usage: {
-									promptTokens: parsed.prompt_eval_count || 0,
-									completionTokens: parsed.eval_count || 0,
-									totalTokens: (parsed.prompt_eval_count || 0) + (parsed.eval_count || 0)
-								}
+								usage
 							};
 							return;
 						}
 
-						const text = parsed.message?.content || '';
-						if (text) {
+						if (!finalStreamer && text) {
 							yield { content: text, done: false };
 						}
 					}
+				}
+				if (finalStreamer) {
+					const decoded = parseEnvelope(envelope, toolCalls.length);
+					toolCalls.push(...decoded.toolCalls);
+					yield {
+						content: finalStreamer.remainder(decoded, envelope, toolCalls.length > 0),
+						done: true,
+						stopReason: toolCalls.length > 0 ? 'tool_use' : 'end_turn',
+						toolCalls: toolCalls.length > 0 ? toolCalls : undefined
+					};
+					return;
 				}
 				yield {
 					content: '',
@@ -210,8 +260,15 @@ export class OllamaProvider implements IAIProvider {
 			} else {
 				const result = await response.json() as OllamaChatResponse;
 				const calls = this._toToolCalls(result.message?.tool_calls, 0);
+				let content = result.message?.content || '';
+				if (prompted) {
+					// Same envelope as the streamed path, read in one piece.
+					const decoded = parseEnvelope(content, calls.length);
+					calls.push(...decoded.toolCalls);
+					content = decoded.final ?? (decoded.parsed || calls.length > 0 ? '' : content);
+				}
 				yield {
-					content: result.message?.content || '',
+					content,
 					done: true,
 					stopReason: calls.length > 0 ? 'tool_use' : this._toStopReason(result.done_reason),
 					toolCalls: calls.length > 0 ? calls : undefined,
@@ -231,17 +288,32 @@ export class OllamaProvider implements IAIProvider {
 	 * Ollama's messages carry tool results on a dedicated `tool` role and echo
 	 * calls back inside the assistant turn.
 	 */
-	private _toWireMessages(messages: ChatMessage[]): Array<Record<string, unknown>> {
+	private _toWireMessages(messages: ChatMessage[], prompted = false): Array<Record<string, unknown>> {
 		const wire: Array<Record<string, unknown>> = [];
 
 		for (const message of messages) {
 			if (message.role === 'tool') {
+				const images: string[] = [];
+				const sources: string[] = [];
+				if (prompted) {
+					// A no-tools model was never trained on the `tool` role. Results
+					// go back as the user turn the spec promised it.
+					const text = (message.toolResults ?? [])
+						.map(result => `[tool result: ${result.name}]\n${result.content}`)
+						.join('\n\n');
+					for (const result of message.toolResults ?? []) {
+						if (result.images?.length) {
+							images.push(...result.images.map(image => image.base64));
+							sources.push(result.name);
+						}
+					}
+					wire.push({ role: 'user', content: text, ...(images.length ? { images } : {}) });
+					continue;
+				}
 				// Ollama's `images` field is documented for user turns, so a
 				// tool's images follow on one user message after every tool
 				// result of the round — the same contiguity rule as OpenAI, and
 				// the shape llava-class models are known to attend to.
-				const images: string[] = [];
-				const sources: string[] = [];
 				for (const result of message.toolResults ?? []) {
 					wire.push({ role: 'tool', tool_name: result.name, content: result.content });
 					if (result.images?.length) {
@@ -256,6 +328,17 @@ export class OllamaProvider implements IAIProvider {
 			}
 
 			if (message.role === 'assistant' && message.toolCalls?.length) {
+				if (prompted) {
+					// Its own earlier calls, in the envelope it writes them in, so
+					// the history reads the way the spec describes.
+					wire.push({
+						role: 'assistant',
+						content: JSON.stringify({
+							tool_calls: message.toolCalls.map(call => ({ name: call.name, arguments: call.arguments }))
+						})
+					});
+					continue;
+				}
 				wire.push({
 					role: 'assistant',
 					content: message.content,
@@ -293,6 +376,13 @@ export class OllamaProvider implements IAIProvider {
 	private _toStopReason(raw: string | undefined): StopReason {
 		return raw === 'length' ? 'max_tokens' : 'end_turn';
 	}
+
+	/**
+	 * Per model, whether the server accepts a native `tools` field, from
+	 * /api/show `capabilities`. A model marked `false` gets prompted tools
+	 * instead — the native field is an HTTP 400 on it.
+	 */
+	private readonly _toolSupport = new Map<string, boolean>();
 
 	/**
 	 * What one installed model can actually do, from `/api/show`.
@@ -350,6 +440,9 @@ export class OllamaProvider implements IAIProvider {
 			const models: SiriusModel[] = installed.map((m, i) => {
 				const info = shown[i];
 				const capabilities = info?.capabilities;
+				if (capabilities) {
+					this._toolSupport.set(m.name, capabilities.includes('tools'));
+				}
 				return {
 					id: m.name,
 					name: m.name,
@@ -365,6 +458,7 @@ export class OllamaProvider implements IAIProvider {
 					// servers old enough not to report it.
 					supportsVision: capabilities ? capabilities.includes('vision') : looksVisionCapable(m.name, m.details),
 					supportsThinking: capabilities?.includes('thinking') ?? false,
+					supportsTools: capabilities ? capabilities.includes('tools') : undefined,
 					supportsImageGen: false
 				};
 			});
@@ -409,4 +503,151 @@ function looksVisionCapable(name: string, details: OllamaModelDetails | undefine
 	const lower = name.toLowerCase();
 	// gemma3 and gemma3n are both multimodal, so no lookahead separating them.
 	return /llava|bakllava|moondream|minicpm-v|llama3\.2-vision|llama4|qwen2(\.5)?-?vl|gemma3|pixtral|granite3\.2-vision|mistral-small3\.[1-9]/.test(lower);
+}
+
+// ─── Prompted tools ──────────────────────────────────────────────────────────
+//
+// For models without the `tools` capability. The schemas go in the system
+// prompt, and Ollama's `format` pins the reply to this envelope, so the model
+// physically cannot answer in anything but a shape the parser reads. Verified
+// on a no-tools 14B before it was written: correct tool, correct argument,
+// first try.
+
+/** The reply shape a prompted-tools model is constrained to. */
+const PROMPTED_TOOLS_ENVELOPE = {
+	type: 'object',
+	properties: {
+		tool_calls: {
+			type: 'array',
+			items: {
+				type: 'object',
+				properties: {
+					name: { type: 'string' },
+					arguments: { type: 'object' }
+				},
+				required: ['name', 'arguments']
+			}
+		},
+		final: { type: 'string' }
+	}
+};
+
+function promptedToolSpec(tools: ToolDefinition[]): string {
+	return [
+		'You can call tools. Available tools:',
+		...tools.map(t => `- ${t.name}: ${t.description}\n  parameters (JSON schema): ${JSON.stringify(t.inputSchema)}`),
+		'',
+		'Reply with ONLY a JSON object, nothing else:',
+		'- to call tools: {"tool_calls":[{"name":"<tool>","arguments":{...}}]} — several at once is fine;',
+		'- when you have the answer: {"final":"<your answer, in markdown>"}.',
+		'Each tool result comes back in the next user message as "[tool result: <tool>]".'
+	].join('\n');
+}
+
+/**
+ * Read the finished envelope. Not-JSON means an older server that ignored
+ * `format`, or a model that broke out of it; the caller then shows the reply
+ * as plain text rather than losing it.
+ */
+function parseEnvelope(text: string, offset: number): { toolCalls: ToolCallRequest[]; final?: string; parsed: boolean } {
+	try {
+		const parsed = JSON.parse(text) as { tool_calls?: Array<{ name?: unknown; arguments?: unknown }>; final?: unknown };
+		const toolCalls: ToolCallRequest[] = (parsed.tool_calls ?? [])
+			.filter(call => typeof call?.name === 'string')
+			.map((call, i) => ({
+				id: `prompted-${Date.now()}-${offset + i}`,
+				name: call.name as string,
+				arguments: (typeof call.arguments === 'object' && call.arguments !== null ? call.arguments : {}) as Record<string, unknown>
+			}));
+		return { toolCalls, final: typeof parsed.final === 'string' ? parsed.final : undefined, parsed: true };
+	} catch {
+		return { toolCalls: [], parsed: false };
+	}
+}
+
+/**
+ * Streams the `final` string out of the envelope while it is still being
+ * generated. Tracks just enough JSON state to decode string escapes, so the
+ * user sees the answer appear rather than a closing brace after a long pause.
+ */
+class FinalStreamer {
+	private pending = '';
+	private inFinal = false;
+	private closed = false;
+	private escaped = false;
+	private unicode: string | undefined;
+	/** Decoded characters already handed to the caller. */
+	private shown = 0;
+
+	/** Feed a content delta; returns whatever decoded `final` text is newly available. */
+	push(delta: string): string {
+		if (this.closed) {
+			return '';
+		}
+		if (this.inFinal) {
+			return this.decode(delta);
+		}
+		this.pending += delta;
+		const opening = /"final"\s*:\s*"/.exec(this.pending);
+		if (!opening) {
+			return '';
+		}
+		this.inFinal = true;
+		const rest = this.pending.slice(opening.index + opening[0].length);
+		this.pending = '';
+		return this.decode(rest);
+	}
+
+	/**
+	 * What is left to show once the envelope is complete: the tail of `final`
+	 * the stream had not reached, or — if the reply was not an envelope at all
+	 * and no tool was called — the whole reply, so nothing the model said is lost.
+	 */
+	remainder(decoded: { final?: string; parsed: boolean }, raw: string, calledTools: boolean): string {
+		if (decoded.final !== undefined) {
+			return decoded.final.slice(this.shown);
+		}
+		return !decoded.parsed && !calledTools && this.shown === 0 ? raw : '';
+	}
+
+	private decode(chunk: string): string {
+		let out = '';
+		for (const ch of chunk) {
+			if (this.closed) {
+				break;
+			}
+			if (this.unicode !== undefined) {
+				this.unicode += ch;
+				if (this.unicode.length === 4) {
+					out += String.fromCharCode(parseInt(this.unicode, 16));
+					this.unicode = undefined;
+				}
+				continue;
+			}
+			if (this.escaped) {
+				this.escaped = false;
+				switch (ch) {
+					case 'n': out += '\n'; break;
+					case 't': out += '\t'; break;
+					case 'r': out += '\r'; break;
+					case 'b': out += '\b'; break;
+					case 'f': out += '\f'; break;
+					case 'u': this.unicode = ''; break;
+					default: out += ch; // \" \\ \/
+				}
+				continue;
+			}
+			if (ch === '\\') {
+				this.escaped = true;
+				continue;
+			}
+			if (ch === '"') {
+				this.closed = true;
+				break;
+			}
+			out += ch;
+		}
+		this.shown += out.length;
+		return out;
+	}
 }
