@@ -28,6 +28,7 @@ does not have the owner's machine: no GPU, no Ollama / LM Studio / llama.cpp, no
 local Chrome, no `~/.secrets`, no user-level Claude memory or settings.
 
 - **Toolchain**: Node 22 is pre-installed; check `node -v` and keep npm < 11.2.0.
+  The claude.ai environment's setup script is `scripts/cloud-setup.sh`; keep the two in sync.
   `npm ci` for this fork is large and slow on a fresh VM — install and build only
   when the task needs it.
 - **No production credentials, no releases.** Releases, the update server, the CDN
