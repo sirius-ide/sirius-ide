@@ -90,8 +90,9 @@ place it yourself, unpack the tarball on the remote host and run
 `bin/sirius-server`. The x64 server needs glibc 2.28 and a libstdc++ with
 GLIBCXX 3.4.25 or newer — Debian 10, Ubuntu 20.04 and RHEL 8 or newer — which
 `bin/helpers/check-requirements.sh` verifies before it starts. The arm64 server
-is built natively on a current runner and needs glibc 2.39, the same floor as
-the arm64 editor tarball. Alpine (musl) is not built.
+is built natively on a current runner and needs glibc 2.38 and GLIBCXX 3.4.31
+(Ubuntu 24.04, Debian 13 or newer), the same measured floor as the arm64 editor
+tarball. Alpine (musl) is not built.
 
 ## Windows
 

@@ -77,7 +77,8 @@ rebase instead of drifting.
 ## Phase 4 — Polish & distribution
 
 - ✅ **Telemetry-free defaults and a clear privacy posture** — `PRIVACY.md` says plainly that Sirius collects nothing, that requests go straight to the chosen provider with no Sirius relay, and that local models mean nothing leaves the machine
-- ✅ **Packaged installers and an update channel** — AUR `sirius-ide-bin` installs the prebuilt release (compiling costs tens of minutes and ~8 GB of RAM, which most users will not sit through); deb, rpm and tarball come from the release workflow; `build/update-server` implements the protocol the editor speaks, backed by GitHub Releases and deployable as a single worker. `INSTALL.md` covers every route
+- ✅ **Packaged installers and an update channel** — the `[sirius]` pacman repository is published by the release itself (`build/arch/`, `build/sirius/publish-arch-repo.sh`); deb, rpm and tarball come from the release workflow and are **installed and run in Debian 12, Ubuntu 22.04 and Rocky 9 containers on every run** before anything is published; `build/update-server` implements the protocol the editor speaks, backed by GitHub Releases and deployable as a single worker. `INSTALL.md` covers every route
+- ✅ **The remote server** — `sirius-server-linux-{x64,arm64}.tar.gz` ships with every release, the asset `serverDownloadUrlTemplate` had promised since v1.118.0; x64 is gated at glibc 2.28 / GLIBCXX 3.4.25 and started in the install containers. Connecting through a real remote extension is the remaining local proof
 - ✅ **User-facing strings name the running product** — the workbench told Sirius users to "reload Visual Studio Code" and announced "Welcome to Visual Studio Code" to screen readers
 - ⬜ Onboarding walkthrough content written for Sirius (the strings are correct; the walkthrough still teaches upstream's feature tour)
 - ⬜ Sign the Windows installer — SmartScreen warns on first run without it
@@ -103,22 +104,30 @@ rebuilt by hand after each tag and lags until that is done.
 still open lives in [PROJECT-STATE.md](PROJECT-STATE.md).** It is the authoritative
 status document; this roadmap is the feature plan.
 
-The open items, highest value first:
+The open items, highest value first (2026-09-30; items done on branch
+`claude/stoic-faraday-wrxkp9` are marked and ship with the next tag):
 
-1. **Automate the Arch repo** — packages are built and uploaded entirely by hand, the
-   one un-scripted stage in the release train, and the repo lags every tag until it runs.
-2. **A website** — `siriuside.com` has no DNS record; every user-facing URL points at
-   GitHub.
-3. **Prove the packages install** — the dependency floor is CI-gated (glibc ≤ 2.28,
-   libc++-only, byte-exact dep lists) and the published `.deb`/`.rpm` metadata checks
-   out; an `apt install` on Debian 12 and a `dnf install` on Rocky 9 in a container is
-   the remaining step.
-4. **Exercise Anthropic and Gemini against live APIs**, and a vision model against the
-   image-input path — all wired and probe-proven at the wire level, none exercised live.
-5. **Build the REH server** — `serverDownloadUrlTemplate` names an asset no job produces,
-   so remote extensions 404.
-6. ✅ **The new icon** — done on `sirius` (`3be0dda`): `build/sirius/make-icons.py` regenerates
+1. ✅ **Automate the Arch repo** — every stable tag builds `sirius-ide-bin` from its own
+   tarball, installs it on Arch, and publishes it to the pacman repository with downgrade
+   and immutability guards. Rehearsed on CI; the first real upload happens on the next tag.
+2. ✅ **Prove the packages install** — `.deb` on Debian 12 and Ubuntu 22.04, `.rpm` on
+   Rocky 9, in clean containers, on every run: dependencies resolve, the editor shows a
+   window, the server answers. Publish requires it.
+3. ✅ **Build the REH server** — `sirius-server-linux-{x64,arm64}.tar.gz`, gated on x64 at
+   the floor the server promises remote hosts. A real remote-extension connect is the
+   remaining local proof.
+4. ✅ **The new icon** — done on `sirius` (`3be0dda`): `build/sirius/make-icons.py` regenerates
    every platform icon file from `resources/sirius/icon.png` (2048 px master) and
-   `icon-small.png` (48 px and under). Not in any release yet; it ships with the next tag.
+   `icon-small.png` (48 px and under). Ships with the next tag.
+5. **Cut the tag** — v1.118.6 carries all of the above; watch `Publish` and `Publish Arch
+   repository`, which run for the first time.
+6. **arm64 sysroot cross-build** — the native arm64 tarball and server were measured at
+   glibc 2.38 / GLIBCXX 3.4.31 and do not run on Debian 12 arm64. Upstream's aarch64
+   sysroot cross-build on an x64 runner would give arm64 the same 2.28 floor as x64, and
+   `.deb`/`.rpm` with it.
+7. **A website** — `siriuside.com` has no DNS record; every user-facing URL points at
+   GitHub.
+8. **Exercise Anthropic and Gemini against live APIs**, and a vision model against the
+   image-input path — all wired and probe-proven at the wire level, none exercised live.
 
 > Pick the next item and Sirius will implement it end to end.
