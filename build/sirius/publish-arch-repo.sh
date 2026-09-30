@@ -11,6 +11,7 @@
 #
 #   build/sirius/publish-arch-repo.sh <pkg.tar.zst>            publish
 #   build/sirius/publish-arch-repo.sh <pkg.tar.zst> --dry-run  repo-add only, no R2, no credentials
+#   build/sirius/publish-arch-repo.test.sh                     the self-test: this script against a stub R2
 #
 # Environment for a real publish: R2_ENDPOINT, AWS_ACCESS_KEY_ID,
 # AWS_SECRET_ACCESS_KEY (the same bucket-scoped token the release mirror uses).
@@ -28,6 +29,16 @@
 #   3. The package before the database. A client never sees a database entry
 #      whose file 404s. The database objects carry no-cache so the CDN edge
 #      never serves a stale index.
+#
+# And one rule that keeps the three honest: a question the bucket did not
+# answer is never taken as "absent". Every existence check is a HeadObject
+# with exactly two accepted answers, 200 (present) and 404 (absent). A 403, a
+# timeout, a wrong endpoint or a failed download stops the publish with the
+# CLI's own message — because "the database could not be fetched" read as
+# "there is no database yet" would skip the downgrade check and replace the
+# live index with one that lists only this package. Both halves of the
+# database (db and files) must be present, or both absent: one without the
+# other is a half-finished repository, and this script will not build on it.
 
 set -euo pipefail
 
@@ -56,6 +67,24 @@ fi
 aws_() { aws s3 "$@" --endpoint-url "$R2_ENDPOINT"; }
 awsapi() { aws s3api "$@" --endpoint-url "$R2_ENDPOINT"; }
 
+# object_status <key>: does the object exist? 0 = yes (HeadObject's answer is
+# left in $work/head.json), 1 = the bucket answered 404, 2 = the bucket did not
+# answer — the CLI's message has been printed as an error annotation and the
+# caller must stop. R2 answers HeadObject on a missing key with 404 (unlike S3,
+# it has no 403-for-missing when the token cannot list, and the mirror token
+# can list this bucket anyway), so a 403 here is a credential or scope problem,
+# never absence.
+object_status() {
+	local key=$1 rc=0
+	awsapi head-object --bucket "$bucket" --key "$key" >"$work/head.json" 2>"$work/head.err" || rc=$?
+	[ "$rc" = 0 ] && return 0
+	if grep -qE '\((404|NotFound|NoSuchKey)\)' "$work/head.err"; then
+		return 1
+	fi
+	echo "::error::cannot tell whether s3://$bucket/$key exists (aws exit $rc): $(tr -s '\n' ' ' <"$work/head.err")"
+	return 2
+}
+
 work=$(mktemp -d /tmp/sirius-arch-repo.XXXXXX)
 cp "$pkg" "$work/"
 cd "$work"
@@ -66,14 +95,34 @@ echo "== current repository database"
 if [ "$dry" = --dry-run ]; then
 	echo "(dry run: starting from an empty database)"
 else
+	present=()
 	for f in "$repo.db.tar.gz" "$repo.files.tar.gz"; do
-		aws_ cp "s3://$bucket/$prefix/$f" "./$f" 2>/dev/null && echo "fetched $f" || echo "no $f in the bucket yet (first publish)"
+		object_status "$prefix/$f" && rc=0 || rc=$?
+		case $rc in
+			0) present+=("$f") ;;
+			1) echo "$f: 404 from the bucket" ;;
+			*) exit 1 ;;
+		esac
 	done
+	case ${#present[@]} in
+		2)
+			for f in "${present[@]}"; do
+				aws_ cp "s3://$bucket/$prefix/$f" "./$f" >/dev/null \
+					|| { echo "::error::$f exists in the bucket but could not be downloaded; not publishing on top of a database this run has not seen"; exit 1; }
+				echo "fetched $f"
+			done ;;
+		0)
+			echo "::warning::s3://$bucket/$prefix/ has no $repo database ($repo.db.tar.gz and $repo.files.tar.gz both 404): first publish, creating the repository" ;;
+		*)
+			echo "::error::s3://$bucket/$prefix/ has ${present[*]} but not its counterpart — a half-finished repository. Restore or remove the pair by hand before publishing."
+			exit 1 ;;
+	esac
 fi
 
 # 1. Never a downgrade.
 if [ -f "$repo.db.tar.gz" ]; then
-	current=$(tar -tzf "$repo.db.tar.gz" | grep -oE '^sirius-ide-bin-[^/]+' | head -1 | sed 's/^sirius-ide-bin-//' || true)
+	listing=$(tar -tzf "$repo.db.tar.gz") || { echo "::error::the fetched $repo.db.tar.gz is not a readable pacman database; not publishing on top of it"; exit 1; }
+	current=$(printf '%s\n' "$listing" | grep -oE '^sirius-ide-bin-[^/]+' | head -1 | sed 's/^sirius-ide-bin-//' || true)
 	if [ -n "$current" ]; then
 		echo "database currently lists sirius-ide-bin-$current"
 		case "$(vercmp "$newver" "$current")" in
@@ -83,6 +132,8 @@ if [ -f "$repo.db.tar.gz" ]; then
 			0)
 				echo "sirius-ide-bin-$current is already the published version; re-verifying the objects only" ;;
 		esac
+	else
+		echo "database lists no sirius-ide-bin entry"
 	fi
 fi
 
@@ -99,24 +150,28 @@ fi
 
 # 2. Never different bytes under an immutable name.
 echo "== package object"
-if existing=$(awsapi head-object --bucket "$bucket" --key "$prefix/$pkgfile" 2>/dev/null); then
-	remote_sha=$(printf '%s' "$existing" | sed -n 's/.*"sha256": *"\([0-9a-f]*\)".*/\1/p' | head -1)
-	if [ -z "$remote_sha" ]; then
-		# An object published before this script recorded metadata: hash it.
-		aws_ cp "s3://$bucket/$prefix/$pkgfile" ./remote.pkg >/dev/null
-		remote_sha=$(sha256sum ./remote.pkg | cut -d' ' -f1)
-	fi
-	if [ "$remote_sha" = "$sha" ]; then
-		echo "$pkgfile is already in the bucket with the same bytes; not re-uploading"
-	else
-		echo "::error::$pkgfile already exists in the bucket with different bytes (bucket $remote_sha, this build $sha). It is served as immutable, so it cannot be replaced: republish with a higher pkgrel (workflow input arch_pkgrel)."
-		exit 1
-	fi
-else
-	aws_ cp "./$pkgfile" "s3://$bucket/$prefix/$pkgfile" \
-		--cache-control 'public, max-age=31536000, immutable' --content-type application/zstd \
-		--metadata "sha256=$sha"
-fi
+object_status "$prefix/$pkgfile" && rc=0 || rc=$?
+case $rc in
+	0)
+		remote_sha=$(sed -n 's/.*"sha256": *"\([0-9a-f]*\)".*/\1/p' "$work/head.json" | head -1)
+		if [ -z "$remote_sha" ]; then
+			# An object published before this script recorded metadata: hash it.
+			aws_ cp "s3://$bucket/$prefix/$pkgfile" ./remote.pkg >/dev/null
+			remote_sha=$(sha256sum ./remote.pkg | cut -d' ' -f1)
+		fi
+		if [ "$remote_sha" = "$sha" ]; then
+			echo "$pkgfile is already in the bucket with the same bytes; not re-uploading"
+		else
+			echo "::error::$pkgfile already exists in the bucket with different bytes (bucket $remote_sha, this build $sha). It is served as immutable, so it cannot be replaced: republish with a higher pkgrel (workflow input arch_pkgrel)."
+			exit 1
+		fi ;;
+	1)
+		aws_ cp "./$pkgfile" "s3://$bucket/$prefix/$pkgfile" \
+			--cache-control 'public, max-age=31536000, immutable' --content-type application/zstd \
+			--metadata "sha256=$sha" ;;
+	*)
+		exit 1 ;;
+esac
 
 # 3. The package before the database. pacman fetches sirius.db and
 # sirius.files; repo-add makes them symlinks to the .tar.gz files, and object
