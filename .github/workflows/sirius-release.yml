@@ -375,7 +375,7 @@ jobs:
         with:
           subject-path: 'dist/*'
 
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
           # Explicit rather than inherited from the ref: the job is already
           # tag-only, and this makes that visible at the point it matters.
