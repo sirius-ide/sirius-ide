@@ -160,8 +160,6 @@ jobs:
       # and libc6 (>= 2.39) entries the amd64 reference list does not contain.
       # Do NOT route the flags through $GITHUB_ENV either: they would leak
       # `-nostdinc++ -stdlib=libc++ --sysroot=...` into every later step.
-      # `npm ci` runs build/npm/preinstall.ts itself (it is the preinstall
-      # lifecycle script), inside this same toolchain env.
       # The same script also exports VSCODE_REMOTE_CC/CXX/CXXFLAGS/LDFLAGS, the
       # glibc-2.28 gcc sysroot that postinstall.ts uses for remote/ — so the REH
       # server's native modules get their floor from this step too.
@@ -176,11 +174,21 @@ jobs:
       # toolchain, so the runner's own gcc emitted x86_64 modules into an arm64
       # Electron, and nothing noticed until the app was run. VSCODE_ARCH, which
       # setup-env.sh reads to pick the sysroot, is the job-level env above.
+      # build/npm/preinstall.ts runs BY HAND before `npm ci`, as upstream runs
+      # it. It is also the root preinstall lifecycle script, but npm 10 runs
+      # that only after the whole tree — every node-gyp build included — has
+      # been reified, and this script is what patches the Electron V8 headers
+      # to stop including <source_location> (v8-source-location.patch). The
+      # sysroot's gcc 10.5 libstdc++ has no such header, so without the early
+      # run native-keymap fails to compile on the arm64 leg (x64 never noticed:
+      # Chromium's libc++ has it). Running it twice is fine — the lifecycle run
+      # re-downloads the headers before patching them again.
       - name: Install dependencies
         run: |
           set -e
           export npm_config_arch='${{ matrix.arch }}'
           source ./build/azure-pipelines/linux/setup-env.sh
+          node build/npm/preinstall.ts
           # The token stays for `npm ci` too. install-sysroot.ts needs it, and so
           # does @vscode/ripgrep's postinstall, which fetches its binary from
           # api.github.com — anonymously that is 60 requests/hour shared across
@@ -192,6 +200,10 @@ jobs:
           npm ci
         env:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+          # The electron package's postinstall would fetch a ~100 MB zip into
+          # node_modules/electron that nothing here uses: the packaging tasks
+          # download their own Electron for the target arch (as upstream skips it).
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
           GITHUB_TOKEN: ${{ github.token }}
 
       # No toolchain env here on purpose: the packaging tasks compile no native

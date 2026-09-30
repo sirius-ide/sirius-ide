@@ -42,10 +42,13 @@ export const referenceGeneratedDepsByArch = {
 	// tunnel-only set differs. Measured on the public Electron 39.8.8 linux-arm64
 	// binaries (rpmdeps over electron, chrome-sandbox, chrome_crashpad_handler):
 	// `libcups.so.2()(64bit)` is ADDED and `libc.so.6(GLIBC_2.27)` is ABSENT,
-	// while `libgcc_s.so.1(GCC_4.2.0)` STAYS — Electron's own aarch64 unwinder
-	// imports it — and `GCC_4.5.0` (aarch64-only in upstream's measurement) stays
-	// with it; librt never appeared on aarch64. Confirmed or corrected by the
-	// first cross-build rehearsal's "Old:/New:" diff, the way x86_64 was.
+	// while `libgcc_s.so.1(GCC_4.2.0)` STAYS: on aarch64 it is a soft-float
+	// helper (`__floatunsitf`) imported by Electron itself and by @parcel/watcher,
+	// not the Rust unwinder it was on x86_64. `GCC_4.5.0` is spdlog's long-double
+	// arithmetic, soft-float on aarch64; librt never appeared on aarch64. A review
+	// cross-compiled all eleven client modules against the sysroot and reproduced
+	// this list exactly (with Node 22 rather than Electron headers); the first
+	// cross-build rehearsal's "Old:/New:" diff is the final word, as for x86_64.
 	'x86_64': [
 		'ca-certificates',
 		'ld-linux-x86-64.so.2()(64bit)',

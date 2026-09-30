@@ -27,9 +27,14 @@ export const referenceGeneratedDepsByArch = {
 	// ships the public electron/electron build, which links libcups on both (see
 	// rpm/dep-lists.ts). The version constraint is upstream's for the same
 	// bullseye sysroot. amd64 was confirmed by the first packaging rehearsal's
-	// "Old:/New:" diff (run 36334123208); arm64 was predicted from the public
-	// Electron 39.8.8 linux-arm64 binaries and is confirmed or corrected by the
-	// first cross-build rehearsal's diff in the same way.
+	// "Old:/New:" diff (run 36334123208). On arm64, `libstdc++6 (>= 5)` is also
+	// ABSENT: dpkg-shlibdeps emits one libstdc++6 floor per binary, and the only
+	// upstream binary whose highest libstdc++ symbol carries the `5` tag is the
+	// distro-mixed vsda.node, which Sirius does not ship (it is libc++-static on
+	// x64, which is why amd64 matched unchanged). Both arm64 deltas were measured
+	// by cross-compiling the modules against the sysroot and against the public
+	// Electron 39.8.8 linux-arm64 binaries; the first cross-build rehearsal's
+	// diff is the final word, as it was for amd64.
 	'amd64': [
 		'ca-certificates',
 		'libasound2 (>= 1.0.17)',
@@ -134,7 +139,6 @@ export const referenceGeneratedDepsByArch = {
 		'libnss3 (>= 3.26)',
 		'libpango-1.0-0 (>= 1.14.0)',
 		'libstdc++6 (>= 4.1.1)',
-		'libstdc++6 (>= 5)',
 		'libstdc++6 (>= 5.2)',
 		'libstdc++6 (>= 6)',
 		'libstdc++6 (>= 9)',
