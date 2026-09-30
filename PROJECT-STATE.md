@@ -661,7 +661,8 @@ Verify provenance of any asset: `gh attestation verify <file> --owner sirius-ide
 
 **Last handoff (2026-09-30, cloud session): the arm64 sysroot cross-build is done and
 rehearsed green on branch `claude/busy-davinci-2vct4i` — NOT yet on `sirius`, not yet in a
-release.** Four commits, cherry-pick them all: `aad0383` (the cross-build itself: arm64 built
+release.** Five commits, cherry-pick them all — the four below and the state-doc commit after
+them: `aad0383` (the cross-build itself: arm64 built
 on the x64 runner through the aarch64 glibc-2.28 sysroot, `.deb`/`.rpm` for arm64, seven
 required install-test legs, `install-test.sh` architecture-aware, INSTALL.md), `442d28b`
 (from two Opus reviews: job-level `VSCODE_ARCH` — without it every arm64 artifact carried
@@ -697,7 +698,7 @@ fixed in `db3e2b6` and deployed as worker version `b8394745` (rollback target `2
 Dependabot PRs #1–#4 are closed; #5 is moot and left for Dependabot.
 
 **Next, in order** (one branch per item; the owner merges by cherry-pick):
-(1) **owner:** cherry-pick the four commits above onto `sirius` and tag 1.118.7 — the tag is
+(1) **owner:** cherry-pick the five commits above onto `sirius` and tag 1.118.7 — the tag is
 what makes arm64's packages and floor real for users; (2) **cloud, small:** harden
 `build/sirius/publish-arch-repo.sh` — a failed fetch of the live database is treated as a
 first publish, which skips the downgrade check; tell "absent" (404) from "failed" — and land
