@@ -34,12 +34,18 @@ local Chrome, no `~/.secrets`, no user-level Claude memory or settings.
 - **No production credentials, no releases.** Releases, the update server, the CDN
   and the Arch repo are published by CI on a tag (`sirius-release.yml` holds the R2
   secrets) or by hand from the owner's machine. Never tag, publish, or touch
-  `update.siriuside.com` / `dl.siriuside.com` from a cloud session.
+  `update.siriuside.com` / `dl.siriuside.com` from a cloud session. The website's DNS
+  and Cloudflare Pages deploy need the owner's Cloudflare token too: build the site,
+  then stop and leave the deploy steps in PROJECT-STATE.md.
 - **Local-only proof**: anything that needs the GPU, local models, or the owner's
-  Chrome can't be verified here. Write the code, mark it *unverified* in
+  Chrome can't be verified here — that includes the live Anthropic / Gemini / vision
+  runs and the remote-extension connect. Write the code, mark it *unverified* in
   PROJECT-STATE.md, and leave the proof for a local session.
-- **Work on a branch** and push it; the owner reviews locally before it lands on
-  `sirius`.
+- **One branch per task**, pushed; the owner reviews locally and lands it on `sirius`
+  by cherry-pick, so never create merge commits and don't wait for a PR to merge.
+  If a PR exists for your branch (claude.ai's **Create PR** button opens one), keep its
+  title and body free of attribution — the button adds a `claude.ai/code/session_…`
+  link; remove it with `gh pr edit`.
 
 ## Handoff — every session ends resumable
 

@@ -615,8 +615,13 @@ gh run watch --repo sirius-ide/sirius-ide
 #    gh workflow run sirius-release.yml --ref v<X.Y.Z> -f allow_missing_packages=true
 #    A package that built but fails to install cannot be shipped by any input.
 
-# 5. Confirm the update server and the Arch repository see it
-curl https://update.siriuside.com/api/update/linux-x64/stable/0000000000000000000000000000000000000000
+# 5. Confirm the update server and the Arch repository see it — EVERY platform. v1.118.6
+#    was green on CI and still offered arm64 desktops the REH server tarball until this
+#    check caught it (§13). Each platform must name its own asset, with the sha256 from
+#    that asset's own .sha256; a client already on the new commit must get 204.
+for p in linux-x64 linux-arm64 win32-x64; do
+  curl -fsS https://update.siriuside.com/api/update/$p/stable/0000000000000000000000000000000000000000; echo
+done
 curl -fsSL https://dl.siriuside.com/arch/x86_64/sirius.db | tar -tz | grep sirius-ide-bin
 
 # 6. If the same version must be republished to the Arch repo (rebuilt bytes
@@ -649,11 +654,14 @@ version `b8394745` (rollback target `2125f6cc`); live checks then gave linux-x64
 linux-arm64 and win32-x64 their own assets, and a 1.118.6 client 204. **Still unverified:**
 a real remote extension against the server (hole 12) and the live provider runs.
 
-**Next, in order:** (1) the arm64 sysroot cross-build on the x64 runner (hole 1);
-(2) the website (hole 2); (3) the live Anthropic/Gemini/vision runs and the
-remote-extension connect, both local-only; (4) harden `build/sirius/publish-arch-repo.sh`:
-a failed fetch of the live database is treated as a first publish, which skips the
-downgrade check — tell "absent" from "failed" before a re-run of an old tag relies on it.
+**Next, in order** (one branch per item; the owner merges by cherry-pick):
+(1) **cloud:** the arm64 sysroot cross-build on an x64 runner (hole 1), rehearsed with a
+branch dispatch; (2) **cloud, small:** harden `build/sirius/publish-arch-repo.sh` — a failed
+fetch of the live database is treated as a first publish, which skips the downgrade check;
+tell "absent" (404) from "failed" — and land it before the next tag, which reruns
+`arch-publish`; (3) **cloud for the code, owner for the rest:** the website (hole 2) — DNS and
+the Cloudflare Pages deploy need the owner's token; (4) **local-only:** the live
+Anthropic/Gemini/vision runs and the remote-extension connect (hole 12).
 
 1. `git log --oneline -20` — this file can lag; the log cannot.
 2. `git status` and `git log origin/sirius..HEAD` — is there unpushed or unreleased work?
