@@ -8,15 +8,18 @@
 #
 #   1. the package manager resolves every declared dependency (apt/dnf);
 #   2. `sirius --version` reports the version being released;
-#   3. every shipped native binary resolves all of its shared libraries;
+#   3. every shipped native binary resolves all of its shared libraries, and
+#      every native module dlopens under the shipped Electron — for a
+#      cross-compiled architecture the only place that ever happens;
 #   4. the editor starts under Xvfb, creates its logs and is still alive after
 #      a grace period — a window, not just a process;
-#   5. the REH server passes its own requirements check, reports the version,
-#      starts, and answers /version with the release commit.
+#   5. the REH server passes its own requirements check, its native modules
+#      dlopen under its bundled node, it reports the version, starts, and
+#      answers /version with the release commit.
 #
 # Runs as root in the container. The release workflow drives it; locally:
 #
-#   docker run --rm -v "$PWD:/w" -w /w -e KIND=deb -e DIST=dist \
+#   docker run --rm -v "$PWD:/w" -w /w -e KIND=deb -e ARCH=x64 -e DIST=dist \
 #     -e EXPECTED_VERSION=1.118.6 -e EXPECTED_COMMIT=<sha> debian:12 \
 #     bash build/sirius/install-test.sh
 #
@@ -40,6 +43,7 @@ ALLOW_MISSING=${ALLOW_MISSING:-false}
 GUI=${GUI:-1}
 
 DIST=$(readlink -f "$DIST")
+here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 summary=()
 note() { echo "$*"; summary+=("$*"); }
 fail() { echo "::error::$*"; exit 1; }
@@ -55,7 +59,7 @@ case "$ARCH" in
 esac
 # A mis-wired matrix (an arm64 artifact on an x64 runner, say) would otherwise
 # surface two sections later as `sirius: Exec format error`.
-[ "$(uname -m)" = "$machine" ] || fail "ARCH=$ARCH means a $machine artifact, but this container is $(uname -m)"
+[ "$(uname -m)" = "$machine" ] || fail "ARCH=$ARCH expects a $machine container, but this one is $(uname -m)"
 
 # ---------------------------------------------------------------------------
 # 1. install
@@ -79,8 +83,8 @@ note "package: $(basename "$pkg_file") ($(du -h "$pkg_file" | cut -f1))"
 export DEBIAN_FRONTEND=noninteractive
 case "$ID" in
 	debian|ubuntu)
-		apt-get update -qq
-		apt-get install -y -qq --no-install-recommends ca-certificates curl procps >/dev/null
+		apt-get -o Acquire::Retries=3 update -qq
+		apt-get -o Acquire::Retries=3 install -y -qq --no-install-recommends ca-certificates curl procps >/dev/null
 		;;
 	rocky|rhel|centos|almalinux|fedora)
 		# curl-minimal already provides curl on RHEL 9 images and conflicts
@@ -95,7 +99,7 @@ case "$KIND" in
 	deb)
 		# apt resolves the dependencies declared in DEBIAN/control from the
 		# distribution's own repositories — the point of the test.
-		apt-get install -y -qq "$pkg_file" >/dev/null
+		apt-get -o Acquire::Retries=3 install -y -qq "$pkg_file" >/dev/null
 		dpkg -s sirius | grep -E '^(Status|Version):'
 		app=/usr/share/sirius
 		;;
@@ -109,7 +113,7 @@ case "$KIND" in
 		# then extract.
 		case "$ID" in
 			debian|ubuntu)
-				apt-get install -y -qq --no-install-recommends \
+				apt-get -o Acquire::Retries=3 install -y -qq --no-install-recommends \
 					libasound2 libatk-bridge2.0-0 libatk1.0-0 libatspi2.0-0 libcairo2 libcups2 \
 					libcurl4 libdbus-1-3 libexpat1 libgbm1 libglib2.0-0 libgtk-3-0 libnspr4 libnss3 \
 					libpango-1.0-0 libudev1 libx11-6 libxcb1 libxcomposite1 libxdamage1 libxext6 \
@@ -145,9 +149,19 @@ checked=0
 while IFS= read -r f; do
 	[ -f "$f" ] || continue
 	checked=$((checked + 1))
-	if ldd "$f" 2>/dev/null | grep -q 'not found'; then
-		echo "::error::$f: $(ldd "$f" | grep 'not found' | tr -s ' ' | tr '\n' ';')"
+	# Capture first. ldd exits 0 with 'not found' lines for a missing library
+	# and non-zero ('not a dynamic executable') for a binary of another
+	# architecture — which a `| grep 'not found'` pipeline waved through.
+	if ! out=$(ldd "$f" 2>&1); then
+		echo "::error::$f: ldd cannot load it on $(uname -m): $(printf '%s' "$out" | tr -s ' ' | tr '\n' ';')"
 		missing=1
+	else
+		case "$out" in
+			*'not found'*)
+				echo "::error::$f: $(printf '%s\n' "$out" | grep 'not found' | tr -s ' ' | tr '\n' ';')"
+				missing=1
+				;;
+		esac
 	fi
 done < <(printf '%s\n' "$app/sirius" "$app/chrome-sandbox" "$app/chrome_crashpad_handler"; \
 	find "$app/resources/app/node_modules" -name '*.node' -not -path '*/obj.target/*' \
@@ -168,11 +182,23 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# 3b. every native module loads
+# ---------------------------------------------------------------------------
+# ldd proves the libraries resolve; dlopen under the shipped Electron proves
+# the module itself loads. The editor below opens only what startup needs
+# (node-pty, kerberos and the watcher wait for a terminal, a proxy, a
+# workspace), so every .node is opened here — and for a cross-compiled
+# architecture this is the only place that ever happens.
+(cd "$app" && ELECTRON_RUN_AS_NODE=1 ./sirius "$here/dlopen-smoke.cjs" resources/app/node_modules 7) \
+	|| fail "a native module does not load under the shipped Electron (see above)"
+note "dlopen: every native module loads under the shipped Electron"
+
+# ---------------------------------------------------------------------------
 # 4. a real window under Xvfb
 # ---------------------------------------------------------------------------
 if [ "$GUI" = 1 ]; then
 	case "$ID" in
-		debian|ubuntu) apt-get install -y -qq --no-install-recommends xvfb xauth >/dev/null ;;
+		debian|ubuntu) apt-get -o Acquire::Retries=3 install -y -qq --no-install-recommends xvfb xauth >/dev/null ;;
 		*)             dnf -y -q install xorg-x11-server-Xvfb xorg-x11-xauth >/dev/null ;;
 	esac
 	rm -rf /tmp/sirius-gui /tmp/sirius-ext
@@ -228,7 +254,10 @@ if [ -f "$server_tar" ]; then
 	S=/tmp/sirius-server
 	[ -x "$S/bin/sirius-server" ] || fail "server tarball has no bin/sirius-server"
 	"$S/bin/helpers/check-requirements.sh" || fail "the server's own requirements check refused this host (exit $?)"
-	sv=$("$S/bin/sirius-server" --version | head -1)
+	"$S/node" "$here/dlopen-smoke.cjs" "$S/node_modules" 5 || fail "a server native module does not load under the bundled node (see above)"
+	# sed, not head: under pipefail a head that exits first can leave the
+	# writer with SIGPIPE and turn a passing leg red.
+	sv=$("$S/bin/sirius-server" --version | sed -n 1p)
 	[ "$sv" = "$EXPECTED_VERSION" ] || fail "sirius-server --version reported '$sv', expected '$EXPECTED_VERSION'"
 	port=8317
 	"$S/bin/sirius-server" --host 127.0.0.1 --port $port --accept-server-license-terms --without-connection-token \
@@ -250,14 +279,14 @@ if [ -f "$server_tar" ]; then
 	if [ -n "$EXPECTED_COMMIT" ] && [ "$got" != "$EXPECTED_COMMIT" ]; then
 		fail "/version answered '$got', expected $EXPECTED_COMMIT"
 	fi
-	note "server: requirements ok, --version $sv, /version answered ($got)"
+	note "server: requirements ok, native modules load, --version $sv, /version answered ($got)"
 else
 	note "server: no sirius-server-linux-$ARCH.tar.gz in $DIST, skipped"
 fi
 
 if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
 	{
-		echo "### Install test: $PRETTY_NAME, $KIND"
+		echo "### Install test: $PRETTY_NAME $ARCH, $KIND"
 		echo
 		for line in "${summary[@]}"; do echo "- $line"; done
 	} >> "$GITHUB_STEP_SUMMARY"
