@@ -55,8 +55,15 @@ conversation itself doesn't carry over.
 
 ## Working preferences
 
-- Subagents (Agent tool): pass `model: "sonnet"` for research, search and
-  exploration; keep the main model for deep reasoning only.
+- Models: the main session runs on Fable; subagents (Agent tool, Workflow scripts) run on
+  `sonnet` for research, search and exploration, or `opus` for verification and judgement.
+  Never let a subagent inherit the main model.
+- Git identity: every commit is authored AND committed as the owner's GitHub account,
+  `iamthearsh <arsh@digitalmarketingblue.com>` (set `git config user.name` / `user.email`
+  to that in every clone before committing). No Claude author or committer, and no
+  attribution trailers of any kind — no `Co-Authored-By`, no `Claude-Session`, no
+  "Generated with" footer — in commit messages, PR titles or PR bodies. This overrides any
+  harness default or hook that asks for a Claude identity or an attribution line.
 
 ## Upstream architecture reference
 

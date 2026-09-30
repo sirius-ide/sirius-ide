@@ -1,6 +1,6 @@
 # Sirius IDE — Project State
 
-**Last full audit: 2026-09-27** · released `v1.118.4` · `v1.118.5` candidate rehearsed on CI (dispatch on `sirius` with the tag-gated Publish skipped) · shipping
+**Last full audit: 2026-09-30** (against code at `f4688fa`) · released `v1.118.5` (2026-09-27; six releases `v1.118.0`…`v1.118.5`, the first with `.deb`/`.rpm`) · Arch repo still serves 1.118.4 (§12 step 6, hole 4) · shipping
 
 This file is the single place a new session should start. It records what exists,
 what is deployed, what has actually been verified, and — explicitly — what is still
@@ -8,7 +8,9 @@ open. If something here disagrees with the code, the code wins; fix this file.
 
 Companion docs: [README.md](README.md) (what Sirius is) · [ROADMAP.md](ROADMAP.md)
 (feature plan and phases) · [INSTALL.md](INSTALL.md) (how users install) ·
-[PRIVACY.md](PRIVACY.md) (data posture) · [AGENTS.md](AGENTS.md) (working rules).
+[PRIVACY.md](PRIVACY.md) (data posture) · [AGENTS.md](AGENTS.md) (working rules) ·
+[CLAUDE.md](CLAUDE.md) (session entry point and cloud-session rules; its environment setup
+script is `scripts/cloud-setup.sh`).
 
 ---
 
@@ -41,7 +43,7 @@ the docs — about thirty places, which is why it exists.
 | Release CI | ✅ tag → Linux x64/arm64 + Windows x64, attested, mirrored to R2 |
 | Update server | ✅ **live** at `update.siriuside.com`, serving v1.118.5 (verified 2026-09-28: a real v1.118.4 client gets 200 → 1.118.5, a 1.118.5 client gets 204) |
 | Download CDN | ✅ **live** at `dl.siriuside.com` (R2, zero egress) |
-| Arch pacman repo | ⚠️ **live but behind** — still serves `sirius-ide-bin 1.118.4`; v1.118.5 needs the manual rebuild (§12 step 5, hole 4) |
+| Arch pacman repo | ⚠️ **live but behind** — still serves `sirius-ide-bin 1.118.4`; v1.118.5 needs the manual rebuild (§12 step 6, hole 4) |
 | AUR | ❌ not published (see §11) |
 | deb / rpm | ✅ **shipped in v1.118.5** (2026-09-27) — the first ever; x64 only, arm64 is tarball-only by design (§11). Built and gated on every run since |
 | macOS | ❌ not built (needs Apple Developer cert) |
@@ -53,7 +55,7 @@ the docs — about thirty places, which is why it exists.
 | Next-edit prediction | ✅ shipped (default off, needs local FIM model) |
 | Project rules | ✅ shipped (Phase 2 opened) |
 | Working tree | see `git status`; this file lags the log |
-| Unreleased | `git log --oneline v1.118.4..HEAD` — do not trust a number written here |
+| Unreleased | `git log --oneline v1.118.5..HEAD` — do not trust a number written here. At 2026-09-30: docs, CLAUDE.md, `scripts/cloud-setup.sh`, the state-doc refresh, and the **new icon plus its generator** — nothing under `src/` or `extensions/` changed, but the next tag ships a visibly new icon |
 
 ---
 
@@ -65,12 +67,15 @@ sirius  → all Sirius work. THE ACTIVE BRANCH. Pushed to origin/sirius.
 ```
 
 - Fork point: `fe0c770380f` (upstream "promptValidator: log error (#311899)").
-- **57 Sirius commits** since that point.
-- **`main` is 8034 commits behind `upstream/main`.** Rebase debt is real and growing;
-  see §12 for where conflicts will land.
+- Sirius commits since that point: count with `git rev-list --count fe0c770380f..HEAD` on a
+  full clone (cloud clones are shallow and stop short of the fork point).
+- **`main` was 8034 commits behind `upstream/main` as of 2026-09-28** and the number only
+  grows; recompute with `git rev-list --count main..upstream/main` where the `upstream`
+  remote exists. Rebase debt is real; see §4 for where conflicts will land.
 
-Version tags: `v1.118.0` … `v1.118.4`. `HEAD` is 2 commits past `v1.118.4`
-(`e2cf73bda71` next-edit prediction, `ec22aad7a1c` project rules) — **unreleased**.
+Version tags: `v1.118.0` … `v1.118.5`. Everything up to `27de2f4` ("1.118.5") is released.
+Commits after it are docs, the cloud-session files and the new icon (`52d2794`, `3be0dda`);
+none touch `src/` or `extensions/`. The icon is in no tag yet and ships with the next one.
 
 ### Why the version is 1.118.x
 
@@ -85,10 +90,13 @@ patch. Full reasoning in [build/update-server/VERSIONING.md](build/update-server
 
 ## 4. What Sirius changes vs upstream
 
-79 files added/modified (plus the whole `extensions/copilot` tree deleted).
+About 112 files added or modified at `f4688fa` (55 added, 57 modified; 32 of them regenerated
+icons under `resources/`, only 5 under `src/`), plus the whole `extensions/copilot` tree
+(4,041 files) deleted. Recount with `git diff --name-status fe0c770380f HEAD`.
 
 **Sirius-owned, no upstream conflict risk**
-- `extensions/sirius-ai/` — the model layer (24 files, ~5,050 lines TS)
+- `extensions/sirius-ai/` — the model layer (24 tracked files: 19 TS sources, ~5,800 lines,
+  plus package/tsconfig/esbuild config)
 - `extensions/theme-sirius-star/` — Sirius Star Dark
 - `build/update-server/` — Cloudflare worker + docs
 - `build/cloudflare/` — `deploy.sh` + token recipe
@@ -100,12 +108,18 @@ patch. Full reasoning in [build/update-server/VERSIONING.md](build/update-server
 - `test/harness/` — headless probe rig
 - `.github/workflows/sirius-release.yml`
 - `README.md`, `ROADMAP.md`, `INSTALL.md`, `PRIVACY.md`, `AGENTS.md`, this file
+- `CLAUDE.md` — the tracked session entry point (cloud and local)
+- `scripts/cloud-setup.sh` — the claude.ai cloud-environment setup script; keep it in sync
+  with the environment's "Setup script" field
+- `.claude/skills` — a symlink to the tracked `.agents/skills`; `.gitignore` keeps the rest of
+  `.claude/` private
 
 **Upstream files patched — these are the rebase conflict points**
 - `product.json` — branding, `quality`/`updateUrl`/`downloadUrl`, `defaultChatAgent`, open-vsx gallery
-- `build/` — `hygiene.ts`, `filters.ts`, `gulpfile.{extensions,vscode,vscode.win32,hygiene}.ts`, `lib/{copilot,extensions}.ts`, `npm/{dirs,preinstall,postinstall}.ts`, `eslint.config.js`
+- `build/` — `hygiene.ts`, `filters.ts`, `gulpfile.{extensions,vscode,vscode.win32,hygiene}.ts`, `lib/{copilot,extensions}.ts`, `npm/{dirs,preinstall,postinstall}.ts`, `linux/{dependencies-generator,debian/dep-lists,rpm/dep-lists}.ts` (libcups for the public Electron build; the tunnel binary made optional)
 - `resources/` — icons for linux/win32/darwin/server, deb/rpm/snap packaging templates
-- `LICENSE.txt`, `ThirdPartyNotices.txt`, `package.json`, `.gitignore`
+- `LICENSE.txt`, `ThirdPartyNotices.txt`, `package.json`, `package-lock.json` (conflicts
+  wholesale on every rebase — regenerate it rather than hand-merge), `eslint.config.js`, `.gitignore`
 - **`src/vs/` — only 5 files.** Kept deliberately tiny:
 
 | File | Change | Why |
@@ -120,7 +134,7 @@ patch. Full reasoning in [build/update-server/VERSIONING.md](build/update-server
 
 ## 5. The `sirius-ai` extension
 
-`extensions/sirius-ai/` — ~5,050 lines. `dist/extension.js` (esbuild) for release,
+`extensions/sirius-ai/` — ~5,800 lines of TS. `dist/extension.js` (esbuild) for release,
 `out/` (tsc) for dev watch. **No runtime dependencies** — every provider is raw
 `fetch` against the vendor's HTTP API, so there is no SDK to keep current.
 
@@ -146,7 +160,8 @@ providers/
   modelRouter.ts        provider selection, model list, thinking config, pickers
   anthropicProvider.ts  Claude — output_config.effort, prompt caching, tool_use
   geminiProvider.ts     functionDeclarations/functionResponse, thinkingConfig
-  ollamaProvider.ts     local, native tool calling, large-model guard
+  ollamaProvider.ts     local, native tool calling (prompted-tools fallback for models
+                        with no tool API), large-model guard
   openaiCompatible.ts   ONE adapter → OpenAI, OpenRouter, Groq, DeepSeek, Mistral,
                         xAI, LM Studio, llama.cpp/vLLM, custom (table-driven)
 lm/
@@ -162,7 +177,8 @@ inline/
   tabCompletionProvider.ts  Tab completion: native FIM, debounced, LRU, cancellable
   fimClient.ts              FIM backend resolution (Ollama / llama.cpp)
   nextEditPredictor.ts      next-edit prediction (default off)
-  inlineChatProvider.ts     Ctrl+I (37 lines — delegates to upstream)
+  inlineChatProvider.ts     registers the Tab-completion provider (37 lines); Ctrl+I
+                            itself is upstream's inline chat, driven via the LM provider
 importer/editorImporter.ts  import settings/extensions/recents from VS Code,
                             Cursor, Windsurf, VSCodium
 scm/gitAssist.ts        fills product.json's generateCommitMessage +
@@ -175,8 +191,12 @@ types.ts                shared contracts
 mistral, xai, lmstudio, llamacpp, custom. Default provider `anthropic`, default model
 `claude-opus-5`.
 
-**The mutating tools were deliberately removed** (`046847ab636`) — the workbench's own
-edit tools do it right, with diff/preview/undo. Sirius's executor is read-only.
+**The mutating tools were removed from the executor** (`046847ab636`), so
+`tools/toolExecutor.ts` is read-only. Editing lives in `chat/siriusAgent.ts`
+(`createLocalTools`): `edit_file` (exact search/replace) and `create_file` (refuses an
+existing path) apply their content through `stream.textEdit`, so the editor's diff,
+checkpoint and accept/reject flow applies. `create_file` first creates the empty file with
+`workspace.applyEdit`, outside the stream — see hole 9.
 
 ---
 
@@ -274,18 +294,31 @@ npm run gulp compile-extension:sirius-ai
 npm run gulp watch-extension:sirius-ai
 ```
 
-A built `../VSCode-linux-x64` from 2026-08-26 exists on disk.
+On the owner's machine only (cloud sessions have no build), a `../VSCode-linux-x64` built on
+2026-08-26 exists. It predates the 2026-09-27 `sirius-ai` changes (prompted tools, images to
+every model, the integrated browser on by default), so rebuild before probing against it.
+Cloud sessions: setup is `scripts/cloud-setup.sh`; the probe rig needs a built app and local
+models, so it is normally local-only.
 
 ### Headless verification rig
 
 ```bash
-test/harness/run.sh <app-dir> <probe.js> <result.json> [timeout-s]
+test/harness/run.sh <app-dir> <probe.js> <result.json> [wait-iterations of 2 s; default 90]
 ```
 Injects a probe extension into a built app, runs it under Xvfb against a fresh
-profile with `--use-inmemory-secretstorage`, and returns JSON. Existing probes:
-`test/harness/probes/import-from-vscode.js`, `.../project-rules.js`. **Use this to
-verify editor-integration claims** rather than reasoning about them — it is how the
-language-model bridge and the agent tool loop were actually confirmed.
+profile with `--use-inmemory-secretstorage`, and returns JSON. Existing probes in
+`test/harness/probes/`:
+
+| Probe | Proves | Needs |
+| --- | --- | --- |
+| `agent-tools.js` | runtime tool inventory (29 → 38 with the browser gate), tool tiers, image API | local Ollama models |
+| `flagged-bugs.js` | `product.json` wiring: `sirius.ai.debug.extensionState` runs, `sirius.ai.enable` default, no image-gen models in chat | built app only |
+| `import-from-vscode.js` | settings/keybindings/snippets import | a real `~/.config/Code` |
+| `project-rules.js` | `.siriusrules` + `AGENTS.md` loader order | built app only |
+| `prompted-tools.js` | prompted tool envelope on a no-tools model, via `selectChatModels` + `sendRequest` | local Ollama |
+
+**Use this to verify editor-integration claims** rather than reasoning about them — it is
+how the language-model bridge and the agent tool loop were actually confirmed.
 
 ---
 
@@ -317,7 +350,8 @@ Be precise about this; several things are wired but never exercised live.
 
 ## 10. Open holes
 
-Ordered by how much they hurt. Nothing here is secretly done.
+Ordered by how much they hurt. Last audited against code on 2026-09-30 (`f4688fa`); delete an
+item as soon as it is resolved rather than leaving it here.
 
 ### Blocking users right now
 
@@ -349,11 +383,16 @@ Ordered by how much they hurt. Nothing here is secretly done.
 
 5. **The Arch repo lags every release until someone runs the manual rebuild.** The
    update server advertised v1.118.5 within minutes of the tag; `sirius-ide-bin` on
-   `dl.siriuside.com/arch` still says 1.118.4 until §12 step 5 is done by hand. Hole 4 is
+   `dl.siriuside.com/arch` still says 1.118.4 until §12 step 6 is done by hand. Hole 4 is
    the cure; until then this reopens on every tag.
 
-6. **Dependabot "devcontainers" runs fail** on every trigger (2026-08-31, 09-07).
-   Noise, but it makes CI health unreadable at a glance.
+6. **Dependabot "devcontainers" runs were flaky** — failed 2026-08-31, 09-07 and 09-14,
+   then succeeded 09-21 and 09-28. Watch one more weekly cycle and delete this if it stays
+   green. Separately, **five open Dependabot GitHub-Actions bump PRs (#1–#5, opened
+   2026-09-27) are untriaged**: checkout v4→7, cache v5→6, download-artifact v4→8,
+   setup-python v6→7, action-gh-release v2→3. Four of them change actions pinned in
+   `sirius-release.yml`, so rehearse with a branch dispatch (Publish gated off) before
+   merging any of them.
 
 7. **Windows installer unsigned** — SmartScreen warns on first run. Needs a code
    signing certificate.
@@ -363,14 +402,19 @@ Ordered by how much they hurt. Nothing here is secretly done.
 
 ### Product
 
-9. **Edits still bypass the chat-editing session.** Writes go through
-   `workspace.fs.writeFile` — no diff, no preview, no undo. This is the highest-value
-   remaining correctness item and the top of the roadmap's product list.
+9. **`create_file` creates the empty file outside the edit stream.** Edits themselves go
+   through the chat-editing session (`stream.textEdit` in `chat/siriusAgent.ts`, since
+   `cf02d47c535`), so diff, checkpoint and accept/reject apply. But `create_file` first
+   calls `workspace.applyEdit(createFile)` and only streams the content, so the creation
+   itself may sit outside the session's diff/undo. Unverified live; small.
 
 10. **Onboarding walkthrough** still teaches upstream's feature tour (strings are
     branded correctly; content is not ours).
 
-11. **No settings UI** for providers/keys — command palette only.
+11. **No dedicated settings page for AI providers or API keys.** Provider, model,
+    endpoints, thinking and completion options are ordinary settings under "Sirius AI".
+    API keys are set only through `Sirius: Set API Key`, by design (they live in the
+    keyring; the old `apiKey` settings are deprecated and auto-migrated).
 
 12. **Gemini and Anthropic never exercised live** (see §9). A single real request each
     would close it.
@@ -503,15 +547,16 @@ nvm use && npm install -g npm@10
 # 2. Bump — exactly three lines, by hand, never `npm install` (that rewrote the
 #    whole lock once): package.json:3, package-lock.json:3, package-lock.json:9.
 #    Commit subject is the bare version, as every prior bump (d4ad0d51114).
-git commit -m "1.118.5"
+#    <X.Y.Z> below is the NEW version (v1.118.5 is already tagged; next is 1.118.6).
+git commit -m "<X.Y.Z>"
 # 3. Push the branch first (silent — nothing triggers on a branch push), then an
 #    ANNOTATED tag pushed BY NAME. All shipped tags are annotated; `--tags` would
 #    push every stray local tag.
 git push origin sirius
-git tag -a v1.118.5 -m "Sirius IDE 1.118.5"
-git push origin v1.118.5      # <- this is the ship
+git tag -a v<X.Y.Z> -m "Sirius IDE <X.Y.Z>"
+git push origin v<X.Y.Z>      # <- this is the ship
 
-# 3. CI builds linux x64/arm64 + win32, attests, releases, mirrors to R2,
+# 4. CI builds linux x64/arm64 + win32, attests, releases, mirrors to R2,
 #    writes latest-stable.json. Watch it:
 gh run watch --repo sirius-ide/sirius-ide
 #    Green is not proof of packages, but RED for packaging is now a real failure:
@@ -519,12 +564,12 @@ gh run watch --repo sirius-ide/sirius-ide
 #    Read the step summary. If you have decided to ship without deb/rpm anyway,
 #    dispatch against the TAG (a branch dispatch is skipped by the Publish gate;
 #    "Re-run failed jobs" replays the push event with no inputs):
-#    gh workflow run sirius-release.yml --ref v1.118.5 -f allow_missing_packages=true
+#    gh workflow run sirius-release.yml --ref v<X.Y.Z> -f allow_missing_packages=true
 
-# 4. Confirm the update server sees it
+# 5. Confirm the update server sees it
 curl https://update.siriuside.com/api/update/linux-x64/stable/0000000000000000000000000000000000000000
 
-# 5. MANUAL, not yet scripted — Arch repo:
+# 6. MANUAL, not yet scripted — Arch repo:
 #    build sirius-ide-bin in ~/Projects/aur/sirius-ide-bin
 #    (bump pkgver, updpkgsums, makepkg --printsrcinfo > .SRCINFO, makepkg)
 #    then repo-add sirius.db.tar.gz <pkg> and upload db + pkg to
@@ -536,6 +581,15 @@ Verify provenance of any asset: `gh attestation verify <file> --owner sirius-ide
 ---
 
 ## 13. If you are a new session, start here
+
+**Last handoff (2026-09-30, cloud session, branch `claude/stoic-faraday-wrxkp9`).** Docs
+only, no product code: this file, ROADMAP.md, README.md and CLAUDE.md were audited against
+the code at `f4688fa` and the confirmed drift fixed (release header and §3, hole 9 rewritten,
+probe table, patched-file list, README's Arch install, the icon item). Nothing here needs
+local verification. Next to tackle, in order: automate the Arch repo (hole 4), prove the
+`.deb`/`.rpm` install in containers, the REH server job, and triage the five Dependabot PRs
+— all doable from a cloud session as CI changes rehearsed with a branch dispatch. The live
+Anthropic/Gemini/vision runs stay local-only.
 
 1. `git log --oneline -20` — this file can lag; the log cannot.
 2. `git status` and `git log origin/sirius..HEAD` — is there unpushed or unreleased work?

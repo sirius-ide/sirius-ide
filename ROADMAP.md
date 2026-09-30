@@ -117,7 +117,8 @@ The open items, highest value first:
    image-input path — all wired and probe-proven at the wire level, none exercised live.
 5. **Build the REH server** — `serverDownloadUrlTemplate` names an asset no job produces,
    so remote extensions 404.
-6. **The new icon** — `build/sirius/make-icons.sh` from one tracked 2048 px source,
-   regenerating every platform icon file; in progress.
+6. ✅ **The new icon** — done on `sirius` (`3be0dda`): `build/sirius/make-icons.py` regenerates
+   every platform icon file from `resources/sirius/icon.png` (2048 px master) and
+   `icon-small.png` (48 px and under). Not in any release yet; it ships with the next tag.
 
 > Pick the next item and Sirius will implement it end to end.
