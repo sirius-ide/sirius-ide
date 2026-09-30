@@ -1,6 +1,6 @@
 # Sirius IDE — Project State
 
-**Last full audit: 2026-09-30** (against code at `10f1cc8d`, branch `claude/stoic-faraday-wrxkp9`, unmerged) · released `v1.118.5` (2026-09-27; six releases `v1.118.0`…`v1.118.5`, the first with `.deb`/`.rpm`) · the release train now also ships the REH server, proves the packages install, and publishes the Arch repo itself — rehearsed green on CI, ships with the next tag · Arch repo still serves 1.118.4 until then · shipping
+**Last full audit: 2026-09-30** (against code at `10f1cc8d`) · released `v1.118.6` (2026-09-30; seven releases `v1.118.0`…`v1.118.6`) · the release train ships the REH server, proves the `.deb`/`.rpm` install in Debian 12 / Ubuntu 22.04 / Rocky 9, and publishes the Arch repo itself — all first run for real on the v1.118.6 tag and verified from the outside (§13) · shipping
 
 This file is the single place a new session should start. It records what exists,
 what is deployed, what has actually been verified, and — explicitly — what is still
@@ -41,12 +41,12 @@ the docs — about thirty places, which is why it exists.
 | Fork + rebrand | ✅ complete (branding, icons, protocols, gallery, legal) |
 | Build from source | ✅ produces `VSCode-linux-x64` (~720 MB unpacked) |
 | Release CI | ✅ tag → Linux x64/arm64 + Windows x64, attested, mirrored to R2 |
-| Update server | ✅ **live** at `update.siriuside.com`, serving v1.118.5 (verified 2026-09-28: a real v1.118.4 client gets 200 → 1.118.5, a 1.118.5 client gets 204) |
+| Update server | ✅ **live** at `update.siriuside.com`, serving v1.118.6 (verified 2026-09-30 after deploying worker version `b8394745`: an old linux-x64 / linux-arm64 / win32-x64 client gets 200 → 1.118.6 with its own asset and the sha256 from that asset's `.sha256`; a 1.118.6 client gets 204) |
 | Download CDN | ✅ **live** at `dl.siriuside.com` (R2, zero egress) |
-| Arch pacman repo | ✅ **automated on the branch** — every stable tag builds `sirius-ide-bin` from its own tarball, installs it on Arch, and publishes it to `dl.siriuside.com/arch/x86_64` (jobs `arch` + `arch-publish`; rehearsed in run 36762589539). **Live repo still serves 1.118.4** until the next tag from `sirius` carries this |
+| Arch pacman repo | ✅ **automated and live** — every stable tag builds `sirius-ide-bin` from its own tarball, installs it on Arch, and publishes it to `dl.siriuside.com/arch/x86_64` (jobs `arch` + `arch-publish`). First real publish on v1.118.6 (run 36773757646): `sirius.db` lists `sirius-ide-bin-1.118.6-1` |
 | AUR | ❌ not published (see §11) |
-| deb / rpm | ✅ **shipped in v1.118.5** (2026-09-27) — the first ever; x64 only, arm64 is tarball-only by design (§11). Built and gated on every run since, and **installed and run in Debian 12 / Ubuntu 22.04 / Rocky 9 containers on every run** (job `install-test`, required by Publish) |
-| REH server | ✅ **built on the branch** — `sirius-server-linux-{x64,arm64}.tar.gz`, the asset `serverDownloadUrlTemplate` promised since v1.118.0; x64 gated at glibc 2.28 / GLIBCXX 3.4.25 and started in the containers. Unreleased until the next tag |
+| deb / rpm | ✅ **shipped since v1.118.5** (2026-09-27, the first ever); x64 only, arm64 is tarball-only by design (§11). Built and gated on every run since, and **installed and run in Debian 12 / Ubuntu 22.04 / Rocky 9 containers on every run** (job `install-test`, required by Publish) |
+| REH server | ✅ **shipped in v1.118.6** — `sirius-server-linux-{x64,arm64}.tar.gz`, the asset `serverDownloadUrlTemplate` promised since v1.118.0; x64 gated at glibc 2.28 / GLIBCXX 3.4.25 and started in the containers. Both template URLs answer 200 |
 | macOS | ❌ not built (needs Apple Developer cert) |
 | Windows signing | ❌ unsigned — SmartScreen warns |
 | Website | ❌ `siriuside.com` has no DNS record at all |
@@ -56,7 +56,7 @@ the docs — about thirty places, which is why it exists.
 | Next-edit prediction | ✅ shipped (default off, needs local FIM model) |
 | Project rules | ✅ shipped (Phase 2 opened) |
 | Working tree | see `git status`; this file lags the log |
-| Unreleased | `git log --oneline v1.118.5..HEAD` — do not trust a number written here. At 2026-09-30: docs, CLAUDE.md, `scripts/cloud-setup.sh`, the state-doc refresh, and the **new icon plus its generator** — nothing under `src/` or `extensions/` changed, but the next tag ships a visibly new icon |
+| Unreleased | `git log --oneline v1.118.6..HEAD` — do not trust a number written here. At 2026-09-30: the update-worker fix (`db3e2b6`, already deployed — the worker ships separately from releases) and this state-doc update |
 
 ---
 
@@ -74,7 +74,7 @@ sirius  → all Sirius work. THE ACTIVE BRANCH. Pushed to origin/sirius.
   grows; recompute with `git rev-list --count main..upstream/main` where the `upstream`
   remote exists. Rebase debt is real; see §4 for where conflicts will land.
 
-Version tags: `v1.118.0` … `v1.118.5`. Everything up to `27de2f4` ("1.118.5") is released.
+Version tags: `v1.118.0` … `v1.118.6`. Everything up to `b8a169d` ("1.118.6") is released.
 Commits after it are docs, the cloud-session files and the new icon (`52d2794`, `3be0dda`);
 none touch `src/` or `extensions/`. The icon is in no tag yet and ships with the next one.
 
@@ -245,13 +245,13 @@ Server = https://dl.siriuside.com/arch/$arch
 
 | Endpoint | Status |
 | --- | --- |
-| `https://update.siriuside.com/api/update/linux-x64/stable/<commit>` | ✅ **200** → v1.118.5 for a v1.118.4 commit, **204** for the v1.118.5 commit; dl CDN URL + sha256; win32-x64 likewise |
-| `https://dl.siriuside.com/releases/v1.118.5/<asset>` | ✅ **200** for both tarballs, the installer, the `.deb` and the `.rpm` |
+| `https://update.siriuside.com/api/update/<platform>/stable/<commit>` | ✅ **200** → v1.118.6 for an older commit, **204** for the v1.118.6 commit, on linux-x64, linux-arm64 and win32-x64 (verified 2026-09-30); dl CDN URL + a sha256 matching the asset's own `.sha256` |
+| `https://dl.siriuside.com/releases/v1.118.6/<asset>` | ✅ **200** for all 15 v1.118.6 assets (tarballs, server tarballs, installer, `.deb`, `.rpm`, Arch package, checksums), each the same size as on GitHub |
 | `https://dl.siriuside.com/arch/x86_64/sirius.db` | ✅ **200** → contains `sirius-ide-bin-1.118.4-1` |
 | `https://dl.siriuside.com/` | 404 (expected — bucket root, not an index) |
 | `https://siriuside.com` | ❌ **no DNS record** |
 | `https://siriuside.dev` | ❌ **no DNS record** |
-| GitHub releases | ✅ 6 releases, latest v1.118.5 (2026-09-27) — the first with `.deb`/`.rpm` assets |
+| GitHub releases | ✅ 7 releases, latest v1.118.6 (2026-09-30) — 15 assets, the first with the REH server and the Arch package |
 
 **Cloudflare** — worker `sirius-update`, bucket `sirius-releases`, custom domains
 `update.` and `dl.`. Managed by `build/cloudflare/deploy.sh` (idempotent, addresses
@@ -393,22 +393,22 @@ item as soon as it is resolved rather than leaving it here.
 
 ### Operational
 
-4. **The Arch repository's first automated publish has not happened yet.** The `arch` and
-   `arch-publish` jobs are rehearsed green on the branch, but the R2 upload runs only on
-   a stable tag, so `dl.siriuside.com/arch` serves 1.118.4 until the next tag from
-   `sirius`. The owner's `~/Projects/aur/sirius-ide-bin` (1.118.0–1.118.4 packages) is
-   now history: the PKGBUILD lives in `build/arch/`. Watch the first tag's `arch-publish`
-   job; the script verifies the new entry and the package bytes through the CDN.
+4. **Closed 2026-09-30 — the Arch repository publishes itself.** v1.118.6's tag run
+   (36773757646) ran `arch-publish` for the first time: `sirius.db` on
+   `dl.siriuside.com/arch/x86_64` lists `sirius-ide-bin-1.118.6-1` and the script verified
+   the package bytes through the CDN. Arch users moved 1.118.4 → 1.118.6 (1.118.5 was never
+   rebuilt for them). The owner's `~/Projects/aur/sirius-ide-bin` is history: the PKGBUILD
+   lives in `build/arch/`. One hardening item is open — see §13.
 
 5. **Dependabot "devcontainers" runs were flaky** — failed 2026-08-31, 09-07 and 09-14,
    then succeeded 09-21 and 09-28. Watch one more weekly cycle and delete this if it stays
    green. The five GitHub-Actions bump PRs (#1–#5) are triaged: the majors are applied
-   to `sirius-release.yml` on the branch (checkout v7, setup-node v6, cache v6,
+   to `sirius-release.yml` on `sirius` (checkout v7, setup-node v6, cache v6,
    upload-artifact v7, download-artifact v8; `softprops/action-gh-release` is gone —
    Publish uses the runner's `gh`). The PRs themselves touch 16 upstream-inherited
    workflows (`pr.yml`, `chat-perf.yml`, …) that this fork keeps identical to
-   `microsoft/vscode`, so **close #1, #2, #3 and #4 rather than merge them**; #5 becomes
-   moot when the branch lands. Dependabot's default 5-open-PR limit means more bumps are
+   `microsoft/vscode`, so #1–#4 were **closed, not merged** (2026-09-30); #5 is moot — the
+   action is gone — and is left for Dependabot to close. Dependabot's default 5-open-PR limit means more bumps are
    queued behind these, and every future one will touch upstream workflows too — that is
    the price of keeping `.github/dependabot.yml` (an upstream file) enabled.
 
@@ -439,7 +439,7 @@ item as soon as it is resolved rather than leaving it here.
 
 12. **The REH server has not been used through a real remote extension.** It builds,
     gates, starts and answers `/version` in three distros' containers (§9), and
-    `serverDownloadUrlTemplate` now names a real asset from the next tag on. Connecting
+    `serverDownloadUrlTemplate` resolves — 200 for x64 and arm64 since v1.118.6. Connecting
     with Open Remote - SSH from a Sirius client to a host that installs it is the
     remaining proof, and needs a machine with SSH — local-only.
 
@@ -593,7 +593,7 @@ nvm use && npm install -g npm@10
 # 2. Bump — exactly three lines, by hand, never `npm install` (that rewrote the
 #    whole lock once): package.json:3, package-lock.json:3, package-lock.json:9.
 #    Commit subject is the bare version, as every prior bump (d4ad0d51114).
-#    <X.Y.Z> below is the NEW version (v1.118.5 is already tagged; next is 1.118.6).
+#    <X.Y.Z> below is the NEW version (v1.118.6 is already tagged; next is 1.118.7).
 git commit -m "<X.Y.Z>"
 # 3. Push the branch first (silent — nothing triggers on a branch push), then an
 #    ANNOTATED tag pushed BY NAME. All shipped tags are annotated; `--tags` would
@@ -630,25 +630,30 @@ Verify provenance of any asset: `gh attestation verify <file> --owner sirius-ide
 
 ## 13. If you are a new session, start here
 
-**Last handoff (2026-09-30, cloud session, branch `claude/stoic-faraday-wrxkp9`, two
-commits ahead of `sirius`).** First the docs were audited against the code and the drift
-fixed. Then the release train grew three jobs and lost its manual step: the REH server is
-built and gated, the `.deb`/`.rpm`/server are installed and run in Debian 12, Ubuntu 22.04
-and Rocky 9 containers, the Arch package is built and installed from the run's own tarball,
-and a stable tag now publishes the pacman repository itself. All of it is **verified by two
-CI rehearsals** (runs 36759715090 and 36762589539 on this branch; the second is green
-everywhere except the advisory arm64 leg, whose failure is the measured glibc-2.38 floor).
-**Not verified:** the tag-only paths — the GitHub release via `gh`, the R2 mirror, and the
-Arch repository upload — run for the first time on the next tag; watch that run. Also
-unverified: a real remote extension against the server (hole 12). Everything else in §9 is
-as before. The branch was reviewed by six independent lenses before the first rehearsal and
-every finding is fixed; see the commit message for the list.
+**Last handoff (2026-09-30, local session): v1.118.6 is released and verified from the
+outside.** The cloud branch `claude/stoic-faraday-wrxkp9` was reviewed, cherry-picked onto
+`sirius` (`cc7e33a`, `0a0e4ab`, `3ddc15f` — an identical tree to its tip `d835d9fc`; PR #6
+closed, branch deleted), bumped (`b8a169d`, "1.118.6") and tagged. Tag run 36773757646 is
+green in every required job, and the tag-only paths worked on their first real run: the
+GitHub release via `gh` (latest, 15 assets including `sirius-server-linux-{x64,arm64}`), the
+R2 mirror (every asset served by `dl.siriuside.com` at its GitHub size), the update manifest,
+and the Arch repository (`sirius.db` lists `sirius-ide-bin-1.118.6-1`). The REH template
+URLs answer 200. Dependabot PRs #1–#4 are closed; #5 is moot and left for Dependabot.
 
-**Next, in order:** (1) merge this branch into `sirius` locally and cut v1.118.6, watching
-`Publish` and `Publish Arch repository`; (2) close Dependabot PRs #1–#4 (hole 5);
-(3) the arm64 sysroot cross-build on the x64 runner (hole 1), now with measured numbers;
-(4) the website (hole 2); (5) the live Anthropic/Gemini/vision runs and the remote-extension
-connect, both local-only.
+**One defect surfaced in that verification and is fixed.** The update worker matched the
+update asset by suffix, and `sirius-server-linux-arm64.tar.gz` ends like
+`sirius-linux-arm64.tar.gz`, so every arm64 desktop was offered the server tarball. Fixed in
+`db3e2b6` (whole-name match on both the bucket and the GitHub-API path), checked against the
+live manifest, the fallback and a deliberately reordered manifest, and deployed as worker
+version `b8394745` (rollback target `2125f6cc`); live checks then gave linux-x64,
+linux-arm64 and win32-x64 their own assets, and a 1.118.6 client 204. **Still unverified:**
+a real remote extension against the server (hole 12) and the live provider runs.
+
+**Next, in order:** (1) the arm64 sysroot cross-build on the x64 runner (hole 1);
+(2) the website (hole 2); (3) the live Anthropic/Gemini/vision runs and the
+remote-extension connect, both local-only; (4) harden `build/sirius/publish-arch-repo.sh`:
+a failed fetch of the live database is treated as a first publish, which skips the
+downgrade check — tell "absent" from "failed" before a re-run of an old tag relies on it.
 
 1. `git log --oneline -20` — this file can lag; the log cannot.
 2. `git status` and `git log origin/sirius..HEAD` — is there unpushed or unreleased work?
