@@ -1,0 +1,18 @@
+[Desktop Entry]
+Name=Sirius IDE
+Comment=The agentic, AI-native code editor
+GenericName=Text Editor
+Exec=/opt/sirius-ide/sirius %F
+Icon=sirius
+Type=Application
+StartupNotify=false
+StartupWMClass=Sirius
+Categories=TextEditor;Development;IDE;
+MimeType=application/x-sirius-workspace;
+Actions=new-empty-window;
+Keywords=sirius;vscode;
+
+[Desktop Action new-empty-window]
+Name=New Empty Window
+Exec=/opt/sirius-ide/sirius --new-window %F
+Icon=sirius
