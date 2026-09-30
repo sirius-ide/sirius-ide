@@ -36,9 +36,11 @@
 # timeout, a wrong endpoint or a failed download stops the publish with the
 # CLI's own message — because "the database could not be fetched" read as
 # "there is no database yet" would skip the downgrade check and replace the
-# live index with one that lists only this package. Both halves of the
-# database (db and files) must be present, or both absent: one without the
-# other is a half-finished repository, and this script will not build on it.
+# live index with one that lists only this package. The four database objects
+# — $repo.db.tar.gz and $repo.files.tar.gz, which repo-add builds on, and
+# $repo.db and $repo.files, the copies pacman reads — must all be present or
+# all be absent: anything in between is a half-finished (or half-deleted)
+# repository, and this script will not build on it.
 
 set -euo pipefail
 
@@ -62,6 +64,12 @@ if [ "$dry" != --dry-run ]; then
 	: "${R2_ENDPOINT:?R2_ENDPOINT is required (or pass --dry-run)}"
 	: "${AWS_ACCESS_KEY_ID:?}" "${AWS_SECRET_ACCESS_KEY:?}"
 	export AWS_DEFAULT_REGION=auto
+	# object_status reads the "(404)" out of the CLI's error line. That line is
+	# what the CLI prints by default; a cli_error_format of json, text, yaml or
+	# table in some ~/.aws/config would drop the parentheses and turn every
+	# absent key into "cannot tell". The environment beats the config file,
+	# and a CLI too old to know the setting ignores it.
+	export AWS_CLI_ERROR_FORMAT=legacy
 	command -v aws >/dev/null || { echo "::error::aws CLI not found"; exit 1; }
 fi
 aws_() { aws s3 "$@" --endpoint-url "$R2_ENDPOINT"; }
@@ -86,6 +94,7 @@ object_status() {
 }
 
 work=$(mktemp -d /tmp/sirius-arch-repo.XXXXXX)
+trap 'rm -rf "${work:?}"' EXIT
 cp "$pkg" "$work/"
 cd "$work"
 sha=$(sha256sum "$pkgfile" | cut -d' ' -f1)
@@ -95,28 +104,32 @@ echo "== current repository database"
 if [ "$dry" = --dry-run ]; then
 	echo "(dry run: starting from an empty database)"
 else
-	present=()
-	for f in "$repo.db.tar.gz" "$repo.files.tar.gz"; do
+	# All four database objects, or none. pacman reads $repo.db and
+	# $repo.files; repo-add builds on the .tar.gz pair; step 3 uploads the four
+	# together. Checking only the pair would let a bucket where the pair is
+	# gone but $repo.db survived pass as a first publish — and the "first"
+	# database would then replace the one clients are still reading.
+	present=(); absent=()
+	for f in "$repo.db.tar.gz" "$repo.files.tar.gz" "$repo.db" "$repo.files"; do
 		object_status "$prefix/$f" && rc=0 || rc=$?
 		case $rc in
 			0) present+=("$f") ;;
-			1) echo "$f: 404 from the bucket" ;;
+			1) absent+=("$f"); echo "$f: 404 from the bucket" ;;
 			*) exit 1 ;;
 		esac
 	done
-	case ${#present[@]} in
-		2)
-			for f in "${present[@]}"; do
-				aws_ cp "s3://$bucket/$prefix/$f" "./$f" >/dev/null \
-					|| { echo "::error::$f exists in the bucket but could not be downloaded; not publishing on top of a database this run has not seen"; exit 1; }
-				echo "fetched $f"
-			done ;;
-		0)
-			echo "::warning::s3://$bucket/$prefix/ has no $repo database ($repo.db.tar.gz and $repo.files.tar.gz both 404): first publish, creating the repository" ;;
-		*)
-			echo "::error::s3://$bucket/$prefix/ has ${present[*]} but not its counterpart — a half-finished repository. Restore or remove the pair by hand before publishing."
-			exit 1 ;;
-	esac
+	if [ ${#absent[@]} = 0 ]; then
+		for f in "$repo.db.tar.gz" "$repo.files.tar.gz"; do
+			aws_ cp "s3://$bucket/$prefix/$f" "./$f" >/dev/null \
+				|| { echo "::error::$f exists in the bucket but could not be downloaded; not publishing on top of a database this run has not seen"; exit 1; }
+			echo "fetched $f"
+		done
+	elif [ ${#present[@]} = 0 ]; then
+		echo "::warning::s3://$bucket/$prefix/ has no $repo database (all four database objects 404): first publish, creating the repository"
+	else
+		echo "::error::s3://$bucket/$prefix/ has ${present[*]} but not ${absent[*]} — a half-finished repository. Restore or remove all four database objects by hand before publishing."
+		exit 1
+	fi
 fi
 
 # 1. Never a downgrade.

@@ -8,7 +8,8 @@
 # for the R2 bucket, and each case tells the stub how HeadObject or GetObject
 # answers. It proves the rule the script lives by — only a 404 means "absent";
 # a 403, a connection failure, a failed download, a half-present or unreadable
-# database all stop the publish before anything is uploaded — and the three
+# database all stop the publish before anything is uploaded, and the script
+# pins the CLI's error format so the 404 stays recognisable — and the three
 # properties around it (no downgrade, no different bytes under an immutable
 # name, package before database). Needs repo-add, vercmp, bsdtar and zstd, the
 # same tools the script needs; no network and no credentials.
@@ -88,7 +89,14 @@ case "$svc $op" in
 			fi
 			exit 0
 		fi
-		echo "An error occurred (404) when calling the HeadObject operation: Not Found" >&2
+		# The real CLI prints the 404 this way by default and under
+		# cli_error_format=legacy; json/text/yaml/table drop the "(404)". The
+		# script must pin the format, so the stub honours whatever it sees.
+		case "${AWS_CLI_ERROR_FORMAT:-legacy}" in
+			legacy|enhanced) echo "An error occurred (404) when calling the HeadObject operation: Not Found" >&2 ;;
+			json) printf '{\n    "Code": "404",\n    "Message": "Not Found"\n}\n' >&2 ;;
+			*) printf '404\tNot Found\n' >&2 ;;
+		esac
 		exit 254 ;;
 	"s3 cp")
 		src=$1; dst=$2; shift 2
@@ -222,10 +230,13 @@ expect_no_output() { ! grep -qE -- "$1" "$out" || fail "output has /$1/ and must
 expect_no_upload() { ! grep -q ' s3 cp \./' "$log" || fail "something was uploaded: $(grep ' s3 cp \./' "$log" | tr '\n' ';')"; }
 expect_upload_count() { local n; n=$(grep -c ' s3 cp \./' "$log" || true); [ "$n" = "$1" ] || fail "expected $1 uploads, saw $n"; }
 expect_no_repo_add() { expect_no_output '^== repo-add'; }
-expect_db_lists() { # <ver-rel>: the CDN-visible database names exactly this entry
+expect_client_db_lists() { # <ver-rel>: sirius.db, the object pacman reads, names exactly this entry
 	[ -f "$bucket/$prefix/sirius.db" ] || { fail "no sirius.db in the bucket"; return; }
 	local entries; entries=$(tar -tzf "$bucket/$prefix/sirius.db" | grep '/$' | sed 's|/$||' | tr '\n' ' ')
 	[ "$entries" = "sirius-ide-bin-$1 " ] || fail "sirius.db lists '$entries', expected sirius-ide-bin-$1"
+}
+expect_db_lists() { # <ver-rel>: as above, and the four database objects are two identical pairs
+	expect_client_db_lists "$1"
 	cmp -s "$bucket/$prefix/sirius.db" "$bucket/$prefix/sirius.db.tar.gz" || fail "sirius.db and sirius.db.tar.gz differ"
 	cmp -s "$bucket/$prefix/sirius.files" "$bucket/$prefix/sirius.files.tar.gz" || fail "sirius.files and sirius.files.tar.gz differ"
 }
@@ -240,7 +251,7 @@ newest=$(make_pkg 1.118.8-1 newest)
 
 # ---- the cases --------------------------------------------------------------
 
-begin "first publish: both database objects 404"
+begin "first publish: all four database objects 404"
 run_script ok "$newer"
 expect_output '^sirius\.db\.tar\.gz: 404'
 expect_output '::warning::.*first publish'
@@ -358,6 +369,39 @@ expect_output '::error::.*half-finished repository'
 expect_no_output 'first publish'
 expect_no_repo_add
 expect_no_upload
+finish
+
+begin "half a repository: the objects pacman reads survive, the .tar.gz pair is gone"
+seed_repo "$older"
+unpublish sirius.db.tar.gz
+unpublish sirius.files.tar.gz
+run_script fail "$newer"
+expect_output '::error::.*has sirius\.db sirius\.files but not sirius\.db\.tar\.gz sirius\.files\.tar\.gz'
+expect_no_output 'first publish'
+expect_no_repo_add
+expect_no_upload
+expect_client_db_lists 1.118.6-1   # what clients read is untouched
+finish
+
+begin "half a repository: the .tar.gz pair is there, sirius.db is gone"
+seed_repo "$older"
+unpublish sirius.db
+run_script fail "$newer"
+expect_output '::error::.*but not sirius\.db —'
+expect_no_output 'first publish'
+expect_no_repo_add
+expect_no_upload
+finish
+
+begin "a cli_error_format that would hide the 404 is overridden by the script"
+seed_repo "$older"
+export AWS_CLI_ERROR_FORMAT=json    # as if ~/.aws/config on the runner said so
+run_script ok "$newer"
+unset AWS_CLI_ERROR_FORMAT
+expect_output '^== package object'
+expect_no_output 'cannot tell whether'
+expect_upload_count 5
+expect_db_lists 1.118.7-1
 finish
 
 begin "the fetched database is unreadable"
