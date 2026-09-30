@@ -33,6 +33,10 @@
 # not Electron. The server is compiled with the gcc sysroot rather than clang
 # and libc++, so it does link libstdc++ — cap it at the version its own
 # bin/helpers/check-requirements.sh promises remote hosts.
+#
+# Cross-architecture: objdump's generic elf64-little target reads the dynamic
+# section and the versioned symbols of a foreign ELF, so the x64 runner gates
+# the cross-compiled arm64 build with this same script and its own objdump.
 
 set -uo pipefail
 

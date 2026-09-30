@@ -35,12 +35,14 @@ choose it.
 ## Debian, Ubuntu
 
 ```bash
-sudo apt install ./sirius_*_amd64.deb
+sudo apt install ./sirius_*_amd64.deb   # x86_64
+sudo apt install ./sirius_*_arm64.deb   # arm64 / aarch64
 ```
 
 Download the `.deb` from the [latest release](https://github.com/sirius-ide/sirius-ide/releases/latest).
 The package is named `sirius` and its version carries a build stamp, so the glob
-is deliberate. x86_64 only for now — on arm64 use the tarball below.
+is deliberate. Both architectures ship together: the release pipeline installs
+and runs each package on Debian 12 and Ubuntu 22.04 before anything is published.
 
 Unlike upstream VS Code, this package does **not** add a third-party apt
 repository or signing key to your system. Update by installing a newer `.deb`,
@@ -49,17 +51,24 @@ or let the editor notify you when one is available.
 ## Fedora, RHEL
 
 ```bash
-sudo dnf install ./sirius-*.x86_64.rpm
+sudo dnf install ./sirius-*.x86_64.rpm    # x86_64
+sudo dnf install ./sirius-*.aarch64.rpm   # arm64 / aarch64
 ```
 
-Same naming note as the `.deb`, and x86_64 only for now.
+Same naming note as the `.deb`; both architectures are installed and run on
+Rocky Linux 9 by the release pipeline.
 
 ## Any Linux (tarball)
 
 ```bash
-tar -xzf sirius-linux-x64.tar.gz
-./VSCode-linux-x64/bin/sirius
+tar -xzf sirius-linux-x64.tar.gz      # or sirius-linux-arm64.tar.gz
+./VSCode-linux-x64/bin/sirius         # VSCode-linux-arm64 on arm64
 ```
+
+Both tarballs are built against a glibc 2.28 sysroot — the arm64 one
+cross-compiled with the same toolchain upstream VS Code uses — and need glibc
+2.28 or newer; arm64 additionally needs GCC 9's libstdc++ (GLIBCXX 3.4.26).
+The release pipeline runs the arm64 tarball on Debian 12.
 
 To get a menu entry, copy the desktop file and icon into place:
 
@@ -87,12 +96,12 @@ extension installs on the machine you connect to. `product.json` points remote
 extensions at it (`serverDownloadUrlTemplate`), so Open Remote - SSH and
 compatible extensions install it on first connect with no configuration; to
 place it yourself, unpack the tarball on the remote host and run
-`bin/sirius-server`. The x64 server needs glibc 2.28 and a libstdc++ with
+`bin/sirius-server`. Both servers need glibc 2.28 and a libstdc++ with
 GLIBCXX 3.4.25 or newer — Debian 10, Ubuntu 20.04 and RHEL 8 or newer — which
-`bin/helpers/check-requirements.sh` verifies before it starts. The arm64 server
-is built natively on a current runner and needs glibc 2.38 and GLIBCXX 3.4.31
-(Ubuntu 24.04, Debian 13 or newer), the same measured floor as the arm64 editor
-tarball. Alpine (musl) is not built.
+`bin/helpers/check-requirements.sh` verifies before it starts; the arm64 server
+is cross-compiled against the same glibc-2.28 sysroot as x64, and the release
+pipeline starts it on Debian 12, Ubuntu 22.04 and Rocky 9 arm64. Alpine (musl)
+is not built.
 
 ## Windows
 

@@ -22,7 +22,8 @@
 #
 # KIND           deb | rpm | tarball
 # DIST           directory holding the release artifacts (default: dist)
-# ARCH           x64 | arm64 (default: x64)
+# ARCH           x64 | arm64 (default: x64): the artifact's architecture, which
+#                must also be the container's own (checked)
 # EXPECTED_VERSION, EXPECTED_COMMIT   what --version and /version must report
 # ALLOW_MISSING  'true' makes a missing package a warning instead of a failure
 #                (the workflow's allow_missing_packages escape hatch)
@@ -46,13 +47,23 @@ fail() { echo "::error::$*"; exit 1; }
 . /etc/os-release
 note "distro: $PRETTY_NAME ($(uname -m)), package: $KIND"
 
+# The package file names carry each format's own architecture word.
+case "$ARCH" in
+	x64)   deb_arch=amd64; rpm_arch=x86_64;  machine=x86_64 ;;
+	arm64) deb_arch=arm64; rpm_arch=aarch64; machine=aarch64 ;;
+	*) fail "ARCH must be x64 or arm64, got '$ARCH'" ;;
+esac
+# A mis-wired matrix (an arm64 artifact on an x64 runner, say) would otherwise
+# surface two sections later as `sirius: Exec format error`.
+[ "$(uname -m)" = "$machine" ] || fail "ARCH=$ARCH means a $machine artifact, but this container is $(uname -m)"
+
 # ---------------------------------------------------------------------------
 # 1. install
 # ---------------------------------------------------------------------------
 pkg_file=''
 case "$KIND" in
-	deb)     pkg_file=$(ls "$DIST"/sirius_*_amd64.deb 2>/dev/null | head -1 || true) ;;
-	rpm)     pkg_file=$(ls "$DIST"/sirius-*.x86_64.rpm 2>/dev/null | head -1 || true) ;;
+	deb)     pkg_file=$(ls "$DIST"/sirius_*_"$deb_arch".deb 2>/dev/null | head -1 || true) ;;
+	rpm)     pkg_file=$(ls "$DIST"/sirius-*."$rpm_arch".rpm 2>/dev/null | head -1 || true) ;;
 	tarball) pkg_file=$(ls "$DIST"/sirius-linux-"$ARCH".tar.gz 2>/dev/null | head -1 || true) ;;
 	*) fail "KIND must be deb, rpm or tarball" ;;
 esac
@@ -145,7 +156,8 @@ done < <(printf '%s\n' "$app/sirius" "$app/chrome-sandbox" "$app/chrome_crashpad
 deferred=''
 if [ "$missing" != 0 ]; then
 	if [ "$KIND" = tarball ]; then
-		# Advisory leg: record it, keep going so the server section is measured too.
+		# The tarball has no dependency metadata to blame; record it, keep going
+		# so the server section is measured too, and fail at the end.
 		note "linkage: FAILED — a shipped binary needs a library that is not installed (see errors above)"
 		deferred='linkage'
 	else
