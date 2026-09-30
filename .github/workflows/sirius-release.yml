@@ -1,7 +1,18 @@
 name: Sirius Release
 
 # Tagging v1.2.3 builds and publishes a release. The update server reads that
-# release, so a tag is the whole ship process.
+# release, so a tag is the whole ship process:
+#
+#   linux (x64, arm64)  tarball + REH server; x64 also .deb/.rpm ─┐
+#   windows             installer                                  ├─ release (tag only)
+#   install-test        the .deb/.rpm/tarball/server in clean      │    GitHub Release,
+#                       Debian 12, Ubuntu 22.04, Rocky 9 containers │    provenance, R2 mirror,
+#   arch                sirius-ide-bin built and installed on Arch ─┘    update manifest
+#                                                                          └─ arch-publish: the [sirius] pacman repo
+#                                                                             (rehearsed in --dry-run on a branch)
+#
+# A branch dispatch runs everything up to (and not including) the tag-gated
+# publish jobs, which is how a release candidate is rehearsed.
 on:
   push:
     tags: ['v*']
@@ -12,9 +23,13 @@ on:
         type: boolean
         default: false
       allow_missing_packages:
-        description: 'Ship even if the .deb/.rpm failed to build'
+        description: 'Ship even if the .deb/.rpm or the Arch package could not be built (a package that exists but fails to install still blocks)'
         type: boolean
         default: false
+      arch_pkgrel:
+        description: 'pkgrel for the Arch package; bump it to republish a tag whose package already exists in the repository'
+        type: string
+        default: '1'
 
 permissions:
   contents: write
@@ -60,15 +75,16 @@ jobs:
           # dep-lists: the packages either refuse to generate or, if forced
           # through, are rejected by apt and dnf on all three target distros.
           # Shipping no arm64 package beats shipping one nobody can install.
+          # The arm64 REH server inherits the same floor, for the same reason.
           - arch: arm64
             runner: ubuntu-24.04-arm
             packages: 'false'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # preinstall.ts rejects a mismatched major, so read the pin rather than
       # hardcoding a version that will drift.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version-file: .nvmrc
 
@@ -97,7 +113,7 @@ jobs:
       # than transcribing version numbers that would silently go stale.
       - name: Cache sysroot and clang toolchain
         if: matrix.packages == 'true'
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             .build/sysroots
@@ -130,6 +146,9 @@ jobs:
       # `-nostdinc++ -stdlib=libc++ --sysroot=...` into every later step.
       # `npm ci` runs build/npm/preinstall.ts itself (it is the preinstall
       # lifecycle script), inside this same toolchain env.
+      # The same script also exports VSCODE_REMOTE_CC/CXX/CXXFLAGS/LDFLAGS, the
+      # glibc-2.28 gcc sysroot that postinstall.ts uses for remote/ — so the REH
+      # server's native modules get their floor from this step too.
       - name: Install dependencies
         run: |
           set -e
@@ -204,6 +223,56 @@ jobs:
           tar -czf sirius-linux-${{ matrix.arch }}.tar.gz -C .. VSCode-linux-${{ matrix.arch }}
           sha256sum sirius-linux-${{ matrix.arch }}.tar.gz > sirius-linux-${{ matrix.arch }}.tar.gz.sha256
 
+      # ---- The REH server ------------------------------------------------
+      # product.json's serverDownloadUrlTemplate promises
+      # sirius-server-${os}-${arch}.tar.gz on every release, and until this step
+      # existed no job produced it, so Open Remote-SSH and every other remote
+      # extension 404ed on connect. This tree builds with esbuild
+      # (build/buildConfig.ts useEsbuildTranspile), so the client task above
+      # bundled straight from src/ and left no transpiled out-build for the
+      # legacy `minify-vscode-reh` gulp task to read; upstream's core-ci bundles
+      # the server the same way the client was bundled, with build/next, and
+      # that is what runs here (the extensions and out-build/date it needs were
+      # produced by the client task). The -ci task then fetches the pinned Node
+      # from nodejs.org, checked against build/checksums/nodejs.txt, and copies
+      # remote/node_modules.
+      - name: Build server
+        run: |
+          node build/next/index.ts bundle --out out-vscode-reh-min --target server --minify --mangle-privates --nls
+          npm run gulp vscode-reh-linux-${{ matrix.arch }}-min-ci
+          mv "${{ github.workspace }}/../vscode-reh-linux-${{ matrix.arch }}" \
+             "${{ github.workspace }}/../sirius-server-linux-${{ matrix.arch }}"
+        env:
+          NODE_OPTIONS: --max-old-space-size=8192
+
+      # The server links libstdc++ (gcc sysroot, not clang/libc++), so the cap
+      # is the version its own bin/helpers/check-requirements.sh promises a
+      # remote host, not "none". Advisory on arm64, like everything else there.
+      - name: Verify server ABI floor
+        continue-on-error: ${{ matrix.packages != 'true' }}
+        env:
+          APP_DIR: ${{ github.workspace }}/../sirius-server-linux-${{ matrix.arch }}
+          LAYOUT: server
+          MAX_GLIBC: '2.28'
+          MAX_GLIBCXX: '3.4.25'
+        run: bash ./build/sirius/abi-floor.sh
+
+      # The bundled Node and the server's own requirements check, on this
+      # runner. The container legs below run it on the distros users have.
+      - name: Smoke - server runs
+        run: |
+          S="${{ github.workspace }}/../sirius-server-linux-${{ matrix.arch }}"
+          "$S/bin/helpers/check-requirements.sh"
+          "$S/bin/sirius-server" --version
+          want="$(sed -n 's/^[[:space:]]*"version": "\(.*\)",/\1/p' package.json | head -1)"
+          got="$("$S/bin/sirius-server" --version | head -1)"
+          [ "$got" = "$want" ] || { echo "::error::sirius-server --version reported '$got', package.json says '$want'"; exit 1; }
+
+      - name: Package server
+        run: |
+          tar -czf sirius-server-linux-${{ matrix.arch }}.tar.gz -C .. sirius-server-linux-${{ matrix.arch }}
+          sha256sum sirius-server-linux-${{ matrix.arch }}.tar.gz > sirius-server-linux-${{ matrix.arch }}.tar.gz.sha256
+
       # The `-build-deb` / `-build-rpm` tasks do NOT chain their `-prepare-` half
       # (only the snap task does, build/gulpfile.vscode.linux.ts:293-306). Calling
       # build alone runs dpkg-deb in .build/linux/deb/<arch>, a directory only
@@ -250,11 +319,12 @@ jobs:
       # ship-without-packages would publish. *.deb/*.rpm match nothing on the
       # tarball-only arch; the tarball pattern still matches, so the upload
       # succeeds with a warning rather than failing.
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: linux-${{ matrix.arch }}
           path: |
             sirius-linux-${{ matrix.arch }}.tar.gz*
+            sirius-server-linux-${{ matrix.arch }}.tar.gz*
             *.deb
             *.rpm
 
@@ -302,6 +372,146 @@ jobs:
           echo "### Linux ${{ matrix.arch }}: tarball only" >> "$GITHUB_STEP_SUMMARY"
           echo "No .deb/.rpm by design — see the matrix comment in this workflow." >> "$GITHUB_STEP_SUMMARY"
 
+  # The proof that "the package builds" became "the package installs and runs":
+  # apt and dnf resolve the generated dependency lists from each distribution's
+  # own repositories, every shipped binary resolves its libraries, the editor
+  # comes up under Xvfb, and the REH server starts and answers /version. These
+  # are the distributions INSTALL.md names as the floor. Publish requires them.
+  # The arm64 leg is advisory, like the arm64 build itself: it records whether a
+  # natively built arm64 tarball and server run on Debian 12 arm64 (glibc 2.36),
+  # which the known glibc-2.39 floor says they will not, without blocking x64.
+  install-test:
+    name: Install ${{ matrix.name }}
+    needs: linux
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    continue-on-error: ${{ matrix.advisory }}
+    container:
+      image: ${{ matrix.image }}
+      # Chromium's renderer uses /dev/shm; Docker's default 64 MB is too small.
+      options: --shm-size=1g
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: 'Debian 12 (.deb)'
+            runner: ubuntu-latest
+            image: 'debian:12'
+            kind: deb
+            arch: x64
+            advisory: false
+          - name: 'Ubuntu 22.04 (.deb)'
+            runner: ubuntu-latest
+            image: 'ubuntu:22.04'
+            kind: deb
+            arch: x64
+            advisory: false
+          - name: 'Rocky 9 (.rpm)'
+            runner: ubuntu-latest
+            image: 'rockylinux:9'
+            kind: rpm
+            arch: x64
+            advisory: false
+          - name: 'Debian 12 arm64 (tarball, advisory)'
+            runner: ubuntu-24.04-arm
+            image: 'debian:12'
+            kind: tarball
+            arch: arm64
+            advisory: true
+    steps:
+      # git before checkout: without it the action falls back to a REST tarball
+      # of the whole repository and ignores sparse-checkout.
+      - name: Container prerequisites
+        run: |
+          if command -v apt-get >/dev/null; then
+            apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends git ca-certificates >/dev/null
+          else
+            dnf -y -q install git >/dev/null
+          fi
+      # Non-cone patterns: the cone mode's implicit root files are not
+      # reliable on the git 2.34 that ubuntu:22.04 ships, and package.json is
+      # needed for the version check.
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: |
+            /package.json
+            /build/sirius/
+          sparse-checkout-cone-mode: false
+      - uses: actions/download-artifact@v8
+        with:
+          name: linux-${{ matrix.arch }}
+          path: dist
+      - name: Install and run
+        env:
+          KIND: ${{ matrix.kind }}
+          ARCH: ${{ matrix.arch }}
+          DIST: dist
+          EXPECTED_COMMIT: ${{ github.sha }}
+          ALLOW_MISSING: ${{ inputs.allow_missing_packages || 'false' }}
+        run: |
+          export EXPECTED_VERSION="$(sed -n 's/^[[:space:]]*"version": "\(.*\)",/\1/p' package.json | head -1)"
+          bash build/sirius/install-test.sh
+
+  # sirius-ide-bin, built from this run's own x64 tarball inside an Arch
+  # container, installed there with pacman resolving every declared dependency,
+  # and run. Building from the artifact rather than the GitHub release URL the
+  # PKGBUILD names is what lets a branch dispatch rehearse this leg; the bytes
+  # are the same tarball the release publishes. The repository update itself is
+  # rehearsed in --dry-run mode here and performed by arch-publish after the
+  # GitHub release exists.
+  arch:
+    name: Arch Linux package
+    needs: linux
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    # The same escape hatch as the Packaging gate: with allow_missing_packages
+    # a failed Arch build does not block the release, and the repository is
+    # simply not updated (arch-publish keys on the `built` output, not on the
+    # job result). Without it, no Arch package means no release.
+    continue-on-error: ${{ inputs.allow_missing_packages == true }}
+    outputs:
+      built: ${{ steps.done.outputs.built }}
+    container:
+      image: archlinux:base-devel
+    steps:
+      # git before checkout, so the action can do a sparse checkout instead of
+      # falling back to a REST tarball of the whole repository.
+      - name: Container prerequisites
+        run: |
+          pacman -Sy --noconfirm --needed archlinux-keyring
+          pacman -Syu --noconfirm --needed git
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: |
+            build/arch
+            build/sirius
+      - uses: actions/download-artifact@v8
+        with:
+          name: linux-x64
+          path: dist
+      - name: Build, install and run
+        run: |
+          version="$(sed -n 's/^[[:space:]]*"version": "\(.*\)",/\1/p' package.json | head -1)"
+          if [ "${{ github.ref_type }}" = tag ] && [ "v$version" != "${{ github.ref_name }}" ]; then
+            echo "::error::package.json says $version but the tag is ${{ github.ref_name }}; bump before tagging (PROJECT-STATE.md section 12)"
+            exit 1
+          fi
+          bash build/arch/build.sh dist/sirius-linux-x64.tar.gz "$version" out
+        env:
+          PKGREL: ${{ inputs.arch_pkgrel || '1' }}
+      - uses: actions/upload-artifact@v7
+        with:
+          name: arch-x86_64
+          path: |
+            out/*.pkg.tar.zst
+            out/*.pkg.tar.zst.sha256
+      - id: done
+        run: echo built=true >> "$GITHUB_OUTPUT"
+
   windows:
     name: Windows x64
     # Pinned: windows-latest now carries Visual Studio 18, which node-gyp 11
@@ -311,8 +521,8 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
         with:
           node-version-file: .nvmrc
       - run: npm install -g npm@10
@@ -341,14 +551,14 @@ jobs:
         run: |
           find .build/win32-x64 -name '*.exe' -exec cp {} sirius-win32-x64-setup.exe \;
           sha256sum sirius-win32-x64-setup.exe > sirius-win32-x64-setup.exe.sha256
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: win32-x64
           path: sirius-win32-x64-setup.exe*
 
   release:
     name: Publish
-    needs: [linux, windows]
+    needs: [linux, windows, install-test, arch]
     # A release is a tag. Without the ref_type guard a workflow_dispatch on a
     # BRANCH reaches this job — and `sirius` is the repository default branch, so
     # it is the pre-selected option in the Run-workflow dropdown. That would mint
@@ -358,11 +568,24 @@ jobs:
     # version-ordering check and no way back. `always()` is the separate,
     # deliberate allowance: Windows signing is not set up yet, so a failed
     # Windows build must not block a Linux release.
-    if: always() && github.ref_type == 'tag' && needs.linux.result == 'success'
+    # The install test and the Arch package are required too: a package that
+    # does not install on the distributions INSTALL.md names is not shippable,
+    # and allow_missing_packages does not override that — it only tolerates a
+    # package that is ABSENT (the Packaging gate, install-test.sh and the arch
+    # job each skip an absent package themselves when it is set). !cancelled()
+    # rather than always(): a cancelled run must not publish.
+    if: >-
+      !cancelled() && github.ref_type == 'tag' && needs.linux.result == 'success'
+      && needs.install-test.result == 'success' && needs.arch.result == 'success'
     runs-on: ubuntu-latest
+    # Two tag runs must never interleave their writes to the release, the R2
+    # mirror or latest-*.json.
+    concurrency:
+      group: sirius-publish
+      cancel-in-progress: false
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
         with: { path: dist, merge-multiple: true }
 
       # The editor compares commits, not versions. Without this the update
@@ -375,14 +598,24 @@ jobs:
         with:
           subject-path: 'dist/*'
 
-      - uses: softprops/action-gh-release@v2
-        with:
-          # Explicit rather than inherited from the ref: the job is already
-          # tag-only, and this makes that visible at the point it matters.
-          tag_name: ${{ github.ref_name }}
-          files: dist/*
-          prerelease: ${{ inputs.prerelease || false }}
-          generate_release_notes: true
+      # The runner's own gh, with the job token, instead of a third-party
+      # action on a floating major tag: this is the one job that holds
+      # contents:write, id-token:write and the R2 secrets, and nothing it runs
+      # should be code that can move underneath it. A re-run of an existing
+      # release replaces the assets rather than failing.
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          PRERELEASE: ${{ inputs.prerelease && 'true' || 'false' }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "release $TAG exists; replacing its assets"
+            gh release upload "$TAG" dist/* --clobber
+          else
+            gh release create "$TAG" dist/* --title "$TAG" --verify-tag --generate-notes \
+              $([ "$PRERELEASE" = true ] && echo --prerelease)
+          fi
 
       # Mirror the assets to R2 so downloads ride the zero-egress CDN path.
       # Gated on a repo *variable* so CI stays green before Cloudflare is wired;
@@ -430,3 +663,56 @@ jobs:
           PYEOF
           aws s3 cp latest.json "s3://sirius-releases/latest-$QUALITY.json" \
             --endpoint-url "$R2_ENDPOINT"
+
+  # The [sirius] pacman repository, updated by the same run that published the
+  # release — the step that used to be done by hand after every tag, and that
+  # the repository lagged on until someone remembered. On a branch it runs the
+  # same script in --dry-run, so the tooling and the repo-add mechanics are
+  # rehearsed; on a tag it runs after Publish, so the release the PKGBUILD's
+  # source URL names exists. Stable only: the repository has no insider
+  # channel, and every Arch user would get a prerelease on their next -Syu.
+  # Runs on the plain runner with Ubuntu's pacman-package-manager for repo-add
+  # and vercmp, rather than in a rolling-release container that would have to
+  # `pacman -Syu` the whole distribution before touching the R2 credentials.
+  arch-publish:
+    name: ${{ github.ref_type == 'tag' && 'Publish Arch repository' || 'Rehearse Arch repository' }}
+    needs: [arch, release]
+    if: >-
+      !cancelled() && needs.arch.outputs.built == 'true'
+      && (github.ref_type != 'tag' || needs.release.result == 'success')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    # The repository update is a read-modify-write of one database; serialise
+    # it across runs so a slower run for an older tag cannot clobber a newer one
+    # (the script also refuses downgrades on its own).
+    concurrency:
+      group: sirius-arch-repo
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: build/sirius
+      - uses: actions/download-artifact@v8
+        with:
+          name: arch-x86_64
+          path: out
+      - name: Install repo-add
+        run: |
+          sudo apt-get update -qq
+          # libarchive-tools supplies the bsdtar repo-add reads .PKGINFO with;
+          # without it every zstd package is "not a package file".
+          sudo apt-get install -y -qq pacman-package-manager libarchive-tools >/dev/null
+          repo-add --version
+          vercmp 1.118.6 1.118.5
+      - name: Rehearse the repository update
+        if: github.ref_type != 'tag'
+        run: bash build/sirius/publish-arch-repo.sh out/sirius-ide-bin-*.pkg.tar.zst --dry-run
+      - name: repo-add and upload
+        if: github.ref_type == 'tag' && vars.R2_ENDPOINT != '' && !inputs.prerelease
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ENDPOINT: ${{ vars.R2_ENDPOINT }}
+        run: bash build/sirius/publish-arch-repo.sh out/sirius-ide-bin-*.pkg.tar.zst

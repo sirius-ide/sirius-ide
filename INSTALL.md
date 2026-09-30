@@ -17,10 +17,14 @@ sudo pacman -Syu sirius-ide-bin
 ```
 
 Updates arrive with your normal `pacman -Syu`. The repository is served from
-the same zero-egress CDN as every Sirius download, and the package is built
-from the same release assets whose provenance you can verify with
-`gh attestation verify`. It currently serves `x86_64` only — on an aarch64 Arch
+the same zero-egress CDN as every Sirius download, and the release workflow
+publishes each tag to it in the same run that publishes the GitHub release, so
+it never trails. The package is built from the same release tarball whose
+provenance you can verify with `gh attestation verify`, and the `.pkg.tar.zst`
+is also attached to every release, so `sudo pacman -U <that url>` works without
+adding the repository. It currently serves `x86_64` only — on an aarch64 Arch
 install, `$arch` resolves to a path that does not exist yet; use the tarball below.
+The PKGBUILD lives in the repository at `build/arch/sirius-ide-bin/`.
 
 An AUR package will follow once the AUR reopens new-account registration
 (paused during their malicious-packages incident); the repository above is the
@@ -75,6 +79,20 @@ DESKTOP
 update-desktop-database ~/.local/share/applications
 ```
 
+## Remote development (SSH, containers)
+
+Every release ships the Sirius server for `linux-x64` and `linux-arm64`
+(`sirius-server-linux-<arch>.tar.gz`), the headless half that a remote
+extension installs on the machine you connect to. `product.json` points remote
+extensions at it (`serverDownloadUrlTemplate`), so Open Remote - SSH and
+compatible extensions install it on first connect with no configuration; to
+place it yourself, unpack the tarball on the remote host and run
+`bin/sirius-server`. The x64 server needs glibc 2.28 and a libstdc++ with
+GLIBCXX 3.4.25 or newer — Debian 10, Ubuntu 20.04 and RHEL 8 or newer — which
+`bin/helpers/check-requirements.sh` verifies before it starts. The arm64 server
+is built natively on a current runner and needs glibc 2.39, the same floor as
+the arm64 editor tarball. Alpine (musl) is not built.
+
 ## Windows
 
 Run the installer from the [latest release](https://github.com/sirius-ide/sirius-ide/releases/latest):
@@ -119,7 +137,7 @@ chat panel.
 
 | How you installed | How it updates |
 | --- | --- |
-| Sirius pacman repo | `sudo pacman -Syu` |
+| Sirius pacman repo | `sudo pacman -Syu` (the repo is updated by the release itself) |
 | `.deb` / `.rpm` | Install a newer package |
 | Tarball | The editor notifies you and opens the download page |
 | Windows installer | In place, automatically |

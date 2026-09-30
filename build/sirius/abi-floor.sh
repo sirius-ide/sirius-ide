@@ -8,6 +8,7 @@
 # 2.35, Debian 12 = 2.36).
 #
 #   APP_DIR=../VSCode-linux-x64 MAX_GLIBC=2.28 MAX_GLIBCXX=none bash build/sirius/abi-floor.sh
+#   APP_DIR=../sirius-server-linux-x64 LAYOUT=server MAX_GLIBC=2.28 MAX_GLIBCXX=3.4.25 bash build/sirius/abi-floor.sh
 #
 # Invoke through `bash`, not by path: the gate must not depend on an exec bit
 # surviving whatever applied the commit.
@@ -26,6 +27,12 @@
 # is checked on DT_NEEDED, not only on versioned GLIBCXX_ symbols — five of the
 # thirteen modules in a runner-gcc build link libstdc++.so.6 without referencing
 # a single versioned symbol, and a symbol-only check waved them through.
+#
+# LAYOUT=server checks the REH server tarball instead: its native modules live
+# in node_modules/ at the root and the runtime is the bundled `node` binary,
+# not Electron. The server is compiled with the gcc sysroot rather than clang
+# and libc++, so it does link libstdc++ — cap it at the version its own
+# bin/helpers/check-requirements.sh promises remote hosts.
 
 set -uo pipefail
 
@@ -33,17 +40,31 @@ APP_DIR=${APP_DIR:?set APP_DIR to the built app directory, e.g. ../VSCode-linux-
 APP_NAME=${APP_NAME:-sirius}
 MAX_GLIBC=${MAX_GLIBC:-2.28}
 MAX_GLIBCXX=${MAX_GLIBCXX:-none}
+LAYOUT=${LAYOUT:-client}
 
 newer() { [ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | tail -1)" != "$2" ]; }
 
 fail=0
 checked=0
 
-files=$(find "$APP_DIR/resources/app/node_modules" -name '*.node' 2>/dev/null)
-files="$files
+case "$LAYOUT" in
+	client)
+		files=$(find "$APP_DIR/resources/app/node_modules" -name '*.node' 2>/dev/null)
+		files="$files
 $APP_DIR/$APP_NAME
 $APP_DIR/chrome-sandbox
 $APP_DIR/chrome_crashpad_handler"
+		;;
+	server)
+		files=$(find "$APP_DIR/node_modules" -name '*.node' 2>/dev/null)
+		files="$files
+$APP_DIR/node"
+		;;
+	*)
+		echo "::error::abi-floor: LAYOUT must be client or server, got '$LAYOUT'"
+		exit 1
+		;;
+esac
 
 while IFS= read -r f; do
 	[ -n "$f" ] && [ -f "$f" ] || continue
@@ -74,6 +95,6 @@ if [ "$checked" -lt 5 ]; then
 fi
 
 if [ "$fail" = 0 ]; then
-	echo "ABI floor OK across $checked binaries: glibc <= $MAX_GLIBC, libstdc++ <= $MAX_GLIBCXX"
+	echo "ABI floor OK across $checked $LAYOUT binaries: glibc <= $MAX_GLIBC, libstdc++ <= $MAX_GLIBCXX"
 fi
 exit $fail
