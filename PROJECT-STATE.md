@@ -655,6 +655,27 @@ curl -fsSL https://dl.siriuside.com/arch/x86_64/sirius.db | tar -tz | grep siriu
 
 Verify provenance of any asset: `gh attestation verify <file> --owner sirius-ide`.
 
+### Landing a cloud branch (owner, local)
+
+Cloud sessions work on `claude/…` branches and stop; they never land or release. To land one:
+
+1. `git fetch`, then check the branch: based on the current `sirius` tip, every commit
+   authored and committed as the owner, no attribution trailers
+   (`git log --format='%an <%ae> | %cn' origin/sirius..<branch>`, and grep the bodies).
+2. Read its rehearsals yourself with `gh run view <id>` — cloud handoffs have misreported
+   twice (a commit count; a first rehearsal called nearly green when the arm64 job had
+   failed and skipped every install leg). Confirm the last green run's head differs from
+   the branch tip only in docs (`git diff --stat <run-head> <branch>`).
+3. Review the diff, and re-check from this machine anything the VM could not reach: the
+   live endpoints, the R2 layout, `dl.siriuside.com`.
+4. `git cherry-pick` every commit onto `sirius`, in order — that drops the VM's commit
+   signature (GitHub shows it as "Unverified") and keeps `claude/…` out of history — then
+   `git diff --quiet HEAD <branch>` must hold before you push.
+5. If a PR exists, strip any `claude.ai/code/session_…` link from its body, close it with a
+   comment naming the cherry-picked SHAs, and delete the branch
+   (`gh pr close <n> --delete-branch`, or `git push origin --delete <branch>`).
+6. Bring §13 to the merged state: the new SHAs, and "unreleased until v…" where it applies.
+
 ---
 
 ## 13. If you are a new session, start here
