@@ -11,7 +11,8 @@ name: Sirius Release
 #                       Ubuntu 22.04, Rocky 9 containers, x64 AND arm64      │    update manifest
 #   arch                sirius-ide-bin built and installed on Arch          ─┘
 #                                                                              └─ arch-publish: the [sirius] pacman repo
-#                                                                                 (rehearsed in --dry-run on a branch)
+#                                                                                 (rehearsed on a branch: --dry-run of the
+#                                                                                 real package, then the script's self-test)
 #
 # A branch dispatch runs everything up to (and not including) the tag-gated
 # publish jobs, which is how a release candidate is rehearsed.
@@ -749,8 +750,9 @@ jobs:
   # The [sirius] pacman repository, updated by the same run that published the
   # release — the step that used to be done by hand after every tag, and that
   # the repository lagged on until someone remembered. On a branch it runs the
-  # same script in --dry-run, so the tooling and the repo-add mechanics are
-  # rehearsed; on a tag it runs after Publish, so the release the PKGBUILD's
+  # same script in --dry-run and then its self-test, so the tooling, the
+  # repo-add mechanics and the publish logic around them are rehearsed; on a
+  # tag it runs after Publish, so the release the PKGBUILD's
   # source URL names exists. Stable only: the repository has no insider
   # channel, and every Arch user would get a prerelease on their next -Syu.
   # Runs on the plain runner with Ubuntu's pacman-package-manager for repo-add
@@ -784,13 +786,20 @@ jobs:
         run: |
           sudo apt-get update -qq
           # libarchive-tools supplies the bsdtar repo-add reads .PKGINFO with;
-          # without it every zstd package is "not a package file".
-          sudo apt-get install -y -qq pacman-package-manager libarchive-tools >/dev/null
+          # without it every zstd package is "not a package file". zstd is for
+          # the self-test's synthetic packages.
+          sudo apt-get install -y -qq pacman-package-manager libarchive-tools zstd >/dev/null
           repo-add --version
           vercmp 1.118.6 1.118.5
+      # The --dry-run proves repo-add accepts this run's package on this runner;
+      # the self-test proves the publish path around it against a stub R2 — the
+      # part a branch cannot exercise for real — down to what stops a publish:
+      # only a 404 means "absent", anything else the bucket answers fails closed.
       - name: Rehearse the repository update
         if: github.ref_type != 'tag'
-        run: bash build/sirius/publish-arch-repo.sh out/sirius-ide-bin-*.pkg.tar.zst --dry-run
+        run: |
+          bash build/sirius/publish-arch-repo.sh out/sirius-ide-bin-*.pkg.tar.zst --dry-run
+          bash build/sirius/publish-arch-repo.test.sh
       - name: repo-add and upload
         if: github.ref_type == 'tag' && vars.R2_ENDPOINT != '' && !inputs.prerelease
         env:
