@@ -1,0 +1,64 @@
+# Maintainer: emrys <iarshrind@gmail.com>
+#
+# Sirius IDE, packaged from the prebuilt release tarball. CI rewrites pkgver and
+# sha256sums for every tag (build/arch/build.sh), builds the package inside an
+# Arch container, installs it there, and publishes it to the [sirius] pacman
+# repository on dl.siriuside.com (build/sirius/publish-arch-repo.sh). The same
+# PKGBUILD is what an AUR submission would carry.
+
+pkgname=sirius-ide-bin
+_app=sirius
+_appdir=VSCode-linux-x64
+pkgver=1.118.5
+pkgrel=1
+pkgdesc='The agentic, AI-native code editor (prebuilt release)'
+arch=('x86_64')
+url='https://github.com/sirius-ide/sirius-ide'
+license=('custom')
+provides=('sirius-ide')
+conflicts=('sirius-ide' 'sirius-ide-git')
+# Every library the shipped binaries load (verified by `ldd` on install in CI),
+# mapped from the Debian and RPM dependency lists the release build generates.
+depends=('alsa-lib' 'at-spi2-core' 'ca-certificates' 'cairo' 'curl' 'dbus' 'expat'
+         'gcc-libs' 'glib2' 'glibc' 'gtk3' 'libcups' 'libdrm' 'libx11' 'libxcb'
+         'libxcomposite' 'libxdamage' 'libxext' 'libxfixes' 'libxkbcommon'
+         'libxkbfile' 'libxrandr' 'mesa' 'nspr' 'nss' 'pango' 'systemd-libs'
+         'xdg-utils')
+optdepends=('libsecret: store API keys in the system keyring'
+            'gnome-keyring: a keyring backend for libsecret'
+            'libnotify: desktop notifications'
+            'bubblewrap: sandbox for agent terminal commands'
+            'socat: sandbox for agent terminal commands'
+            'ollama: run models locally, with nothing leaving the machine')
+options=('!strip' '!debug' '!emptydirs')
+source=("${pkgname}-${pkgver}-x64.tar.gz::${url}/releases/download/v${pkgver}/${_app}-linux-x64.tar.gz"
+        "${_app}.desktop"
+        "${_app}-url-handler.desktop"
+        "${_app}-workspace.xml")
+sha256sums=('SKIP'
+            'SKIP'
+            'SKIP'
+            'SKIP')
+
+package() {
+	local app="${pkgdir}/opt/sirius-ide"
+
+	install -d "${app}"
+	cp -a "${srcdir}/${_appdir}/." "${app}/"
+
+	# The launcher resolves its own location through readlink, so a symlink is
+	# all /usr/bin needs.
+	install -d "${pkgdir}/usr/bin"
+	ln -s /opt/sirius-ide/bin/${_app} "${pkgdir}/usr/bin/${_app}"
+
+	install -Dm644 "${srcdir}/${_app}.desktop" "${pkgdir}/usr/share/applications/${_app}.desktop"
+	install -Dm644 "${srcdir}/${_app}-url-handler.desktop" "${pkgdir}/usr/share/applications/${_app}-url-handler.desktop"
+	install -Dm644 "${srcdir}/${_app}-workspace.xml" "${pkgdir}/usr/share/mime/packages/${_app}-workspace.xml"
+	install -Dm644 "${app}/resources/app/resources/linux/code.png" "${pkgdir}/usr/share/pixmaps/${_app}.png"
+
+	install -Dm644 "${app}/resources/completions/bash/${_app}" "${pkgdir}/usr/share/bash-completion/completions/${_app}"
+	install -Dm644 "${app}/resources/completions/zsh/_${_app}" "${pkgdir}/usr/share/zsh/site-functions/_${_app}"
+
+	install -Dm644 "${app}/resources/app/LICENSE.txt" "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE.txt"
+	install -Dm644 "${app}/resources/app/ThirdPartyNotices.txt" "${pkgdir}/usr/share/licenses/${pkgname}/ThirdPartyNotices.txt"
+}

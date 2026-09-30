@@ -1,0 +1,12 @@
+[Desktop Entry]
+Name=Sirius IDE - URL Handler
+Comment=The agentic, AI-native code editor
+GenericName=Text Editor
+Exec=/opt/sirius-ide/sirius --open-url %U
+Icon=sirius
+Type=Application
+NoDisplay=true
+StartupNotify=true
+Categories=Utility;TextEditor;Development;IDE;
+MimeType=x-scheme-handler/sirius;
+Keywords=sirius;vscode;

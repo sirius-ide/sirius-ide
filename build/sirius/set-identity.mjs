@@ -52,6 +52,9 @@ const targets = [
 	'resources/linux/debian/control.template',
 	'resources/linux/rpm/code.spec.template',
 	'.github/workflows/sirius-release.yml',
+	'build/arch/sirius-ide-bin/PKGBUILD',
+	'build/sirius/publish-arch-repo.sh',
+	'build/sirius/install-test.sh',
 	'LICENSE.txt',
 	'extensions/sirius-ai/src/providers/openaiCompatible.ts'
 ].map(p => path.join(REPO_ROOT, p));
