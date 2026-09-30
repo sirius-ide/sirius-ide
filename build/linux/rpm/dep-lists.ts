@@ -47,8 +47,8 @@ export const referenceGeneratedDepsByArch = {
 	// not the Rust unwinder it was on x86_64. `GCC_4.5.0` is spdlog's long-double
 	// arithmetic, soft-float on aarch64; librt never appeared on aarch64. A review
 	// cross-compiled all eleven client modules against the sysroot and reproduced
-	// this list exactly (with Node 22 rather than Electron headers); the first
-	// cross-build rehearsal's "Old:/New:" diff is the final word, as for x86_64.
+	// this list exactly (with Node 22 rather than Electron headers), and the first
+	// cross-build rehearsal (run 36786333471) matched it byte for byte.
 	'x86_64': [
 		'ca-certificates',
 		'ld-linux-x86-64.so.2()(64bit)',
