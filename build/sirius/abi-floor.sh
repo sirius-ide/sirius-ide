@@ -4,8 +4,9 @@
 # Licensed under the MIT License. See License.txt in the project root for license information.
 #
 # Fail the build if any binary we ship needs a newer glibc / libstdc++ than the
-# oldest distro INSTALL.md targets (RHEL/Rocky 9 = glibc 2.34, Ubuntu 22.04 =
-# 2.35, Debian 12 = 2.36).
+# floor INSTALL.md promises — the sysroot's glibc 2.28 — which sits well under
+# the distributions the install test runs on (RHEL/Rocky 9 = glibc 2.34,
+# Ubuntu 22.04 = 2.35, Debian 12 = 2.36).
 #
 #   APP_DIR=../VSCode-linux-x64 MAX_GLIBC=2.28 MAX_GLIBCXX=none bash build/sirius/abi-floor.sh
 #   APP_DIR=../sirius-server-linux-x64 LAYOUT=server MAX_GLIBC=2.28 MAX_GLIBCXX=3.4.25 bash build/sirius/abi-floor.sh

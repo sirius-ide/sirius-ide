@@ -50,6 +50,15 @@ jobs:
     # workflow-level write token; only Publish does.
     permissions:
       contents: read
+    # VSCODE_ARCH is read by more than setup-env.sh: the microsoft-authentication
+    # extension's esbuild copies the MSAL runtime for `VSCODE_ARCH || process.arch`
+    # (Linux x64 only) while Build and Build server bundle the extensions, so
+    # without it here the arm64 tarball, packages and server would carry x86-64
+    # .node/.so files that no dependency list mentions. Upstream sets it as a job
+    # variable for the same reason. npm_config_arch is deliberately NOT job-level:
+    # build/ must install for the host, and only `npm ci` needs it.
+    env:
+      VSCODE_ARCH: ${{ matrix.arch }}
     strategy:
       fail-fast: false
       matrix:
@@ -73,14 +82,15 @@ jobs:
             runner: ubuntu-22.04
             triple: x86_64-linux-gnu
           # arm64 is CROSS-COMPILED here, not built on ubuntu-24.04-arm. The
-          # sysroot's aarch64 toolchain is a Canadian cross — x86_64 binaries
-          # that cannot execute on the arm64 runner — and a native build floors
-          # at that runner's glibc 2.38 / GLIBCXX 3.4.31, which no distro in
-          # INSTALL.md has: the v1.118.6 arm64 tarball did not run on Debian 12
-          # arm64 (PROJECT-STATE.md section 11). Nothing in this job executes
-          # what this leg builds; the two runtime smoke steps run on the native
-          # leg only, and the arm64 proof is the install-test legs on the arm64
-          # runner, which install the packages and run the editor and server.
+          # sysroot's aarch64 toolchain is a cross toolchain whose compilers are
+          # x86_64 binaries — they cannot execute on the arm64 runner — and a
+          # native build floors at that runner's glibc 2.38 / GLIBCXX 3.4.31,
+          # which no distro in INSTALL.md has: the v1.118.6 arm64 tarball did not
+          # run on Debian 12 arm64 (PROJECT-STATE.md section 9). Nothing in this
+          # job executes what this leg builds; the two runtime smoke steps run on
+          # the native leg only, and the arm64 proof is the install-test legs on
+          # the arm64 runner, which install the packages, dlopen every native
+          # module and run the editor and server.
           - arch: arm64
             runner: ubuntu-22.04
             triple: aarch64-linux-gnu
@@ -108,7 +118,8 @@ jobs:
             fakeroot rpm dpkg-dev pkg-config python-is-python3 \
             libnss3 libnspr4 libgtk-3-0 libgbm1 libatspi2.0-0 libatk-bridge2.0-0 libcups2 \
             libxkbcommon0 libdrm2 libxdamage1 libxcomposite1 libxfixes3 libxrandr2
-          # Ubuntu 24.04 renamed libasound2 to libasound2t64; the arm64 runner is 24.04.
+          # Ubuntu 24.04 renamed libasound2 to libasound2t64; try both so this
+          # step survives the day the runner image moves.
           sudo apt-get install -y libasound2t64 || sudo apt-get install -y libasound2
 
       # ~290 MB of toolchain on x64 (two sysroots, clang, libc++); on arm64 the
@@ -157,16 +168,17 @@ jobs:
       # On arm64 the script's aarch64 branch exports the same sysroot's
       # aarch64-linux-gnu-gcc (no clang/libc++ there, which is why the aarch64
       # reference lists are libstdc++ lists), and npm_config_arch is what makes
-      # node-gyp compile every module for arm64 with it — and what points the
-      # @vscode/ripgrep and electron postinstalls, and later the Electron and
-      # Node package downloads, at aarch64 binaries. Both halves are needed:
-      # the first cross attempt (before c87ef00) set npm_config_arch without the
+      # node-gyp compile every module for arm64 with it and the @vscode/ripgrep
+      # and electron postinstalls fetch aarch64 binaries. (The packaging steps
+      # pick their Electron and Node by the gulp task's arch, not by this
+      # variable, which lives only in this shell.) Both halves are needed: the
+      # first cross attempt (before c87ef00) set npm_config_arch without the
       # toolchain, so the runner's own gcc emitted x86_64 modules into an arm64
-      # Electron, and nothing noticed until the app was run.
+      # Electron, and nothing noticed until the app was run. VSCODE_ARCH, which
+      # setup-env.sh reads to pick the sysroot, is the job-level env above.
       - name: Install dependencies
         run: |
           set -e
-          export VSCODE_ARCH='${{ matrix.arch }}'
           export npm_config_arch='${{ matrix.arch }}'
           source ./build/azure-pipelines/linux/setup-env.sh
           # The token stays for `npm ci` too. install-sysroot.ts needs it, and so
@@ -198,7 +210,13 @@ jobs:
       # runner's objdump reads the aarch64 binaries through binutils' generic
       # elf64-little target (the dynamic section and versioned symbols are
       # architecture-independent), so one script gates both legs.
+      # continue-on-error, with the outcome turned into the job result by the
+      # Packaging gate: a violation must fail the job, but only after the
+      # server, the packages and their dependency diffs have been produced and
+      # uploaded, so one run returns every diagnostic there is.
       - name: Verify ABI floor
+        id: abi_client
+        continue-on-error: true
         env:
           APP_DIR: ${{ github.workspace }}/../VSCode-linux-${{ matrix.arch }}
           MAX_GLIBC: '2.28'
@@ -209,30 +227,15 @@ jobs:
       # .node files themselves, not the package entry points, which lazily load
       # and swallow errors. ~3s, no display needed, and the cheapest possible
       # proof that swapping libstdc++ for libc++ did not break the modules the
-      # editor loads at startup. Only where the runner can execute the build:
-      # the arm64 binaries cannot run on this x64 runner, and their equivalent
-      # proof is the install-test legs on the arm64 runner, which run the
-      # installed editor and server (a module that fails to load throws in the
-      # main process there — that is how the native arm64 build was caught).
+      # editor loads. Only where the runner can execute the build: the arm64
+      # binaries cannot run on this x64 runner. The same script runs inside
+      # every install-test leg on the installed tree, so the arm64 modules get
+      # the identical check on arm64 hardware.
       - name: Smoke - native modules load
         if: (runner.arch == 'X64' && matrix.arch == 'x64') || (runner.arch == 'ARM64' && matrix.arch == 'arm64')
         run: |
           cd "${{ github.workspace }}/../VSCode-linux-${{ matrix.arch }}"
-          ELECTRON_RUN_AS_NODE=1 ./sirius -e '
-            const { execSync } = require("child_process");
-            const path = require("path");
-            const files = execSync("find resources/app/node_modules -name \"*.node\" -not -path \"*/obj.target/*\"", { encoding: "utf8" })
-              .trim().split("\n").filter(Boolean);
-            const windowsOnly = /windows-foreground-love|deviceid\/build\/Release\/windows\.node|win32-|-msvc-/;
-            let ok = 0, bad = 0;
-            for (const f of files) {
-              if (windowsOnly.test(f)) { console.log("skip " + f); continue; }
-              try { process.dlopen({ exports: {} }, path.resolve(f)); ok++; console.log("ok   " + f); }
-              catch (e) { bad++; console.log("FAIL " + f + " :: " + String(e.message).split("\n")[0]); }
-            }
-            console.log(ok + " loaded, " + bad + " failed");
-            if (ok < 7) { console.log("::error::expected at least 7 native modules to load, got " + ok); process.exit(1); }
-            process.exit(bad ? 1 : 0);'
+          ELECTRON_RUN_AS_NODE=1 ./sirius "${{ github.workspace }}/build/sirius/dlopen-smoke.cjs" resources/app/node_modules 7
 
       - name: Package tarball
         run: |
@@ -263,8 +266,11 @@ jobs:
 
       # The server links libstdc++ (gcc sysroot, not clang/libc++), so the cap
       # is the version its own bin/helpers/check-requirements.sh promises a
-      # remote host, not "none" — on both architectures.
+      # remote host, not "none" — on both architectures. continue-on-error for
+      # the same reason as the client check: the Packaging gate owns the verdict.
       - name: Verify server ABI floor
+        id: abi_server
+        continue-on-error: true
         env:
           APP_DIR: ${{ github.workspace }}/../sirius-server-linux-${{ matrix.arch }}
           LAYOUT: server
@@ -281,6 +287,7 @@ jobs:
         run: |
           S="${{ github.workspace }}/../sirius-server-linux-${{ matrix.arch }}"
           "$S/bin/helpers/check-requirements.sh"
+          "$S/node" "${{ github.workspace }}/build/sirius/dlopen-smoke.cjs" "$S/node_modules" 5
           "$S/bin/sirius-server" --version
           want="$(sed -n 's/^[[:space:]]*"version": "\(.*\)",/\1/p' package.json | head -1)"
           got="$("$S/bin/sirius-server" --version | head -1)"
@@ -290,6 +297,22 @@ jobs:
         run: |
           tar -czf sirius-server-linux-${{ matrix.arch }}.tar.gz -C .. sirius-server-linux-${{ matrix.arch }}
           sha256sum sirius-server-linux-${{ matrix.arch }}.tar.gz > sirius-server-linux-${{ matrix.arch }}.tar.gz.sha256
+
+      # Every ELF file in the client and the server tree must be for the matrix
+      # arch — not only the modules the ABI floor inspects. This catches a
+      # host-architecture binary copied into a cross-compiled tree, which no
+      # dependency list and no ldd would notice (the MSAL runtime mentioned at
+      # the job-level env is the known case). The sandbox runtime's seccomp
+      # helpers ship one copy per architecture by design and are the exemption.
+      - name: Verify ELF architecture
+        id: elf_arch
+        continue-on-error: true
+        env:
+          ARCH: ${{ matrix.arch }}
+        run: >-
+          bash ./build/sirius/elf-arch.sh
+          "${{ github.workspace }}/../VSCode-linux-${{ matrix.arch }}"
+          "${{ github.workspace }}/../sirius-server-linux-${{ matrix.arch }}"
 
       # The `-build-deb` / `-build-rpm` tasks do NOT chain their `-prepare-` half
       # (only the snap task does, build/gulpfile.vscode.linux.ts:293-306). Calling
@@ -303,7 +326,6 @@ jobs:
         continue-on-error: true
         shell: bash
         env:
-          VSCODE_ARCH: ${{ matrix.arch }}
           GITHUB_TOKEN: ${{ github.token }}
           # prepare-deb resolves the sysroot again; point it at the copy
           # setup-env.sh already fetched so it short-circuits on the .stamp file
@@ -322,13 +344,12 @@ jobs:
       # brp-strip itself, but rpmbuild's remaining brp-* scripts still take the
       # macro, and the runner's strip cannot read an aarch64 object — so, like
       # upstream's prepare-rpm step, hand it the sysroot's strip for the target
-      # triple, on both legs (on x64 it is the same binutils as the host's).
+      # triple, on both legs (x64 too, so both packages are made the same way).
       - name: Package rpm
         id: rpm
         continue-on-error: true
         shell: bash
         env:
-          VSCODE_ARCH: ${{ matrix.arch }}
           STRIP: ${{ github.workspace }}/.build/sysroots/glibc-2.28-gcc-10.5.0/${{ matrix.triple }}/${{ matrix.triple }}/bin/strip
         run: |
           set -eo pipefail
@@ -341,7 +362,8 @@ jobs:
       # must not also throw away the tarball and whichever package did build —
       # those are what you inspect to diagnose it, and what a deliberate
       # ship-without-packages would publish. A *.deb/*.rpm pattern that matches
-      # nothing only warns, because the tarball pattern still matches.
+      # nothing is ignored as long as another pattern matches, so a packaging
+      # failure still uploads everything else.
       - uses: actions/upload-artifact@v7
         with:
           name: linux-${{ matrix.arch }}
@@ -364,6 +386,10 @@ jobs:
       - name: Packaging gate
         if: success() || failure()
         shell: bash
+        env:
+          ABI_CLIENT: ${{ steps.abi_client.outcome }}
+          ABI_SERVER: ${{ steps.abi_server.outcome }}
+          ELF_ARCH: ${{ steps.elf_arch.outcome }}
         run: |
           shopt -s nullglob
           debs=(*.deb); rpms=(*.rpm)
@@ -371,23 +397,34 @@ jobs:
           {
             echo "### Linux ${{ matrix.arch }} packaging"
             echo
-            echo "| package | step | files |"
+            echo "| check | outcome | files |"
             echo "| --- | --- | --- |"
             echo "| deb | ${{ steps.deb.outcome }} | ${deb:-none} |"
             echo "| rpm | ${{ steps.rpm.outcome }} | ${rpm:-none} |"
+            echo "| ABI floor, client | ${ABI_CLIENT:-did not run} | |"
+            echo "| ABI floor, server | ${ABI_SERVER:-did not run} | |"
+            echo "| ELF architecture | ${ELF_ARCH:-did not run} | |"
           } >> "$GITHUB_STEP_SUMMARY"
           if [ -z "${{ steps.deb.outcome }}" ]; then
             echo "packaging did not run — the job failed earlier; see the steps above"
             exit 0
           fi
-          fail=0
-          [ -n "$deb" ] || { echo "::error title=No .deb for ${{ matrix.arch }}::'Package deb' outcome: ${{ steps.deb.outcome }}"; fail=1; }
-          [ -n "$rpm" ] || { echo "::error title=No .rpm for ${{ matrix.arch }}::'Package rpm' outcome: ${{ steps.rpm.outcome }}"; fail=1; }
-          if [ "$fail" = 1 ] && [ "${{ inputs.allow_missing_packages || 'false' }}" != 'true' ]; then
+          fail=0; missing=0
+          [ -n "$deb" ] || { echo "::error title=No .deb for ${{ matrix.arch }}::'Package deb' outcome: ${{ steps.deb.outcome }}"; missing=1; }
+          [ -n "$rpm" ] || { echo "::error title=No .rpm for ${{ matrix.arch }}::'Package rpm' outcome: ${{ steps.rpm.outcome }}"; missing=1; }
+          if [ "$missing" = 1 ] && [ "${{ inputs.allow_missing_packages || 'false' }}" != 'true' ]; then
             echo "INSTALL.md promises both packages. To ship without them anyway:"
             echo "  gh workflow run sirius-release.yml --ref <tag> -f allow_missing_packages=true"
-            exit 1
+            fail=1
           fi
+          # The three checks ran with continue-on-error so the job always got as
+          # far as the uploads; here their outcomes become the job's result. No
+          # input excuses them: allow_missing_packages tolerates an ABSENT
+          # package, never a binary over the floor or of the wrong architecture.
+          for check in "ABI floor, client=$ABI_CLIENT" "ABI floor, server=$ABI_SERVER" "ELF architecture=$ELF_ARCH"; do
+            [ "${check#*=}" = success ] || { echo "::error title=${check%=*} failed on ${{ matrix.arch }}::outcome '${check#*=}' — see that step's log"; fail=1; }
+          done
+          exit $fail
 
   # The proof that "the package builds" became "the package installs and runs":
   # apt and dnf resolve the generated dependency lists from each distribution's
@@ -398,7 +435,8 @@ jobs:
   # ubuntu-24.04-arm runner, the distribution's own arm64 image in a container)
   # and are the ONLY place the cross-compiled arm64 build is executed before it
   # ships — the linux job cannot run what it built for the other architecture —
-  # so they are required, not advisory.
+  # so they are required, not advisory, and the script dlopens every native
+  # module (build/sirius/dlopen-smoke.cjs) besides running the editor and server.
   install-test:
     name: Install ${{ matrix.name }}
     needs: linux
@@ -458,7 +496,7 @@ jobs:
       - name: Container prerequisites
         run: |
           if command -v apt-get >/dev/null; then
-            apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends git ca-certificates >/dev/null
+            apt-get -o Acquire::Retries=3 update -qq && DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=3 install -y -qq --no-install-recommends git ca-certificates >/dev/null
           else
             dnf -y -q install git >/dev/null
           fi

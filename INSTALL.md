@@ -41,8 +41,10 @@ sudo apt install ./sirius_*_arm64.deb   # arm64 / aarch64
 
 Download the `.deb` from the [latest release](https://github.com/sirius-ide/sirius-ide/releases/latest).
 The package is named `sirius` and its version carries a build stamp, so the glob
-is deliberate. Both architectures ship together: the release pipeline installs
-and runs each package on Debian 12 and Ubuntu 22.04 before anything is published.
+is deliberate. Both architectures ship together from the first release after
+v1.118.6 on: the release pipeline installs and runs each package on Debian 12
+and Ubuntu 22.04 before anything is published. The arm64 package additionally
+needs GCC 9's libstdc++ (GLIBCXX 3.4.26): Debian 11, Ubuntu 20.04 or newer.
 
 Unlike upstream VS Code, this package does **not** add a third-party apt
 repository or signing key to your system. Update by installing a newer `.deb`,
@@ -56,7 +58,8 @@ sudo dnf install ./sirius-*.aarch64.rpm   # arm64 / aarch64
 ```
 
 Same naming note as the `.deb`; both architectures are installed and run on
-Rocky Linux 9 by the release pipeline.
+Rocky Linux 9 by the release pipeline (aarch64 from the first release after
+v1.118.6 on, and it needs GLIBCXX 3.4.26 — RHEL 9 or newer).
 
 ## Any Linux (tarball)
 
