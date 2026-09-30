@@ -36,7 +36,12 @@ function noUpdate() {
 	});
 }
 
-/** Asset naming per platform, as produced by the release workflow. */
+/**
+ * Asset naming per platform, as produced by the release workflow. The update asset is
+ * exactly `sirius-<suffix>`: match the whole name, never just the suffix, because the
+ * REH server tarballs (`sirius-server-linux-<arch>.tar.gz`) end with the same text and
+ * would otherwise be offered to whichever platform they happen to be listed first for.
+ */
 const ASSET_SUFFIX = {
 	'linux-x64': 'linux-x64.tar.gz',
 	'linux-arm64': 'linux-arm64.tar.gz',
@@ -74,7 +79,7 @@ export default {
 				return noUpdate();
 			}
 
-			const assetName = Object.keys(manifest.assets ?? {}).find(n => n.endsWith(suffix));
+			const assetName = Object.keys(manifest.assets ?? {}).find(n => n === `sirius-${suffix}`);
 			if (!assetName) {
 				return noUpdate();
 			}
@@ -114,7 +119,7 @@ export default {
 			return noUpdate();
 		}
 
-		const asset = release.assets.find(a => a.name.endsWith(suffix));
+		const asset = release.assets.find(a => a.name === `sirius-${suffix}`);
 		if (!asset) {
 			return noUpdate();
 		}
