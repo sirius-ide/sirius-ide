@@ -7,8 +7,11 @@ Sirius takes the best ideas from **Antigravity** (autonomous, agent-first workfl
 ## Install
 
 ```bash
-yay -S sirius-ide-bin          # Arch
+# Arch: add the [sirius] pacman repository (see INSTALL.md), then
+sudo pacman -Syu sirius-ide-bin
 ```
+
+An AUR package will follow once AUR registration reopens.
 
 Debian, Fedora, tarball and Windows are in **[INSTALL.md](INSTALL.md)**, along
 with how updates reach you on each.
