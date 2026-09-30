@@ -3,13 +3,15 @@ name: Sirius Release
 # Tagging v1.2.3 builds and publishes a release. The update server reads that
 # release, so a tag is the whole ship process:
 #
-#   linux (x64, arm64)  tarball + REH server; x64 also .deb/.rpm ─┐
-#   windows             installer                                  ├─ release (tag only)
-#   install-test        the .deb/.rpm/tarball/server in clean      │    GitHub Release,
-#                       Debian 12, Ubuntu 22.04, Rocky 9 containers │    provenance, R2 mirror,
-#   arch                sirius-ide-bin built and installed on Arch ─┘    update manifest
-#                                                                          └─ arch-publish: the [sirius] pacman repo
-#                                                                             (rehearsed in --dry-run on a branch)
+#   linux (x64, arm64)  tarball + REH server + .deb/.rpm, both legs on x64  ─┐
+#                       runners: arm64 is cross-compiled through the aarch64 │
+#                       glibc-2.28 sysroot, the way upstream builds it       ├─ release (tag only)
+#   windows             installer                                            │    GitHub Release,
+#   install-test        the .deb/.rpm/tarball/server in clean Debian 12,     │    provenance, R2 mirror,
+#                       Ubuntu 22.04, Rocky 9 containers, x64 AND arm64      │    update manifest
+#   arch                sirius-ide-bin built and installed on Arch          ─┘
+#                                                                              └─ arch-publish: the [sirius] pacman repo
+#                                                                                 (rehearsed in --dry-run on a branch)
 #
 # A branch dispatch runs everything up to (and not including) the tag-gated
 # publish jobs, which is how a release candidate is rehearsed.
@@ -52,33 +54,36 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # x64 compiles its native modules inside the glibc-2.28 sysroot with
-          # Chromium's clang and a statically linked libc++ (see "Install
-          # dependencies"). That, and only that, is what makes the deb/rpm
-          # installable on Debian 12, Ubuntu 22.04 and RHEL/Rocky 9.
+          # Both legs run on the x64 22.04 image and compile their native
+          # modules inside the glibc-2.28 sysroot (see "Install dependencies"):
+          # x64 with Chromium's clang and a statically linked libc++, arm64 with
+          # the sysroot's aarch64 gcc — upstream's product-build-linux.yml, arch
+          # for arch. That, and only that, is what makes the deb/rpm installable
+          # on Debian 12, Ubuntu 22.04 and RHEL/Rocky 9.
           # ubuntu-22.04 on purpose: the rpm dependency strings come from the
           # RUNNER's `/usr/lib/rpm/find-requires` and must match
           # build/linux/rpm/dep-lists.ts byte for byte, and that list was
           # generated on upstream's 22.04 agent. (The deb side is different: it
           # runs a Chromium-pinned dpkg-shlibdeps.pl fetched at prepare time, so
-          # when 22.04 retires, re-check the rpm list first.)
+          # when 22.04 retires, re-check the rpm list first.) Both tools read
+          # aarch64 ELF on this x64 host: find-requires is rpm's libelf-based
+          # rpmdeps, and dpkg-shlibdeps drives objdump, whose generic
+          # elf64-little target covers the dynamic section and symbol versions.
           - arch: x64
             runner: ubuntu-22.04
-            packages: 'true'
-          # arm64 ships a TARBALL ONLY — no deb, no rpm, deliberately.
-          # Cross-compiling arm64 on an x64 runner builds Electron's native
-          # modules for the wrong host (PROJECT-STATE.md section 11), and the
-          # sysroot cross-toolchain that would fix that is an x86_64 ELF binary,
-          # so it cannot execute on this runner at all. A native arm64 build
-          # therefore floors at the runner's glibc (2.38+) and libstdc++
-          # (GLIBCXX_3.4.3x), which is over every cap in the aarch64 reference
-          # dep-lists: the packages either refuse to generate or, if forced
-          # through, are rejected by apt and dnf on all three target distros.
-          # Shipping no arm64 package beats shipping one nobody can install.
-          # The arm64 REH server inherits the same floor, for the same reason.
+            triple: x86_64-linux-gnu
+          # arm64 is CROSS-COMPILED here, not built on ubuntu-24.04-arm. The
+          # sysroot's aarch64 toolchain is a Canadian cross — x86_64 binaries
+          # that cannot execute on the arm64 runner — and a native build floors
+          # at that runner's glibc 2.38 / GLIBCXX 3.4.31, which no distro in
+          # INSTALL.md has: the v1.118.6 arm64 tarball did not run on Debian 12
+          # arm64 (PROJECT-STATE.md section 11). Nothing in this job executes
+          # what this leg builds; the two runtime smoke steps run on the native
+          # leg only, and the arm64 proof is the install-test legs on the arm64
+          # runner, which install the packages and run the editor and server.
           - arch: arm64
-            runner: ubuntu-24.04-arm
-            packages: 'false'
+            runner: ubuntu-22.04
+            triple: aarch64-linux-gnu
     steps:
       - uses: actions/checkout@v7
 
@@ -95,7 +100,7 @@ jobs:
       # python-is-python3: setup-env.sh pipes Chromium's update.py into `python`,
       # not `python3`, and Ubuntu ships no unversioned alias. The runtime
       # libraries after libnss3 are what the Electron binary hard-links; the
-      # smoke step below is the first thing in this job that executes it.
+      # x64 smoke step below is the first thing in this job that executes it.
       - name: Install build prerequisites
         run: |
           sudo apt-get update
@@ -106,13 +111,14 @@ jobs:
           # Ubuntu 24.04 renamed libasound2 to libasound2t64; the arm64 runner is 24.04.
           sudo apt-get install -y libasound2t64 || sudo apt-get install -y libasound2
 
-      # ~290 MB of toolchain. The pinned versions live in four different files —
-      # the sysroot release tag in install-sysroot.ts, the Chromium revision in
-      # setup-env.sh, the Electron target in .npmrc and the libc++ artifact
-      # version libcxx-fetcher.ts reads from package.json — so hash those rather
-      # than transcribing version numbers that would silently go stale.
+      # ~290 MB of toolchain on x64 (two sysroots, clang, libc++); on arm64 the
+      # two sysroots alone, and the other paths below simply do not exist. The
+      # pinned versions live in four different files — the sysroot release tag
+      # in install-sysroot.ts, the Chromium revision in setup-env.sh, the
+      # Electron target in .npmrc and the libc++ artifact version
+      # libcxx-fetcher.ts reads from package.json — so hash those rather than
+      # transcribing version numbers that would silently go stale.
       - name: Cache sysroot and clang toolchain
-        if: matrix.packages == 'true'
         uses: actions/cache@v6
         with:
           path: |
@@ -130,7 +136,6 @@ jobs:
       # build/ first for exactly this reason, with the token: build/'s
       # @vscode/ripgrep pulls its binary from GitHub in an install script.
       - name: Install build-script dependencies
-        if: matrix.packages == 'true'
         working-directory: build
         run: npm ci
         env:
@@ -149,14 +154,21 @@ jobs:
       # The same script also exports VSCODE_REMOTE_CC/CXX/CXXFLAGS/LDFLAGS, the
       # glibc-2.28 gcc sysroot that postinstall.ts uses for remote/ — so the REH
       # server's native modules get their floor from this step too.
+      # On arm64 the script's aarch64 branch exports the same sysroot's
+      # aarch64-linux-gnu-gcc (no clang/libc++ there, which is why the aarch64
+      # reference lists are libstdc++ lists), and npm_config_arch is what makes
+      # node-gyp compile every module for arm64 with it — and what points the
+      # @vscode/ripgrep and electron postinstalls, and later the Electron and
+      # Node package downloads, at aarch64 binaries. Both halves are needed:
+      # the first cross attempt (before c87ef00) set npm_config_arch without the
+      # toolchain, so the runner's own gcc emitted x86_64 modules into an arm64
+      # Electron, and nothing noticed until the app was run.
       - name: Install dependencies
         run: |
           set -e
-          if [ "${{ matrix.packages }}" = 'true' ]; then
-            export VSCODE_ARCH='${{ matrix.arch }}'
-            export npm_config_arch='${{ matrix.arch }}'
-            source ./build/azure-pipelines/linux/setup-env.sh
-          fi
+          export VSCODE_ARCH='${{ matrix.arch }}'
+          export npm_config_arch='${{ matrix.arch }}'
+          source ./build/azure-pipelines/linux/setup-env.sh
           # The token stays for `npm ci` too. install-sysroot.ts needs it, and so
           # does @vscode/ripgrep's postinstall, which fetches its binary from
           # api.github.com — anonymously that is 60 requests/hour shared across
@@ -181,11 +193,12 @@ jobs:
       # Scope mirrors dependencies-generator.ts exactly, so a pass here means the
       # dep-list comparison below cannot be surprised. x64 must be libc++-only
       # with a glibc-2.28 floor — that is what the amd64 reference lists encode.
-      # arm64 is built natively and is KNOWN to exceed this; it runs advisory so
-      # the real numbers stay in the log without failing a leg that never
-      # promised packages.
+      # arm64 is gcc-built, so it may link libstdc++ up to the GLIBCXX_3.4.26
+      # the aarch64 reference lists end at, on the same glibc floor. The
+      # runner's objdump reads the aarch64 binaries through binutils' generic
+      # elf64-little target (the dynamic section and versioned symbols are
+      # architecture-independent), so one script gates both legs.
       - name: Verify ABI floor
-        continue-on-error: ${{ matrix.packages != 'true' }}
         env:
           APP_DIR: ${{ github.workspace }}/../VSCode-linux-${{ matrix.arch }}
           MAX_GLIBC: '2.28'
@@ -196,10 +209,13 @@ jobs:
       # .node files themselves, not the package entry points, which lazily load
       # and swallow errors. ~3s, no display needed, and the cheapest possible
       # proof that swapping libstdc++ for libc++ did not break the modules the
-      # editor loads at startup. Advisory on the tarball-only arch: an arm64
-      # runtime problem must not block the x64 release this job exists for.
+      # editor loads at startup. Only where the runner can execute the build:
+      # the arm64 binaries cannot run on this x64 runner, and their equivalent
+      # proof is the install-test legs on the arm64 runner, which run the
+      # installed editor and server (a module that fails to load throws in the
+      # main process there — that is how the native arm64 build was caught).
       - name: Smoke - native modules load
-        continue-on-error: ${{ matrix.packages != 'true' }}
+        if: (runner.arch == 'X64' && matrix.arch == 'x64') || (runner.arch == 'ARM64' && matrix.arch == 'arm64')
         run: |
           cd "${{ github.workspace }}/../VSCode-linux-${{ matrix.arch }}"
           ELECTRON_RUN_AS_NODE=1 ./sirius -e '
@@ -247,9 +263,8 @@ jobs:
 
       # The server links libstdc++ (gcc sysroot, not clang/libc++), so the cap
       # is the version its own bin/helpers/check-requirements.sh promises a
-      # remote host, not "none". Advisory on arm64, like everything else there.
+      # remote host, not "none" — on both architectures.
       - name: Verify server ABI floor
-        continue-on-error: ${{ matrix.packages != 'true' }}
         env:
           APP_DIR: ${{ github.workspace }}/../sirius-server-linux-${{ matrix.arch }}
           LAYOUT: server
@@ -258,8 +273,11 @@ jobs:
         run: bash ./build/sirius/abi-floor.sh
 
       # The bundled Node and the server's own requirements check, on this
-      # runner. The container legs below run it on the distros users have.
+      # runner — where the runner can execute it; the arm64 server is started
+      # by the arm64 install-test legs instead. The container legs below run it
+      # on the distros users have.
       - name: Smoke - server runs
+        if: (runner.arch == 'X64' && matrix.arch == 'x64') || (runner.arch == 'ARM64' && matrix.arch == 'arm64')
         run: |
           S="${{ github.workspace }}/../sirius-server-linux-${{ matrix.arch }}"
           "$S/bin/helpers/check-requirements.sh"
@@ -282,7 +300,6 @@ jobs:
       # already built, because the copy-out never ran.
       - name: Package deb
         id: deb
-        if: matrix.packages == 'true'
         continue-on-error: true
         shell: bash
         env:
@@ -290,7 +307,9 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           # prepare-deb resolves the sysroot again; point it at the copy
           # setup-env.sh already fetched so it short-circuits on the .stamp file
-          # instead of pulling another 112 MB into /tmp.
+          # instead of pulling another 112 MB into /tmp. (The Debian bullseye
+          # sysroot for the matrix arch that dpkg-shlibdeps resolves libraries
+          # against is fetched by the task itself, into /tmp; nothing caches it.)
           VSCODE_SYSROOT_DIR: ${{ github.workspace }}/.build/sysroots/glibc-2.28-gcc-10.5.0
         run: |
           set -eo pipefail
@@ -299,13 +318,18 @@ jobs:
           find .build/linux/deb -name '*.deb' -exec cp -v {} . \;
           compgen -G '*.deb' > /dev/null
 
+      # STRIP is what the spec's `%define __strip` expands to. The spec disables
+      # brp-strip itself, but rpmbuild's remaining brp-* scripts still take the
+      # macro, and the runner's strip cannot read an aarch64 object — so, like
+      # upstream's prepare-rpm step, hand it the sysroot's strip for the target
+      # triple, on both legs (on x64 it is the same binutils as the host's).
       - name: Package rpm
         id: rpm
-        if: matrix.packages == 'true'
         continue-on-error: true
         shell: bash
         env:
           VSCODE_ARCH: ${{ matrix.arch }}
+          STRIP: ${{ github.workspace }}/.build/sysroots/glibc-2.28-gcc-10.5.0/${{ matrix.triple }}/${{ matrix.triple }}/bin/strip
         run: |
           set -eo pipefail
           npm run gulp vscode-linux-${{ matrix.arch }}-prepare-rpm
@@ -316,9 +340,8 @@ jobs:
       # Upload BEFORE the gate: a packaging failure must fail the job, but it
       # must not also throw away the tarball and whichever package did build —
       # those are what you inspect to diagnose it, and what a deliberate
-      # ship-without-packages would publish. *.deb/*.rpm match nothing on the
-      # tarball-only arch; the tarball pattern still matches, so the upload
-      # succeeds with a warning rather than failing.
+      # ship-without-packages would publish. A *.deb/*.rpm pattern that matches
+      # nothing only warns, because the tarball pattern still matches.
       - uses: actions/upload-artifact@v7
         with:
           name: linux-${{ matrix.arch }}
@@ -328,7 +351,7 @@ jobs:
             *.deb
             *.rpm
 
-      # INSTALL.md promises both formats for x64. A missing package is a release
+      # INSTALL.md promises both formats, x64 and arm64. A missing package is a release
       # regression, not a footnote in a job summary nobody opens on a green run —
       # which is exactly how this hid for five releases. The per-package steps
       # tolerate failure only so one cannot discard the other's output; THIS step
@@ -339,7 +362,7 @@ jobs:
       # by the Publish gate. "Re-run failed jobs" replays the push event with no
       # inputs, so it cannot reach this path.)
       - name: Packaging gate
-        if: (success() || failure()) && matrix.packages == 'true'
+        if: success() || failure()
         shell: bash
         run: |
           shopt -s nullglob
@@ -366,20 +389,16 @@ jobs:
             exit 1
           fi
 
-      - name: Note the tarball-only arch
-        if: always() && matrix.packages != 'true'
-        run: |
-          echo "### Linux ${{ matrix.arch }}: tarball only" >> "$GITHUB_STEP_SUMMARY"
-          echo "No .deb/.rpm by design — see the matrix comment in this workflow." >> "$GITHUB_STEP_SUMMARY"
-
   # The proof that "the package builds" became "the package installs and runs":
   # apt and dnf resolve the generated dependency lists from each distribution's
   # own repositories, every shipped binary resolves its libraries, the editor
   # comes up under Xvfb, and the REH server starts and answers /version. These
   # are the distributions INSTALL.md names as the floor. Publish requires them.
-  # The arm64 leg is advisory, like the arm64 build itself: it records whether a
-  # natively built arm64 tarball and server run on Debian 12 arm64 (glibc 2.36),
-  # which the known glibc-2.39 floor says they will not, without blocking x64.
+  # The arm64 legs run the same script on arm64 hardware (GitHub's
+  # ubuntu-24.04-arm runner, the distribution's own arm64 image in a container)
+  # and are the ONLY place the cross-compiled arm64 build is executed before it
+  # ships — the linux job cannot run what it built for the other architecture —
+  # so they are required, not advisory.
   install-test:
     name: Install ${{ matrix.name }}
     needs: linux
@@ -387,7 +406,6 @@ jobs:
     timeout-minutes: 30
     permissions:
       contents: read
-    continue-on-error: ${{ matrix.advisory }}
     container:
       image: ${{ matrix.image }}
       # Chromium's renderer uses /dev/shm; Docker's default 64 MB is too small.
@@ -396,30 +414,44 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: 'Debian 12 (.deb)'
+          - name: 'Debian 12 x64 (.deb)'
             runner: ubuntu-latest
             image: 'debian:12'
             kind: deb
             arch: x64
-            advisory: false
-          - name: 'Ubuntu 22.04 (.deb)'
+          - name: 'Ubuntu 22.04 x64 (.deb)'
             runner: ubuntu-latest
             image: 'ubuntu:22.04'
             kind: deb
             arch: x64
-            advisory: false
-          - name: 'Rocky 9 (.rpm)'
+          - name: 'Rocky 9 x64 (.rpm)'
             runner: ubuntu-latest
             image: 'rockylinux:9'
             kind: rpm
             arch: x64
-            advisory: false
-          - name: 'Debian 12 arm64 (tarball, advisory)'
+          - name: 'Debian 12 arm64 (.deb)'
+            runner: ubuntu-24.04-arm
+            image: 'debian:12'
+            kind: deb
+            arch: arm64
+          - name: 'Ubuntu 22.04 arm64 (.deb)'
+            runner: ubuntu-24.04-arm
+            image: 'ubuntu:22.04'
+            kind: deb
+            arch: arm64
+          - name: 'Rocky 9 arm64 (.rpm)'
+            runner: ubuntu-24.04-arm
+            image: 'rockylinux:9'
+            kind: rpm
+            arch: arm64
+          # The tarball is what arm64 users installed before the packages
+          # existed, and the leg that measured the native build not running on
+          # Debian 12 arm64 (v1.118.6): it stays, and it now has to pass.
+          - name: 'Debian 12 arm64 (tarball)'
             runner: ubuntu-24.04-arm
             image: 'debian:12'
             kind: tarball
             arch: arm64
-            advisory: true
     steps:
       # git before checkout: without it the action falls back to a REST tarball
       # of the whole repository and ignores sparse-checkout.

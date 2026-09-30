@@ -38,6 +38,14 @@ export const referenceGeneratedDepsByArch = {
 	// the "Old:/New:" diff of the first CI rehearsal (run 36334123208): four were
 	// predicted, GCC_4.2.0 was the one the run had to answer. Expect this block to
 	// conflict on upstream syncs.
+	// aarch64 (cross-built on the x64 runner) follows the same two rules, but the
+	// tunnel-only set differs. Measured on the public Electron 39.8.8 linux-arm64
+	// binaries (rpmdeps over electron, chrome-sandbox, chrome_crashpad_handler):
+	// `libcups.so.2()(64bit)` is ADDED and `libc.so.6(GLIBC_2.27)` is ABSENT,
+	// while `libgcc_s.so.1(GCC_4.2.0)` STAYS — Electron's own aarch64 unwinder
+	// imports it — and `GCC_4.5.0` (aarch64-only in upstream's measurement) stays
+	// with it; librt never appeared on aarch64. Confirmed or corrected by the
+	// first cross-build rehearsal's "Old:/New:" diff, the way x86_64 was.
 	'x86_64': [
 		'ca-certificates',
 		'ld-linux-x86-64.so.2()(64bit)',
@@ -262,9 +270,9 @@ export const referenceGeneratedDepsByArch = {
 		'libc.so.6(GLIBC_2.17)(64bit)',
 		'libc.so.6(GLIBC_2.18)(64bit)',
 		'libc.so.6(GLIBC_2.25)(64bit)',
-		'libc.so.6(GLIBC_2.27)(64bit)',
 		'libc.so.6(GLIBC_2.28)(64bit)',
 		'libcairo.so.2()(64bit)',
+		'libcups.so.2()(64bit)',
 		'libcurl.so.4()(64bit)',
 		'libdbus-1.so.3()(64bit)',
 		'libdbus-1.so.3(LIBDBUS_1_3)(64bit)',
