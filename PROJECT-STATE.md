@@ -40,13 +40,13 @@ the docs — about thirty places, which is why it exists.
 | --- | --- |
 | Fork + rebrand | ✅ complete (branding, icons, protocols, gallery, legal) |
 | Build from source | ✅ produces `VSCode-linux-x64` (~720 MB unpacked) |
-| Release CI | ✅ tag → Linux x64/arm64 + Windows x64, attested, mirrored to R2. **On branch `claude/busy-davinci-2vct4i` (not yet on `sirius`): arm64 is cross-compiled on the x64 runner through the glibc-2.28 sysroot and gets `.deb`/`.rpm`** — rehearsal 36788412045 green |
+| Release CI | ✅ tag → Linux x64/arm64 + Windows x64, attested, mirrored to R2. **On `sirius` since 2026-09-30 (`2d98ba0`…`7e3c08c`), first shipping in v1.118.7: arm64 is cross-compiled on the x64 runner through the glibc-2.28 sysroot and gets `.deb`/`.rpm`** — rehearsal 36788412045 green |
 | Update server | ✅ **live** at `update.siriuside.com`, serving v1.118.6 (verified 2026-09-30 after deploying worker version `b8394745`: an old linux-x64 / linux-arm64 / win32-x64 client gets 200 → 1.118.6 with its own asset and the sha256 from that asset's `.sha256`; a 1.118.6 client gets 204) |
 | Download CDN | ✅ **live** at `dl.siriuside.com` (R2, zero egress) |
 | Arch pacman repo | ✅ **automated and live** — every stable tag builds `sirius-ide-bin` from its own tarball, installs it on Arch, and publishes it to `dl.siriuside.com/arch/x86_64` (jobs `arch` + `arch-publish`). First real publish on v1.118.6 (run 36773757646): `sirius.db` lists `sirius-ide-bin-1.118.6-1` |
 | AUR | ❌ not published (see §11) |
-| deb / rpm | ✅ **shipped since v1.118.5** (2026-09-27, the first ever), x64. Built and gated on every run since, and **installed and run in Debian 12 / Ubuntu 22.04 / Rocky 9 containers on every run** (job `install-test`, required by Publish). **arm64 `.deb`/`.rpm`: built, gated and installed the same way on branch `claude/busy-davinci-2vct4i` (rehearsal 36788412045); they ship with the first tag after the cherry-pick** |
-| REH server | ✅ **shipped in v1.118.6** — `sirius-server-linux-{x64,arm64}.tar.gz`, the asset `serverDownloadUrlTemplate` promised since v1.118.0; x64 gated at glibc 2.28 / GLIBCXX 3.4.25 and started in the containers. Both template URLs answer 200. On branch `claude/busy-davinci-2vct4i` the arm64 server has the same 2.28 / 3.4.25 floor and is started in the arm64 containers too |
+| deb / rpm | ✅ **shipped since v1.118.5** (2026-09-27, the first ever), x64. Built and gated on every run since, and **installed and run in Debian 12 / Ubuntu 22.04 / Rocky 9 containers on every run** (job `install-test`, required by Publish). **arm64 `.deb`/`.rpm`: built, gated and installed the same way, on `sirius` since 2026-09-30 (rehearsal 36788412045); they ship with v1.118.7** |
+| REH server | ✅ **shipped in v1.118.6** — `sirius-server-linux-{x64,arm64}.tar.gz`, the asset `serverDownloadUrlTemplate` promised since v1.118.0; x64 gated at glibc 2.28 / GLIBCXX 3.4.25 and started in the containers. Both template URLs answer 200. On `sirius` since 2026-09-30 (ships with v1.118.7) the arm64 server has the same 2.28 / 3.4.25 floor and is started in the arm64 containers too |
 | macOS | ❌ not built (needs Apple Developer cert) |
 | Windows signing | ❌ unsigned — SmartScreen warns |
 | Website | ❌ `siriuside.com` has no DNS record at all |
@@ -350,11 +350,11 @@ Be precise about this; several things are wired but never exercised live.
 | deb / rpm (x64) | ✅ **produced and gated on CI** (rehearsal 36335699671): sysroot toolchain, hard ABI floor (glibc ≤ 2.28, no libstdc++ DT_NEEDED across 16 binaries), dlopen smoke, byte-exact dep-list match, Packaging gate green |
 | The **published** v1.118.5 `.deb` / `.rpm` | ✅ inspected from the CDN (ranged fetch of the control/header sections): deb `Depends` floors at `libc6 (>= 2.28)`, `libcups2` present, **no `libstdc++6`**; `postrm` executable lines carry no Microsoft/apt-repo reference; rpm `GLIBC_2.28` max, `libcups` in, no `libstdc++`, Vendor `Clicksora, L.L.C.` |
 | Release provenance | ✅ `gh attestation verify commit.txt --owner sirius-ide` exit 0 (Sigstore bundle, cert issued at release time). It prints nothing on success outside a TTY — check the exit code |
-| deb / rpm installed on Debian 12 / Ubuntu 22.04 / Rocky 9 | ✅ **CI, every run** (run 36762589539): apt/dnf resolve the generated dependency lists from the distros' own repos, `sirius --version` reports the release commit, all 12 shipped binaries resolve every library, the editor stays up under Xvfb for 60 s with `window1/renderer.log` written, and the server starts and answers `/version`. Since branch `claude/busy-davinci-2vct4i` every leg also dlopens every native module under the shipped Electron and the server's under its node (`build/sirius/dlopen-smoke.cjs`) |
-| deb / rpm / tarball (arm64) | ✅ **branch `claude/busy-davinci-2vct4i`, rehearsal 36788412045**: cross-compiled on the x64 runner (sysroot aarch64 gcc 10.5 for the client, gcc 8.5 for remote/), ABI floor glibc ≤ 2.28 / GLIBCXX ≤ 3.4.26, every ELF in both trees checked for machine type (`build/sirius/elf-arch.sh`), byte-exact dep-list match, then **installed and run on arm64 hardware**: `.deb` on Debian 12 and Ubuntu 22.04, `.rpm` on Rocky 9, tarball on Debian 12 — the leg that was red for v1.118.6. Not yet on `sirius`, not yet in a release |
+| deb / rpm installed on Debian 12 / Ubuntu 22.04 / Rocky 9 | ✅ **CI, every run** (run 36762589539): apt/dnf resolve the generated dependency lists from the distros' own repos, `sirius --version` reports the release commit, all 12 shipped binaries resolve every library, the editor stays up under Xvfb for 60 s with `window1/renderer.log` written, and the server starts and answers `/version`. Since the arm64 cross-build (merged 2026-09-30) every leg also dlopens every native module under the shipped Electron and the server's under its node (`build/sirius/dlopen-smoke.cjs`) |
+| deb / rpm / tarball (arm64) | ✅ **rehearsal 36788412045** (on `sirius` since 2026-09-30, unreleased until v1.118.7): cross-compiled on the x64 runner (sysroot aarch64 gcc 10.5 for the client, gcc 8.5 for remote/), ABI floor glibc ≤ 2.28 / GLIBCXX ≤ 3.4.26, every ELF in both trees checked for machine type (`build/sirius/elf-arch.sh`), byte-exact dep-list match, then **installed and run on arm64 hardware**: `.deb` on Debian 12 and Ubuntu 22.04, `.rpm` on Rocky 9, tarball on Debian 12 — the leg that was red for v1.118.6. Not yet on `sirius`, not yet in a release |
 | REH server x64 | ✅ built and gated on CI: 9 server binaries at glibc ≤ 2.28, GLIBCXX ≤ 3.4.25 (the floor `check-requirements.sh` promises); nodejs.org's Node 22.22.1 verified against `build/checksums/nodejs.txt`; `sirius-server --version` and `/version` proven in all three containers. **Not yet exercised by a real remote extension** (Open Remote - SSH from a client): local-only proof |
-| REH server arm64 | ✅ on branch `claude/busy-davinci-2vct4i` (rehearsal 36788412045): gated at glibc ≤ 2.28 / GLIBCXX ≤ 3.4.25 like x64, modules dlopen under its node, started and `/version` answered in all four arm64 containers. **v1.118.6's published arm64 server still has the native runner's glibc 2.38 floor** until the next tag |
-| arm64 tarball on Debian 12 arm64 | ✅ on branch `claude/busy-davinci-2vct4i` (rehearsal 36788412045): installs its dependency set, every binary resolves, every module dlopens, the window comes up. **v1.118.6's published tarball still does not run there** (measured in run 36762589539: GLIBC_2.38 / GLIBCXX_3.4.31 from the native build); the next tag replaces it |
+| REH server arm64 | ✅ rehearsal 36788412045 (on `sirius`, unreleased until v1.118.7): gated at glibc ≤ 2.28 / GLIBCXX ≤ 3.4.25 like x64, modules dlopen under its node, started and `/version` answered in all four arm64 containers. **v1.118.6's published arm64 server still has the native runner's glibc 2.38 floor** until the next tag |
+| arm64 tarball on Debian 12 arm64 | ✅ rehearsal 36788412045 (on `sirius`, unreleased until v1.118.7): installs its dependency set, every binary resolves, every module dlopens, the window comes up. **v1.118.6's published tarball still does not run there** (measured in run 36762589539: GLIBC_2.38 / GLIBCXX_3.4.31 from the native build); the next tag replaces it |
 | Arch package | ✅ CI, every run: built with makepkg in `archlinux:base-devel`, `pacman -U` resolves every declared dependency, `sirius --version` correct, 11+ binaries link, desktop files validate; `repo-add` rehearsed on the runner. **The R2 upload itself runs only on a tag** and has not run yet |
 | Image input to models | ⚠️ wire format proven for all 4 providers by probe; **no vision model exercised live** (`ollama pull moondream` would close it) |
 | Integrated browser tools | ✅ 38 tools on a fresh profile, all seven browser ids present (`test/harness/probes/agent-tools.js`) |
@@ -371,8 +371,8 @@ item as soon as it is resolved rather than leaving it here.
 
 ### Blocking users right now
 
-1. **Closed on branch `claude/busy-davinci-2vct4i` (2026-09-30), pending the cherry-pick and the
-   next tag — `.deb` and `.rpm` existed for x64 only.** arm64 is now cross-compiled on
+1. **Closed on `sirius` (merged 2026-09-30), ships with v1.118.7 — `.deb` and `.rpm`
+   existed for x64 only.** arm64 is now cross-compiled on
    the x64 runner through upstream's aarch64 glibc-2.28 sysroot, and gets the packages,
    a tarball and a server with the same floor as x64 — installed and run on arm64
    hardware in Debian 12, Ubuntu 22.04 and Rocky 9 containers on every run (rehearsal
@@ -659,22 +659,23 @@ Verify provenance of any asset: `gh attestation verify <file> --owner sirius-ide
 
 ## 13. If you are a new session, start here
 
-**Last handoff (2026-09-30, cloud session): the arm64 sysroot cross-build is done and
-rehearsed green on branch `claude/busy-davinci-2vct4i` — NOT yet on `sirius`, not yet in a
-release.** Five commits, cherry-pick them all — the four below and the state-doc commit after
-them: `aad0383` (the cross-build itself: arm64 built
+**Last handoff (2026-09-30, local): the arm64 sysroot cross-build is merged onto `sirius` —
+NOT yet in a release.** The cloud branch `claude/busy-davinci-2vct4i` was reviewed and
+cherry-picked as six commits (identical tree to its tip `212f853`; branch deleted): four
+code commits, then the two state-doc commits `ce17948` and `3edd5db`. `2d98ba0` (the cross-build itself: arm64 built
 on the x64 runner through the aarch64 glibc-2.28 sysroot, `.deb`/`.rpm` for arm64, seven
-required install-test legs, `install-test.sh` architecture-aware, INSTALL.md), `442d28b`
+required install-test legs, `install-test.sh` architecture-aware, INSTALL.md), `23af06e`
 (from two Opus reviews: job-level `VSCODE_ARCH` — without it every arm64 artifact carried
 x86-64 MSAL binaries; `build/sirius/dlopen-smoke.cjs` shared by the linux job and every
 install leg; a strict `ldd`; `build/sirius/elf-arch.sh`; the ABI and ELF checks reporting
-through the Packaging gate), `87854aa` (from the third review, which cross-compiled the
+through the Packaging gate), `b93d738` (from the third review, which cross-compiled the
 modules locally: `node build/npm/preinstall.ts` by hand before `npm ci` — npm 10 runs the root
 preinstall only after reify, so the V8 `<source_location>` patch came too late for the
 sysroot's gcc 10.5 and native-keymap failed — plus `ELECTRON_SKIP_BINARY_DOWNLOAD` and the
-predicted arm64 deb list), `44447de` (the deb list as the first rehearsal measured it:
-`libstdc++6 (>= 5)`, not `(>= 5.2)`). Rehearsal 36786333471 was green everywhere but that one
-deb line; rehearsal 36788412045 is green in all 13 jobs.
+predicted arm64 deb list), `7e3c08c` (the deb list as the first rehearsal measured it:
+`libstdc++6 (>= 5)`, not `(>= 5.2)`). Rehearsal 36786333471 failed in the Linux arm64 job on that one
+deb line, which skipped every install leg; rehearsal 36788412045 (on the pre-merge
+head `44447de`, code-identical to `7e3c08c`) is green in all 13 jobs.
 
 **Verified by that run (§9):** the arm64 leg cross-compiles on `ubuntu-22.04`; 16 client
 binaries at glibc ≤ 2.28 / GLIBCXX ≤ 3.4.26 and 9 server binaries at ≤ 3.4.25; all 39 ELF
@@ -688,7 +689,7 @@ path with the four extra arm64 assets (the release upload and R2 mirror are per-
 arch-agnostic, so nothing arm64-specific is untested there), and any user install on a distro
 outside the three tested — INSTALL.md's "Debian 11 / Ubuntu 20.04 or newer" for arm64 comes
 from the ABI numbers, not from a run. INSTALL.md describes the arm64 packages as "from the
-first release after v1.118.6", so land the branch with the tag that ships them; until then
+first release after v1.118.6" — that is v1.118.7; until it is tagged,
 v1.118.6's live arm64 tarball and server keep the native build's glibc 2.38 floor.
 
 **Previous handoff (2026-09-30, local): v1.118.6 is live** — tag run 36773757646, GitHub
@@ -698,11 +699,12 @@ fixed in `db3e2b6` and deployed as worker version `b8394745` (rollback target `2
 Dependabot PRs #1–#4 are closed; #5 is moot and left for Dependabot.
 
 **Next, in order** (one branch per item; the owner merges by cherry-pick):
-(1) **owner:** cherry-pick the five commits above onto `sirius` and tag 1.118.7 — the tag is
-what makes arm64's packages and floor real for users; (2) **cloud, small:** harden
-`build/sirius/publish-arch-repo.sh` — a failed fetch of the live database is treated as a
-first publish, which skips the downgrade check; tell "absent" (404) from "failed" — and land
-it before the next tag, which reruns `arch-publish`; (3) **cloud for the code, owner for the
+(1) **cloud, small:** harden `build/sirius/publish-arch-repo.sh` — a failed fetch of the
+live database is treated as a first publish, which skips the downgrade check; tell "absent"
+(404) from "failed". It must land before the next tag, which reruns `arch-publish`;
+(2) **owner:** tag 1.118.7 per §12 — it ships the arm64 packages and glibc-2.28 floor merged
+above plus (1) — then check every platform from outside, including the new arm64 `.deb` and
+`.rpm` assets; (3) **cloud for the code, owner for the
 rest:** the website (hole 2) — DNS and the Cloudflare Pages deploy need the owner's token;
 (4) **local-only:** the live Anthropic/Gemini/vision runs and the remote-extension connect
 (hole 12).
