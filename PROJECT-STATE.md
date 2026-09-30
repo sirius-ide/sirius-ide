@@ -1,6 +1,6 @@
 # Sirius IDE — Project State
 
-**Last full audit: 2026-09-30** (against code at `f4688fa`) · released `v1.118.5` (2026-09-27; six releases `v1.118.0`…`v1.118.5`, the first with `.deb`/`.rpm`) · Arch repo still serves 1.118.4 (§12 step 6, hole 4) · shipping
+**Last full audit: 2026-09-30** (against code at `10f1cc8d`, branch `claude/stoic-faraday-wrxkp9`, unmerged) · released `v1.118.5` (2026-09-27; six releases `v1.118.0`…`v1.118.5`, the first with `.deb`/`.rpm`) · the release train now also ships the REH server, proves the packages install, and publishes the Arch repo itself — rehearsed green on CI, ships with the next tag · Arch repo still serves 1.118.4 until then · shipping
 
 This file is the single place a new session should start. It records what exists,
 what is deployed, what has actually been verified, and — explicitly — what is still
@@ -43,9 +43,10 @@ the docs — about thirty places, which is why it exists.
 | Release CI | ✅ tag → Linux x64/arm64 + Windows x64, attested, mirrored to R2 |
 | Update server | ✅ **live** at `update.siriuside.com`, serving v1.118.5 (verified 2026-09-28: a real v1.118.4 client gets 200 → 1.118.5, a 1.118.5 client gets 204) |
 | Download CDN | ✅ **live** at `dl.siriuside.com` (R2, zero egress) |
-| Arch pacman repo | ⚠️ **live but behind** — still serves `sirius-ide-bin 1.118.4`; v1.118.5 needs the manual rebuild (§12 step 6, hole 4) |
+| Arch pacman repo | ✅ **automated on the branch** — every stable tag builds `sirius-ide-bin` from its own tarball, installs it on Arch, and publishes it to `dl.siriuside.com/arch/x86_64` (jobs `arch` + `arch-publish`; rehearsed in run 36762589539). **Live repo still serves 1.118.4** until the next tag from `sirius` carries this |
 | AUR | ❌ not published (see §11) |
-| deb / rpm | ✅ **shipped in v1.118.5** (2026-09-27) — the first ever; x64 only, arm64 is tarball-only by design (§11). Built and gated on every run since |
+| deb / rpm | ✅ **shipped in v1.118.5** (2026-09-27) — the first ever; x64 only, arm64 is tarball-only by design (§11). Built and gated on every run since, and **installed and run in Debian 12 / Ubuntu 22.04 / Rocky 9 containers on every run** (job `install-test`, required by Publish) |
+| REH server | ✅ **built on the branch** — `sirius-server-linux-{x64,arm64}.tar.gz`, the asset `serverDownloadUrlTemplate` promised since v1.118.0; x64 gated at glibc 2.28 / GLIBCXX 3.4.25 and started in the containers. Unreleased until the next tag |
 | macOS | ❌ not built (needs Apple Developer cert) |
 | Windows signing | ❌ unsigned — SmartScreen warns |
 | Website | ❌ `siriuside.com` has no DNS record at all |
@@ -101,7 +102,11 @@ icons under `resources/`, only 5 under `src/`), plus the whole `extensions/copil
 - `build/update-server/` — Cloudflare worker + docs
 - `build/cloudflare/` — `deploy.sh` + token recipe
 - `build/sirius/` — `set-identity.mjs`, `bootstrap-github.sh`, `abi-floor.sh` (the glibc /
-  libc++ gate), `make-icons.py` (every platform icon from one source)
+  libc++ gate, client and server layouts), `make-icons.py` (every platform icon from one
+  source), `install-test.sh` (the container install proof), `publish-arch-repo.sh` (the
+  pacman repository update)
+- `build/arch/` — `sirius-ide-bin/PKGBUILD` with its desktop and mime files, and `build.sh`,
+  which builds, installs and runs the package inside an Arch container
 - `resources/sirius/` — the icon sources: `icon.png` (2048 px master) and `icon-small.png`
   (the simplified mark for 48 px and under). Every icon file under `resources/{linux,win32,
   darwin,server}` is generated from these two
@@ -204,13 +209,19 @@ checkpoint and accept/reject flow applies. `create_file` first creates the empty
 
 ```
 git tag v1.x.y  →  .github/workflows/sirius-release.yml
-                     ├─ linux x64   (ubuntu-latest)      ┐
+                     ├─ linux x64   (ubuntu-22.04)       ┐ tarball + REH server (+ .deb/.rpm on x64)
                      ├─ linux arm64 (ubuntu-24.04-arm)   ├→ native runners, not cross-compiled
-                     └─ win32 x64   (windows-2022)       ┘
-                   → provenance attestation (gh attestation verify)
-                   → GitHub Release  (canonical, archival)
-                   → mirror to R2 bucket sirius-releases
-                   → write latest-stable.json manifest to R2
+                     └─ win32 x64   (windows-2022)       ┘ installer
+                     ├─ install-test: the .deb/.rpm + server in debian:12, ubuntu:22.04,
+                     │                rockylinux:9 (required); arm64 tarball advisory
+                     └─ arch: sirius-ide-bin built from the run's tarball, installed, run
+                   → Publish (tag only; needs linux + install-test + arch green)
+                       provenance attestation (gh attestation verify)
+                       GitHub Release via gh (canonical, archival)
+                       mirror to R2 bucket sirius-releases
+                       write latest-stable.json manifest to R2
+                   → arch-publish (stable tags only): repo-add + upload to R2 arch/x86_64,
+                       verified through dl.siriuside.com; --dry-run on a branch
                           ↓
    update.siriuside.com (Cloudflare Worker, build/update-server/worker.mjs)
      GET /api/update/{platform}/{quality}/{commit} → 204 current | 200 IUpdate
@@ -339,7 +350,11 @@ Be precise about this; several things are wired but never exercised live.
 | deb / rpm (x64) | ✅ **produced and gated on CI** (rehearsal 36335699671): sysroot toolchain, hard ABI floor (glibc ≤ 2.28, no libstdc++ DT_NEEDED across 16 binaries), dlopen smoke, byte-exact dep-list match, Packaging gate green |
 | The **published** v1.118.5 `.deb` / `.rpm` | ✅ inspected from the CDN (ranged fetch of the control/header sections): deb `Depends` floors at `libc6 (>= 2.28)`, `libcups2` present, **no `libstdc++6`**; `postrm` executable lines carry no Microsoft/apt-repo reference; rpm `GLIBC_2.28` max, `libcups` in, no `libstdc++`, Vendor `Clicksora, L.L.C.` |
 | Release provenance | ✅ `gh attestation verify commit.txt --owner sirius-ide` exit 0 (Sigstore bundle, cert issued at release time). It prints nothing on success outside a TTY — check the exit code |
-| deb / rpm installed on Debian 12 / Ubuntu 22.04 / RHEL 9 | ⚠️ **not yet** — the floor is proven by the gate; an install in a container is the remaining step |
+| deb / rpm installed on Debian 12 / Ubuntu 22.04 / Rocky 9 | ✅ **CI, every run** (run 36762589539): apt/dnf resolve the generated dependency lists from the distros' own repos, `sirius --version` reports the release commit, all 12 shipped binaries resolve every library, the editor stays up under Xvfb for 60 s with `window1/renderer.log` written, and the server starts and answers `/version` |
+| REH server x64 | ✅ built and gated on CI: 9 server binaries at glibc ≤ 2.28, GLIBCXX ≤ 3.4.25 (the floor `check-requirements.sh` promises); nodejs.org's Node 22.22.1 verified against `build/checksums/nodejs.txt`; `sirius-server --version` and `/version` proven in all three containers. **Not yet exercised by a real remote extension** (Open Remote - SSH from a client): local-only proof |
+| REH server arm64 | ⚠️ builds and runs on the arm64 runner; **measured floor glibc 2.38 / GLIBCXX 3.4.30** (advisory ABI step) — same cause as the client below |
+| arm64 tarball on Debian 12 arm64 | ❌ **measured, does not run**: `native-keymap`, `kerberos`, `spdlog`, `sqlite3`, `node-pty` and `@parcel/watcher` need GLIBC_2.38 / GLIBCXX_3.4.31; the main process throws loading sqlite3 (advisory leg, run 36762589539). Ubuntu 24.04+ or Debian 13 only until the sysroot cross-build exists (hole 1) |
+| Arch package | ✅ CI, every run: built with makepkg in `archlinux:base-devel`, `pacman -U` resolves every declared dependency, `sirius --version` correct, 11+ binaries link, desktop files validate; `repo-add` rehearsed on the runner. **The R2 upload itself runs only on a tag** and has not run yet |
 | Image input to models | ⚠️ wire format proven for all 4 providers by probe; **no vision model exercised live** (`ollama pull moondream` would close it) |
 | Integrated browser tools | ✅ 38 tools on a fresh profile, all seven browser ids present (`test/harness/probes/agent-tools.js`) |
 | Tiered / size-aware native tools | ✅ probe-proven: 1.5B → core, ≥ 6 GB → extended |
@@ -360,7 +375,11 @@ item as soon as it is resolved rather than leaving it here.
    were stacked behind the obvious one). What remains open is arm64: its packages need
    the glibc-2.28 sysroot, whose aarch64 compilers are x86_64 binaries that cannot run
    on the native arm64 runner, so arm64 is tarball-only until an upstream-style
-   cross-build on an x64 runner is set up and rehearsed. INSTALL.md says so.
+   cross-build on an x64 runner is set up and rehearsed. INSTALL.md says so. **Measured
+   2026-09-30:** the native arm64 tarball and server need glibc 2.38 and GLIBCXX 3.4.31,
+   and the tarball does not run on Debian 12 arm64 (§9). The cross-build would fix the
+   tarball, the server and the packages at once; the x64 leg already shows the sysroot
+   recipe works (`setup-env.sh` has the aarch64 branch).
 
 2. **No website.** `siriuside.com` and `siriuside.dev` have no DNS records. Every
    user-facing URL in `product.json` points at GitHub instead. The Cloudflare token
@@ -374,64 +393,59 @@ item as soon as it is resolved rather than leaving it here.
 
 ### Operational
 
-4. **Arch repo publishing is entirely manual.** Nothing in the repo builds
-   `sirius.db` or uploads it. Packages are built by hand in
-   `~/Projects/aur/sirius-ide-bin` (which holds ~2.3 GB of tarballs and `.pkg.tar.zst`
-   for 1.118.0–1.118.4) and pushed to R2 ad hoc. **This is the biggest automation gap
-   in the release train** — every release needs a human to remember it, and there is no
-   script recording how it was done. Write one.
+4. **The Arch repository's first automated publish has not happened yet.** The `arch` and
+   `arch-publish` jobs are rehearsed green on the branch, but the R2 upload runs only on
+   a stable tag, so `dl.siriuside.com/arch` serves 1.118.4 until the next tag from
+   `sirius`. The owner's `~/Projects/aur/sirius-ide-bin` (1.118.0–1.118.4 packages) is
+   now history: the PKGBUILD lives in `build/arch/`. Watch the first tag's `arch-publish`
+   job; the script verifies the new entry and the package bytes through the CDN.
 
-5. **The Arch repo lags every release until someone runs the manual rebuild.** The
-   update server advertised v1.118.5 within minutes of the tag; `sirius-ide-bin` on
-   `dl.siriuside.com/arch` still says 1.118.4 until §12 step 6 is done by hand. Hole 4 is
-   the cure; until then this reopens on every tag.
-
-6. **Dependabot "devcontainers" runs were flaky** — failed 2026-08-31, 09-07 and 09-14,
+5. **Dependabot "devcontainers" runs were flaky** — failed 2026-08-31, 09-07 and 09-14,
    then succeeded 09-21 and 09-28. Watch one more weekly cycle and delete this if it stays
-   green. Separately, **five open Dependabot GitHub-Actions bump PRs (#1–#5, opened
-   2026-09-27) are untriaged**: checkout v4→7, cache v5→6, download-artifact v4→8,
-   setup-python v6→7, action-gh-release v2→3. Four of them change actions pinned in
-   `sirius-release.yml`, so rehearse with a branch dispatch (Publish gated off) before
-   merging any of them.
+   green. The five GitHub-Actions bump PRs (#1–#5) are triaged: the majors are applied
+   to `sirius-release.yml` on the branch (checkout v7, setup-node v6, cache v6,
+   upload-artifact v7, download-artifact v8; `softprops/action-gh-release` is gone —
+   Publish uses the runner's `gh`). The PRs themselves touch 16 upstream-inherited
+   workflows (`pr.yml`, `chat-perf.yml`, …) that this fork keeps identical to
+   `microsoft/vscode`, so **close #1, #2, #3 and #4 rather than merge them**; #5 becomes
+   moot when the branch lands. Dependabot's default 5-open-PR limit means more bumps are
+   queued behind these, and every future one will touch upstream workflows too — that is
+   the price of keeping `.github/dependabot.yml` (an upstream file) enabled.
 
-7. **Windows installer unsigned** — SmartScreen warns on first run. Needs a code
+6. **Windows installer unsigned** — SmartScreen warns on first run. Needs a code
    signing certificate.
 
-8. **macOS unbuilt** — packaging exists; needs an Apple Developer certificate for
+7. **macOS unbuilt** — packaging exists; needs an Apple Developer certificate for
    notarisation, without which Gatekeeper refuses the app.
 
 ### Product
 
-9. **`create_file` creates the empty file outside the edit stream.** Edits themselves go
+8. **`create_file` creates the empty file outside the edit stream.** Edits themselves go
    through the chat-editing session (`stream.textEdit` in `chat/siriusAgent.ts`, since
    `cf02d47c535`), so diff, checkpoint and accept/reject apply. But `create_file` first
    calls `workspace.applyEdit(createFile)` and only streams the content, so the creation
    itself may sit outside the session's diff/undo. Unverified live; small.
 
-10. **Onboarding walkthrough** still teaches upstream's feature tour (strings are
-    branded correctly; content is not ours).
+9. **Onboarding walkthrough** still teaches upstream's feature tour (strings are
+   branded correctly; content is not ours).
 
-11. **No dedicated settings page for AI providers or API keys.** Provider, model,
+10. **No dedicated settings page for AI providers or API keys.** Provider, model,
     endpoints, thinking and completion options are ordinary settings under "Sirius AI".
     API keys are set only through `Sirius: Set API Key`, by design (they live in the
     keyring; the old `apiKey` settings are deprecated and auto-migrated).
 
-12. **Gemini and Anthropic never exercised live** (see §9). A single real request each
+11. **Gemini and Anthropic never exercised live** (see §9). A single real request each
     would close it.
 
-13. **Remote development points at a server that is never built.** `product.json`
-    sets `serverDownloadUrlTemplate` to `sirius-server-${os}-${arch}.tar.gz` on the
-    release, but no job in `sirius-release.yml` builds the REH server, so Open
-    Remote-SSH (and any remote extension that reads the template) 404s. Nothing in
-    `src/vs` reads the key — only third-party remote extensions do. The fix is a
-    `vscode-reh-linux-${arch}-min` job producing that exact asset name (~15 min per
-    arch; the tunnel CLI is not required for REH). Until then the template is an
-    honest pointer to a missing file, and removing it would only change the failure
-    from a 404 to "no download URL".
+12. **The REH server has not been used through a real remote extension.** It builds,
+    gates, starts and answers `/version` in three distros' containers (§9), and
+    `serverDownloadUrlTemplate` now names a real asset from the next tag on. Connecting
+    with Open Remote - SSH from a Sirius client to a host that installs it is the
+    remaining proof, and needs a machine with SSH — local-only.
 
 ### Structural
 
-14. **Rebase debt: `main` is 8034 commits behind `upstream/main`.** The longer this
+13. **Rebase debt: `main` is 8034 commits behind `upstream/main`.** The longer this
     runs the harder the `src/vs` patches and `build/` changes get. See §4 for exactly
     which files carry conflict risk — deliberately only 5 under `src/vs`.
 
@@ -531,7 +545,37 @@ Each of these cost real time.
 - **`extensions/copilot.disabled/`** is a gitignored on-disk backup of the removed
   upstream extension. It must never leak into a package.
 - **The release tarball unpacks to `VSCode-linux-<arch>/`** — upstream's directory
-  name, not worth renaming; both PKGBUILDs depend on it.
+  name, not worth renaming; the PKGBUILD depends on it.
+- **`minify-vscode-reh` is dead in this tree.** `build/buildConfig.ts` sets
+  `useEsbuildTranspile = true`, so `vscode-linux-<arch>-min` bundles straight from `src/`
+  and leaves no transpiled `out-build/*.js` for the legacy gulp-tsb server bundle to read.
+  The server is bundled the way upstream's `core-ci` does it —
+  `node build/next/index.ts bundle --target server --out out-vscode-reh-min --minify
+  --mangle-privates --nls` — then packaged with `vscode-reh-linux-<arch>-min-ci`.
+  A review caught this before the first rehearsal; the legacy task would have failed both
+  Linux legs.
+- **`FATAL: ... Failed to shutdown` from Electron is the SIGTERM, not a crash.** When
+  `timeout(1)` ends the install test's 60 s grace period, Electron logs exactly that line
+  on the way out. The crash grep in `install-test.sh` excludes it; the first rehearsal
+  went red on every leg because it did not.
+- **git 2.34 (ubuntu:22.04) does not reliably include root files in a cone-mode sparse
+  checkout.** `package.json` went missing in that container only. The install-test job
+  uses non-cone patterns (`/package.json`, `/build/sirius/`).
+- **Ubuntu's `pacman-package-manager` needs `libarchive-tools` to read a zstd package.**
+  Without `bsdtar`, `repo-add` reports every `.pkg.tar.zst` as "not a package file".
+- **makepkg does not download a source whose file is already under the PKGBUILD.** For a
+  `name::url` source it looks for `name` in `$startdir` (and `SRCDEST`) first. That is
+  how the Arch package is built from the run's own tarball before the GitHub release the
+  URL names exists, and `updpkgsums` fills the real checksums from the same file.
+- **The pacman package object is immutable by name.** `publish-arch-repo.sh` uploads it
+  with a one-year immutable cache and a `sha256` metadata field, and refuses to overwrite
+  different bytes under the same name — republishing a version needs a higher `pkgrel`
+  (the workflow's `arch_pkgrel` input). The database objects are `no-cache` and are
+  uploaded after the package, never before.
+- **`allow_missing_packages` means ABSENT, never BROKEN.** The Packaging gate,
+  `install-test.sh` and the `arch` job each skip a package that does not exist when the
+  input is set; a package that exists and fails to install still blocks Publish. There is
+  no input that ships a known-broken package.
 
 ---
 
@@ -542,8 +586,10 @@ Each of these cost real time.
 nvm use && npm install -g npm@10
 
 # 1. Rehearse first: `gh workflow run sirius-release.yml --ref sirius` runs the
-#    whole build on the tag candidate with Publish skipped (branch dispatch fails
-#    the `github.ref_type == 'tag'` gate). Read the Packaging gate summary.
+#    whole build on the tag candidate with Publish and the Arch upload skipped
+#    (branch dispatch fails the `github.ref_type == 'tag'` gate). Expect green
+#    everywhere except "Install Debian 12 arm64 (tarball, advisory)", which is
+#    known red (hole 1). Read the Packaging gate and Install test summaries.
 # 2. Bump — exactly three lines, by hand, never `npm install` (that rewrote the
 #    whole lock once): package.json:3, package-lock.json:3, package-lock.json:9.
 #    Commit subject is the bare version, as every prior bump (d4ad0d51114).
@@ -556,24 +602,26 @@ git push origin sirius
 git tag -a v<X.Y.Z> -m "Sirius IDE <X.Y.Z>"
 git push origin v<X.Y.Z>      # <- this is the ship
 
-# 4. CI builds linux x64/arm64 + win32, attests, releases, mirrors to R2,
-#    writes latest-stable.json. Watch it:
+# 4. CI builds linux x64/arm64 (+ the REH server) and win32, installs the
+#    .deb/.rpm/server in Debian 12, Ubuntu 22.04 and Rocky 9 containers, builds
+#    and installs the Arch package, then attests, releases (gh), mirrors to R2,
+#    writes latest-stable.json, and publishes the Arch repository. Watch it:
 gh run watch --repo sirius-ide/sirius-ide
-#    Green is not proof of packages, but RED for packaging is now a real failure:
-#    the "Packaging gate" fails the linux job and Publish is skipped by design.
-#    Read the step summary. If you have decided to ship without deb/rpm anyway,
-#    dispatch against the TAG (a branch dispatch is skipped by the Publish gate;
-#    "Re-run failed jobs" replays the push event with no inputs):
+#    RED for packaging or for an install test is a real failure: Publish needs
+#    linux, install-test and arch all green. If you have decided to ship without
+#    a package that could not be BUILT, dispatch against the TAG (a branch
+#    dispatch is skipped by the Publish gate; "Re-run failed jobs" replays the
+#    push event with no inputs):
 #    gh workflow run sirius-release.yml --ref v<X.Y.Z> -f allow_missing_packages=true
+#    A package that built but fails to install cannot be shipped by any input.
 
-# 5. Confirm the update server sees it
+# 5. Confirm the update server and the Arch repository see it
 curl https://update.siriuside.com/api/update/linux-x64/stable/0000000000000000000000000000000000000000
+curl -fsSL https://dl.siriuside.com/arch/x86_64/sirius.db | tar -tz | grep sirius-ide-bin
 
-# 6. MANUAL, not yet scripted — Arch repo:
-#    build sirius-ide-bin in ~/Projects/aur/sirius-ide-bin
-#    (bump pkgver, updpkgsums, makepkg --printsrcinfo > .SRCINFO, makepkg)
-#    then repo-add sirius.db.tar.gz <pkg> and upload db + pkg to
-#    s3://sirius-releases/arch/x86_64/  (see hole #4 — automate this)
+# 6. If the same version must be republished to the Arch repo (rebuilt bytes
+#    under an existing package name are refused), dispatch against the tag with
+#    -f arch_pkgrel=2. There is no manual step left.
 ```
 
 Verify provenance of any asset: `gh attestation verify <file> --owner sirius-ide`.
@@ -582,14 +630,25 @@ Verify provenance of any asset: `gh attestation verify <file> --owner sirius-ide
 
 ## 13. If you are a new session, start here
 
-**Last handoff (2026-09-30, cloud session, branch `claude/stoic-faraday-wrxkp9`).** Docs
-only, no product code: this file, ROADMAP.md, README.md and CLAUDE.md were audited against
-the code at `f4688fa` and the confirmed drift fixed (release header and §3, hole 9 rewritten,
-probe table, patched-file list, README's Arch install, the icon item). Nothing here needs
-local verification. Next to tackle, in order: automate the Arch repo (hole 4), prove the
-`.deb`/`.rpm` install in containers, the REH server job, and triage the five Dependabot PRs
-— all doable from a cloud session as CI changes rehearsed with a branch dispatch. The live
-Anthropic/Gemini/vision runs stay local-only.
+**Last handoff (2026-09-30, cloud session, branch `claude/stoic-faraday-wrxkp9`, two
+commits ahead of `sirius`).** First the docs were audited against the code and the drift
+fixed. Then the release train grew three jobs and lost its manual step: the REH server is
+built and gated, the `.deb`/`.rpm`/server are installed and run in Debian 12, Ubuntu 22.04
+and Rocky 9 containers, the Arch package is built and installed from the run's own tarball,
+and a stable tag now publishes the pacman repository itself. All of it is **verified by two
+CI rehearsals** (runs 36759715090 and 36762589539 on this branch; the second is green
+everywhere except the advisory arm64 leg, whose failure is the measured glibc-2.38 floor).
+**Not verified:** the tag-only paths — the GitHub release via `gh`, the R2 mirror, and the
+Arch repository upload — run for the first time on the next tag; watch that run. Also
+unverified: a real remote extension against the server (hole 12). Everything else in §9 is
+as before. The branch was reviewed by six independent lenses before the first rehearsal and
+every finding is fixed; see the commit message for the list.
+
+**Next, in order:** (1) merge this branch into `sirius` locally and cut v1.118.6, watching
+`Publish` and `Publish Arch repository`; (2) close Dependabot PRs #1–#4 (hole 5);
+(3) the arm64 sysroot cross-build on the x64 runner (hole 1), now with measured numbers;
+(4) the website (hole 2); (5) the live Anthropic/Gemini/vision runs and the remote-extension
+connect, both local-only.
 
 1. `git log --oneline -20` — this file can lag; the log cannot.
 2. `git status` and `git log origin/sirius..HEAD` — is there unpushed or unreleased work?
