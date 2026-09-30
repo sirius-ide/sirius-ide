@@ -78,7 +78,7 @@ rebase instead of drifting.
 
 - ✅ **Telemetry-free defaults and a clear privacy posture** — `PRIVACY.md` says plainly that Sirius collects nothing, that requests go straight to the chosen provider with no Sirius relay, and that local models mean nothing leaves the machine
 - ✅ **Packaged installers and an update channel** — the `[sirius]` pacman repository is published by the release itself (`build/arch/`, `build/sirius/publish-arch-repo.sh`); deb, rpm and tarball come from the release workflow and are **installed and run in Debian 12, Ubuntu 22.04 and Rocky 9 containers on every run** before anything is published; `build/update-server` implements the protocol the editor speaks, backed by GitHub Releases and deployable as a single worker. `INSTALL.md` covers every route
-- ✅ **The remote server** — `sirius-server-linux-{x64,arm64}.tar.gz` ships with every release, the asset `serverDownloadUrlTemplate` had promised since v1.118.0; x64 is gated at glibc 2.28 / GLIBCXX 3.4.25 and started in the install containers. Connecting through a real remote extension is the remaining local proof
+- ✅ **The remote server** — `sirius-server-linux-{x64,arm64}.tar.gz` ships with every release, the asset `serverDownloadUrlTemplate` had promised since v1.118.0; x64 is gated at glibc 2.28 / GLIBCXX 3.4.25 and started in the install containers (arm64 the same on branch `claude/busy-davinci-2vct4i`, from the next tag). Connecting through a real remote extension is the remaining local proof
 - ✅ **User-facing strings name the running product** — the workbench told Sirius users to "reload Visual Studio Code" and announced "Welcome to Visual Studio Code" to screen readers
 - ⬜ Onboarding walkthrough content written for Sirius (the strings are correct; the walkthrough still teaches upstream's feature tour)
 - ⬜ Sign the Windows installer — SmartScreen warns on first run without it
@@ -113,18 +113,20 @@ The open items, highest value first (2026-09-30; items marked ✅ shipped in v1.
 2. ✅ **Prove the packages install** — `.deb` on Debian 12 and Ubuntu 22.04, `.rpm` on
    Rocky 9, in clean containers, on every run: dependencies resolve, the editor shows a
    window, the server answers. Publish requires it.
-3. ✅ **Build the REH server** — `sirius-server-linux-{x64,arm64}.tar.gz`, gated on x64 at
-   the floor the server promises remote hosts. A real remote-extension connect is the
-   remaining local proof.
+3. ✅ **Build the REH server** — `sirius-server-linux-{x64,arm64}.tar.gz`, gated at the
+   floor the server promises remote hosts (x64 since v1.118.6, arm64 from the next tag). A
+   real remote-extension connect is the remaining local proof.
 4. ✅ **The new icon** — done on `sirius` (`3be0dda`): `build/sirius/make-icons.py` regenerates
    every platform icon file from `resources/sirius/icon.png` (2048 px master) and
    `icon-small.png` (48 px and under). Shipped in v1.118.6.
 5. ✅ **Cut the tag** — v1.118.6 (2026-09-30) carries all of the above; `Publish` and
    `Publish Arch repository` were green on their first real run (36773757646).
-6. **arm64 sysroot cross-build** — the native arm64 tarball and server were measured at
-   glibc 2.38 / GLIBCXX 3.4.31 and do not run on Debian 12 arm64. Upstream's aarch64
-   sysroot cross-build on an x64 runner would give arm64 the same 2.28 floor as x64, and
-   `.deb`/`.rpm` with it.
+6. ✅ **arm64 sysroot cross-build** — done on branch `claude/busy-davinci-2vct4i` (rehearsal 36788412045), lands with
+   the cherry-pick and the next tag: arm64 is cross-compiled on the x64 runner through
+   upstream's aarch64 glibc-2.28 sysroot, so the tarball, the server and — for the first
+   time — the `.deb`/`.rpm` share x64's floor, and all four are installed and run on arm64
+   hardware (Debian 12, Ubuntu 22.04, Rocky 9) before Publish. v1.118.6's native arm64
+   build (glibc 2.38, no packages) stays live until then.
 7. **A website** — `siriuside.com` has no DNS record; every user-facing URL points at
    GitHub.
 8. **Exercise Anthropic and Gemini against live APIs**, and a vision model against the
