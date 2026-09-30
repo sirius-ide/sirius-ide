@@ -91,25 +91,25 @@ rebase instead of drifting.
 
 ## Near-term next steps
 
-**Released: `v1.118.5` (2026-09-27).** Six releases so far, all three platform builds
+**Released: `v1.118.6` (2026-09-30).** Seven releases so far, all three platform builds
 from CI, provenance-attested, mirrored to R2 and served by the production update
-endpoint. v1.118.5 is the first to carry a `.deb` and an `.rpm`, after three CI
-rehearsals on the tag candidate with Publish gated off — each of which found a different
-defect before a tag was cut. It also ships next-edit prediction, project rules, image
-input to every provider, size-aware tool tiers, the integrated browser on by default,
-and prompted tools for local models with no native tool API. The Arch pacman repo is
-rebuilt by hand after each tag and lags until that is done.
+endpoint. v1.118.6 is the first to ship the REH server and to publish the Arch pacman
+repository itself — no manual step is left after a tag — and its `.deb`/`.rpm` are
+installed and run in clean Debian 12, Ubuntu 22.04 and Rocky 9 containers before Publish
+may run. It also carries the new icon. v1.118.5 (2026-09-27) was the first with a `.deb`
+and an `.rpm`, and shipped next-edit prediction, project rules, image input to every
+provider, size-aware tool tiers, the integrated browser on by default, and prompted tools
+for local models with no native tool API.
 
 **A full, current audit of what is done, what is live, what is verified and what is
 still open lives in [PROJECT-STATE.md](PROJECT-STATE.md).** It is the authoritative
 status document; this roadmap is the feature plan.
 
-The open items, highest value first (2026-09-30; items done on branch
-`claude/stoic-faraday-wrxkp9` are marked and ship with the next tag):
+The open items, highest value first (2026-09-30; items marked ✅ shipped in v1.118.6):
 
 1. ✅ **Automate the Arch repo** — every stable tag builds `sirius-ide-bin` from its own
    tarball, installs it on Arch, and publishes it to the pacman repository with downgrade
-   and immutability guards. Rehearsed on CI; the first real upload happens on the next tag.
+   and immutability guards. First real upload on v1.118.6: `sirius.db` lists `sirius-ide-bin-1.118.6-1`.
 2. ✅ **Prove the packages install** — `.deb` on Debian 12 and Ubuntu 22.04, `.rpm` on
    Rocky 9, in clean containers, on every run: dependencies resolve, the editor shows a
    window, the server answers. Publish requires it.
@@ -118,9 +118,9 @@ The open items, highest value first (2026-09-30; items done on branch
    remaining local proof.
 4. ✅ **The new icon** — done on `sirius` (`3be0dda`): `build/sirius/make-icons.py` regenerates
    every platform icon file from `resources/sirius/icon.png` (2048 px master) and
-   `icon-small.png` (48 px and under). Ships with the next tag.
-5. **Cut the tag** — v1.118.6 carries all of the above; watch `Publish` and `Publish Arch
-   repository`, which run for the first time.
+   `icon-small.png` (48 px and under). Shipped in v1.118.6.
+5. ✅ **Cut the tag** — v1.118.6 (2026-09-30) carries all of the above; `Publish` and
+   `Publish Arch repository` were green on their first real run (36773757646).
 6. **arm64 sysroot cross-build** — the native arm64 tarball and server were measured at
    glibc 2.38 / GLIBCXX 3.4.31 and do not run on Debian 12 arm64. Upstream's aarch64
    sysroot cross-build on an x64 runner would give arm64 the same 2.28 floor as x64, and
