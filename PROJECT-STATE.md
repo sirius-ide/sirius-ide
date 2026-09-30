@@ -43,7 +43,7 @@ the docs — about thirty places, which is why it exists.
 | Release CI | ✅ tag → Linux x64/arm64 + Windows x64, attested, mirrored to R2. **On `sirius` since 2026-09-30 (`2d98ba0`…`7e3c08c`), first shipping in v1.118.7: arm64 is cross-compiled on the x64 runner through the glibc-2.28 sysroot and gets `.deb`/`.rpm`** — rehearsal 36788412045 green |
 | Update server | ✅ **live** at `update.siriuside.com`, serving v1.118.6 (verified 2026-09-30 after deploying worker version `b8394745`: an old linux-x64 / linux-arm64 / win32-x64 client gets 200 → 1.118.6 with its own asset and the sha256 from that asset's `.sha256`; a 1.118.6 client gets 204) |
 | Download CDN | ✅ **live** at `dl.siriuside.com` (R2, zero egress) |
-| Arch pacman repo | ✅ **automated and live** — every stable tag builds `sirius-ide-bin` from its own tarball, installs it on Arch, and publishes it to `dl.siriuside.com/arch/x86_64` (jobs `arch` + `arch-publish`). First real publish on v1.118.6 (run 36773757646): `sirius.db` lists `sirius-ide-bin-1.118.6-1`. **Hardened on branch `claude/friendly-gauss-e7tq9o` (`af7f765`, not yet on `sirius`): the publish script accepts only 200 / 404 from R2 and fails closed on anything else, self-tested in every branch rehearsal — lands before v1.118.7** |
+| Arch pacman repo | ✅ **automated and live** — every stable tag builds `sirius-ide-bin` from its own tarball, installs it on Arch, and publishes it to `dl.siriuside.com/arch/x86_64` (jobs `arch` + `arch-publish`). First real publish on v1.118.6 (run 36773757646): `sirius.db` lists `sirius-ide-bin-1.118.6-1`. **Hardened on branch `claude/friendly-gauss-e7tq9o` (`af7f765` + `20d7760`, not yet on `sirius`): the publish script accepts only 200 / 404 from R2, requires all four database objects present or all absent, and fails closed on anything else; self-tested in every branch rehearsal — lands before v1.118.7** |
 | AUR | ❌ not published (see §11) |
 | deb / rpm | ✅ **shipped since v1.118.5** (2026-09-27, the first ever), x64. Built and gated on every run since, and **installed and run in Debian 12 / Ubuntu 22.04 / Rocky 9 containers on every run** (job `install-test`, required by Publish). **arm64 `.deb`/`.rpm`: built, gated and installed the same way, on `sirius` since 2026-09-30 (rehearsal 36788412045); they ship with v1.118.7** |
 | REH server | ✅ **shipped in v1.118.6** — `sirius-server-linux-{x64,arm64}.tar.gz`, the asset `serverDownloadUrlTemplate` promised since v1.118.0; x64 gated at glibc 2.28 / GLIBCXX 3.4.25 and started in the containers. Both template URLs answer 200. On `sirius` since 2026-09-30 (ships with v1.118.7) the arm64 server has the same 2.28 / 3.4.25 floor and is started in the arm64 containers too |
@@ -355,7 +355,7 @@ Be precise about this; several things are wired but never exercised live.
 | REH server x64 | ✅ built and gated on CI: 9 server binaries at glibc ≤ 2.28, GLIBCXX ≤ 3.4.25 (the floor `check-requirements.sh` promises); nodejs.org's Node 22.22.1 verified against `build/checksums/nodejs.txt`; `sirius-server --version` and `/version` proven in all three containers. **Not yet exercised by a real remote extension** (Open Remote - SSH from a client): local-only proof |
 | REH server arm64 | ✅ rehearsal 36788412045 (on `sirius`, unreleased until v1.118.7): gated at glibc ≤ 2.28 / GLIBCXX ≤ 3.4.25 like x64, modules dlopen under its node, started and `/version` answered in all four arm64 containers. **v1.118.6's published arm64 server still has the native runner's glibc 2.38 floor** until the next tag |
 | arm64 tarball on Debian 12 arm64 | ✅ rehearsal 36788412045 (on `sirius`, unreleased until v1.118.7): installs its dependency set, every binary resolves, every module dlopens, the window comes up. **v1.118.6's published tarball still does not run there** (measured in run 36762589539: GLIBC_2.38 / GLIBCXX_3.4.31 from the native build); the next tag replaces it |
-| Arch package | ✅ CI, every run: built with makepkg in `archlinux:base-devel`, `pacman -U` resolves every declared dependency, `sirius --version` correct, 11+ binaries link, desktop files validate; `repo-add` rehearsed on the runner. The R2 upload ran for real on the v1.118.6 tag (run 36773757646). On branch `claude/friendly-gauss-e7tq9o` the publish logic is also proven against a stub R2 by `publish-arch-repo.test.sh` (15 cases: first publish, upgrade, refused downgrade, same-bytes re-run, rebuilt bytes refused, 403 / 500 / no-connection on either database object and on the package object, failed download, both half-repository shapes, unreadable database, dry run makes no call) — rehearsal 36792162007. **Unverified for real: that R2 answers HeadObject on a missing key with 404 through the mirror token** (§13) |
+| Arch package | ✅ CI, every run: built with makepkg in `archlinux:base-devel`, `pacman -U` resolves every declared dependency, `sirius --version` correct, 11+ binaries link, desktop files validate; `repo-add` rehearsed on the runner. The R2 upload ran for real on the v1.118.6 tag (run 36773757646). On branch `claude/friendly-gauss-e7tq9o` the publish logic is also proven against a stub R2 by `publish-arch-repo.test.sh` (18 cases: first publish, upgrade, refused downgrade, same-bytes re-run, rebuilt bytes refused, 403 / 500 / no-connection on either database object and on the package object, failed download, four half-repository shapes including the reproduced downgrade, a CLI error format that hides the 404, unreadable database, dry run makes no call) and, by the review, with the real AWS CLI 2.37.7 against a moto S3 mock end to end — rehearsal 36793636385. **Unverified for real: that R2 answers HeadObject on a missing key with 404 through the mirror token** (§13) |
 | Image input to models | ⚠️ wire format proven for all 4 providers by probe; **no vision model exercised live** (`ollama pull moondream` would close it) |
 | Integrated browser tools | ✅ 38 tools on a fresh profile, all seven browser ids present (`test/harness/probes/agent-tools.js`) |
 | Tiered / size-aware native tools | ✅ probe-proven: 1.5B → core, ≥ 6 GB → extended |
@@ -399,7 +399,7 @@ item as soon as it is resolved rather than leaving it here.
    rebuilt for them). The owner's `~/Projects/aur/sirius-ide-bin` is history: the PKGBUILD
    lives in `build/arch/`. The hardening item found that day — a failed fetch of the live
    database was read as a first publish — is fixed on branch `claude/friendly-gauss-e7tq9o`
-   (`af7f765`), waiting for the owner's cherry-pick; see §13.
+   (`af7f765`, then `20d7760` from its review), waiting for the owner's cherry-pick; see §13.
 
 5. **Dependabot "devcontainers" runs were flaky** — failed 2026-08-31, 09-07 and 09-14,
    then succeeded 09-21 and 09-28. Watch one more weekly cycle and delete this if it stays
@@ -604,7 +604,23 @@ Each of these cost real time.
   404 — and anything else stops the publish with the CLI's message. R2 answers a missing
   key with 404; S3 would answer 403 to a token that cannot list the bucket, so if the mirror
   token is ever narrowed, the tag run stops at `== package object` with a `(403)` in the
-  error, and the token scope (not the script) is what to fix.
+  error, and the token scope (not the script) is what to fix. Two more from the review
+  (`20d7760`): **check all four database objects**, not just the `.tar.gz` pair — pacman
+  reads `sirius.db` / `sirius.files`, and a bucket where the pair was deleted but those
+  survived read as a first publish, which then replaced the index clients were using (a
+  reproduced downgrade); and **pin `AWS_CLI_ERROR_FORMAT=legacy`** — the `(404)` the
+  script looks for is the CLI's default line, but a `cli_error_format` of json / text /
+  yaml / table in a `~/.aws/config` drops the parentheses, and every new package key
+  would then read as "cannot tell" and stop every tag's publish. A 404 still cannot tell a
+  missing *bucket* from a missing key (HEAD has no body): a wrong bucket announces a first
+  publish and then fails at the package upload, before any database object — misleading,
+  not corrupting, and accepted.
+- **`dpkg-shlibdeps.pl` comes from raw.githubusercontent.com and can be a 429 page.**
+  `build/linux/debian/calculate-deps.ts` (upstream) downloads Chromium's helper at deb time;
+  rehearsal 36792162007's arm64 leg got GitHub's rate-limit page instead and failed with
+  `syntax error at /tmp/dpkg-shlibdeps.pl line 1, near "429:"` — the deb is then "missing",
+  the Packaging gate fails, and `arch` + `arch-publish` are skipped. It is a transient:
+  re-run the job. (It is upstream code; the fork does not patch it.)
 - **`allow_missing_packages` means ABSENT, never BROKEN.** The Packaging gate,
   `install-test.sh` and the `arch` job each skip a package that does not exist when the
   input is set; a package that exists and fails to install still blocks Publish. There is
@@ -692,30 +708,41 @@ Cloud sessions work on `claude/…` branches and stop; they never land or releas
 ## 13. If you are a new session, start here
 
 **Last handoff (2026-09-30, cloud, branch `claude/friendly-gauss-e7tq9o` — NOT on `sirius`):
-the Arch publish script fails closed.** One code commit, `af7f765`: `build/sirius/publish-arch-repo.sh`
+the Arch publish script fails closed.** Two code commits. `af7f765`: `build/sirius/publish-arch-repo.sh`
 asks R2 with HeadObject before it touches anything and accepts exactly two answers — 200
 (present) and 404 (absent). A 403, a timeout, a wrong endpoint, a database that exists but
-fails to download, a db without its files counterpart (or the reverse), and a fetched
-database `tar` cannot read all stop the publish before `repo-add`, with the CLI's own
-message as the error annotation. The same rule now guards the package object, so a failed
-HeadObject can no longer upload different bytes under an immutable name. A genuine first
-publish (both database objects 404) still works and is announced as a `::warning::`. The
-new `build/sirius/publish-arch-repo.test.sh` runs the real script, in publish mode, against
-a stub `aws` and `curl` on PATH (a directory is the bucket; each case sets the fault the
-stub answers with) — 15 cases, 4 s, no network, no credentials — and the workflow's branch
-rehearsal step now runs it after the `--dry-run` (`zstd` added to that runner's apt line
-for the synthetic packages). The tag path is unchanged apart from the hardened script.
+fails to download, a half-present database and a fetched database `tar` cannot read all
+stop the publish before `repo-add`, with the CLI's own message as the error annotation.
+The same rule guards the package object, so a failed HeadObject can no longer upload
+different bytes under an immutable name. A genuine first publish still works and is
+announced as a `::warning::`. `20d7760`, from an Opus review that also ran the script with
+the real AWS CLI 2.37.7 against a moto S3 mock: all **four** database objects are checked
+(the review reproduced a downgrade with only the `.tar.gz` pair checked — §11),
+`AWS_CLI_ERROR_FORMAT=legacy` is pinned so the `(404)` stays recognisable, and the work
+directory is removed on exit. The new `build/sirius/publish-arch-repo.test.sh` runs the
+real script, in publish mode, against a stub `aws` and `curl` on PATH (a directory is the
+bucket; each case sets the fault the stub answers with) — 18 cases, 4 s, no network, no
+credentials — and the workflow's branch rehearsal step now runs it after the `--dry-run`
+(`zstd` added to that runner's apt line for the synthetic packages). The tag path is
+unchanged apart from the hardened script.
 
 **Verified:** the self-test passes locally on Ubuntu 24.04 with `pacman-package-manager`
 6.0.2 + `libarchive-tools` + `zstd` (the runner's toolset); `shellcheck` is clean on both
-scripts; the YAML parses. Rehearsal 36792162007 (the full train on the branch, ending in
-"Rehearse Arch repository" = `--dry-run` of the real package, then the self-test) — **see the
-line below this paragraph for its verdict; if there is none, the session ended before the
-run did: check the run.** **Not verified, cannot be from a cloud session:** that R2 answers
-HeadObject on a *missing* key with 404 through the mirror token (the v1.118.6 run's
-`head-object` on the not-yet-uploaded package did fail, but its stderr was discarded, so
-whether it said 404 or 403 is unknown). One command with the R2 secrets proves it, and it
-must say `(404)`, not `(403)`:
+scripts; the YAML parses; the CLI facts (the `(404)` line under the default and `legacy`
+formats, the json/text/yaml/table shapes without it, an unknown format value ignored) were
+observed on AWS CLI 2.37.7 against moto. Rehearsal 36792162007 (on `af7f765`) failed in the
+arm64 deb step on a GitHub 429 page served as `dpkg-shlibdeps.pl` (§11, transient, nothing
+to do with this branch), which skipped `arch` and `arch-publish`. Rehearsal 36793636385 (on
+`20d7760`, the full train on the branch, ending in "Rehearse Arch repository" = `--dry-run`
+of the real package, then the self-test) — **see the line below this paragraph for its
+verdict; if there is none, the session ended before the run did: check the run.**
+**Not verified, cannot be from a cloud session:** that R2 answers HeadObject on a *missing*
+key with 404 through the mirror token (the v1.118.6 run's `head-object` on the
+not-yet-uploaded package did fail, but its stderr was discarded, so whether it said 404 or
+403 is unknown; the reviewer put R2-returns-404 at 85–90%). One command with the mirror
+token's keys — the values behind the `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` secrets,
+not the owner's wider Cloudflare credentials, because the question is what *that* token
+gets — proves it, and it must say `(404)`, not `(403)`:
 `AWS_DEFAULT_REGION=auto aws s3api head-object --bucket sirius-releases --key arch/x86_64/no-such-object --endpoint-url "$(gh variable get R2_ENDPOINT)"`.
 If it says `(403)`, the next tag run will stop at `== package object` (the GitHub release
 is out by then; only the Arch repo lags) and the token needs list permission on the bucket.
