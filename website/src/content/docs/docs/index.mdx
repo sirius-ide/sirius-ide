@@ -1,14 +1,48 @@
 ---
 title: Documentation
-description: Install Sirius, bring a model, and start working with the agent.
+description: Install Sirius, bring a model, and start working — with the agent, inline chat, Tab completion and the rest of the editor.
 ---
+import { CardGrid, LinkCard } from '@astrojs/starlight/components';
 
-Sirius needs a model before it can do anything. Add a provider key with
-**Sirius: Set API Key**, or run models locally with Ollama and send nothing off your
-machine. Then pick a model with <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>M</kbd>.
+Sirius IDE is a code editor built on Code - OSS with chat, inline edits, Tab completion and
+an agent that works across your files — against the models you choose. It needs a model
+before it can do anything: add a provider key with **Sirius: Set API Key**, or run models
+locally with Ollama and send nothing off your machine. Then pick a model with
+<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>M</kbd>.
 
-:::note
-The documentation is being written for 1.118.7. Until it lands here, the install
-guide is [INSTALL.md](https://github.com/sirius-ide/sirius-ide/blob/sirius/INSTALL.md)
-in the repository.
-:::
+<CardGrid>
+	<LinkCard title="Install" href="/docs/install/" description="Arch repository, .deb, .rpm, tarball, Windows installer. Rendered from the repository's INSTALL.md." />
+	<LinkCard title="Getting started" href="/docs/getting-started/" description="First run: set a key or start Ollama, pick a model, send the first message." />
+	<LinkCard title="Providers and keys" href="/docs/providers/" description="Twelve providers, where the keys live, custom endpoints." />
+	<LinkCard title="Local models" href="/docs/local-models/" description="Ollama, LM Studio, llama.cpp and vLLM — and the FIM models Tab completion needs." />
+</CardGrid>
+
+## Working with Sirius
+
+<CardGrid>
+	<LinkCard title="Chat, edit and agent" href="/docs/chat-edit-agent/" description="The three modes, the tools, diffs you keep or undo, checkpoints." />
+	<LinkCard title="Inline chat" href="/docs/inline-chat/" description="Edits in place, and the explain, fix, test and refactor commands." />
+	<LinkCard title="Tab completion and next-edit" href="/docs/tab-and-next-edit/" description="Fill-in-the-middle on a local model; the next edit predicted from the last." />
+	<LinkCard title="Rules and context" href="/docs/rules-and-context/" description=".siriusrules, .sirius/rules.md and AGENTS.md; what travels with each request." />
+	<LinkCard title="Image input" href="/docs/image-input/" description="Screenshots and images in the chat, with the models that accept them." />
+	<LinkCard title="Integrated browser" href="/docs/browser/" description="The agent opens, reads, clicks and screenshots pages inside the editor." />
+	<LinkCard title="Git assist" href="/docs/git-assist/" description="Commit messages from the diff; merge conflicts resolved by the agent." />
+</CardGrid>
+
+## Set-up and operations
+
+<CardGrid>
+	<LinkCard title="Importing from another editor" href="/docs/import/" description="Settings, keybindings, snippets and extensions from VS Code, Cursor, Windsurf or VSCodium." />
+	<LinkCard title="Remote server" href="/docs/remote-server/" description="The server tarballs that ship with every release, and how to run them." />
+	<LinkCard title="Updates" href="/docs/updates/" description="How each kind of install learns about a new release." />
+	<LinkCard title="Privacy and where keys live" href="/docs/privacy-and-keys/" description="What leaves your machine, what never does." />
+</CardGrid>
+
+## Help and reference
+
+<CardGrid>
+	<LinkCard title="Troubleshooting" href="/docs/troubleshooting/" description="No model, a provider error, Ollama not answering, keys on a minimal Linux." />
+	<LinkCard title="FAQ" href="/docs/faq/" description="Short answers to the usual questions." />
+	<LinkCard title="Settings" href="/docs/reference/settings/" description="Every sirius.ai setting, generated from the shipped manifest." />
+	<LinkCard title="Commands and shortcuts" href="/docs/reference/commands/" description="The Command Palette entries and the default keybindings." />
+</CardGrid>

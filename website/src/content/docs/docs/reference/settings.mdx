@@ -1,0 +1,29 @@
+---
+title: Settings
+description: Every sirius.ai setting the extension contributes, with its default, read from the shipped manifest at build time.
+sidebar:
+  order: 1
+---
+import SettingsTable from '../../../../components/docs/SettingsTable.astro';
+import { extensionVersion } from '../../../../components/docs/ext';
+
+All of Sirius's own settings live under `sirius.ai` in **File → Preferences → Settings**
+(search for *Sirius*), or in `settings.json`. This table is generated from the
+extension manifest that ships in the build, so it cannot drift from the product — the
+descriptions below are the ones the Settings editor shows.
+
+API keys are **not** settings. They live in the system keyring and are set with the
+**Sirius: Set API Key** command; see [Providers and keys](/docs/providers/).
+
+## Current settings
+
+<SettingsTable />
+
+## Deprecated settings
+
+These still work for one more release cycle but should not be used in new configurations.
+The replacement is named in each row.
+
+<SettingsTable deprecated />
+
+<small>Manifest version {extensionVersion}.</small>

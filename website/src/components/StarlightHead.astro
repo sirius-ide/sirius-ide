@@ -1,0 +1,9 @@
+---
+// Starlight's <Head> plus the site's fonts: Starlight pages do not go through Base.astro,
+// so the Geist @font-face rules and preloads have to be injected here.
+import Default from '@astrojs/starlight/components/Head.astro';
+import { Font } from 'astro:assets';
+---
+<Default><slot /></Default>
+<Font cssVariable="--font-sans" preload />
+<Font cssVariable="--font-mono" preload />

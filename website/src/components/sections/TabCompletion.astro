@@ -38,5 +38,5 @@ import Logo from '../Logo.astro';
 	.points li { display: grid; grid-template-columns: 20px 1fr; gap: 0.85rem; align-items: start; color: var(--fg-muted); font-size: var(--text-s); line-height: 1.55; }
 	.points b { color: var(--fg); }
 	.points :global(.pt-icon) { margin-top: 0.3em; }
-	@media (max-width: 900px) { .split { grid-template-columns: 1fr; grid-template-areas: "head" "demo" "more"; row-gap: 2.25rem; } }
+	@media (max-width: 900px) { .split { grid-template-columns: minmax(0, 1fr); grid-template-areas: "head" "demo" "more"; row-gap: 2.25rem; } }
 </style>

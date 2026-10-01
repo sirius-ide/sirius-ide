@@ -1,0 +1,36 @@
+---
+title: Keyboard shortcuts
+description: The default keybindings Sirius adds, plus the editor's own chat shortcuts you will use with it.
+sidebar:
+  order: 3
+---
+import KeybindingsTable from '../../../../components/docs/KeybindingsTable.astro';
+
+## Sirius's own
+
+Sirius contributes these defaults. Change any of them in **File → Preferences → Keyboard
+Shortcuts** — search for the command name.
+
+<KeybindingsTable />
+
+## The editor's chat shortcuts
+
+Sirius is the default participant in the editor's built-in chat, so the chat shortcuts that
+Code - OSS ships work unchanged:
+
+| Action | Linux and Windows | macOS |
+| --- | --- | --- |
+| Open the Chat view | <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>I</kbd> | <kbd>⌘</kbd>+<kbd>Ctrl</kbd>+<kbd>I</kbd> |
+| Inline chat in the editor | <kbd>Ctrl</kbd>+<kbd>I</kbd> | <kbd>⌘</kbd>+<kbd>I</kbd> |
+| Accept a Tab completion or next-edit suggestion | <kbd>Tab</kbd> | <kbd>Tab</kbd> |
+| Dismiss a suggestion | <kbd>Esc</kbd> | <kbd>Esc</kbd> |
+| Command Palette | <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd> | <kbd>⌘</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd> |
+
+These are the upstream defaults; if you imported keybindings from another editor, yours may
+differ — the Keyboard Shortcuts editor shows what is active.
+
+:::note
+<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>I</kbd> is also the editor's own "open chat in agent
+mode" shortcut. Sirius binds **Sirius: Open AI Chat** to the same chord, so either way the
+chat opens.
+:::

@@ -7,7 +7,7 @@ const local = ['Ollama', 'LM Studio', 'llama.cpp', 'vLLM', 'Any OpenAI-compatibl
 <section class="section feature" id="models" aria-labelledby="models-title">
 	<div class="container split">
 		<div class="copy head">
-			<p class="eyebrow">01 — Bring your own model</p>
+			<p class="eyebrow">03 — Bring your own model</p>
 			<h2 id="models-title">Twelve providers. <span class="muted">No lock-in.</span></h2>
 			<p class="lede">
 				Anthropic Claude, Google Gemini, OpenAI, OpenRouter, Groq, DeepSeek, Mistral and xAI. Or models on your own
@@ -65,6 +65,6 @@ const local = ['Ollama', 'LM Studio', 'llama.cpp', 'vLLM', 'Any OpenAI-compatibl
 	.chip-local { border-color: color-mix(in srgb, var(--cyan) 45%, var(--border-strong)); color: var(--fg); }
 	.demo { display: flex; justify-content: center; }
 	@media (max-width: 900px) {
-		.split { grid-template-columns: 1fr; grid-template-areas: "head" "demo" "more"; row-gap: 2.25rem; }
+		.split { grid-template-columns: minmax(0, 1fr); grid-template-areas: "head" "demo" "more"; row-gap: 2.25rem; }
 	}
 </style>

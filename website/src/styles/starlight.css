@@ -1,19 +1,78 @@
-/* Starlight (/docs/) on the Sirius tokens — refined in the full build. */
-:root {
-	--sl-font: var(--font-sans, 'Schibsted Grotesk', system-ui, sans-serif);
-	--sl-font-mono: var(--font-mono, 'JetBrains Mono', ui-monospace, monospace);
-	--sl-color-accent-low: #2b1b5e;
-	--sl-color-accent: #8b5cf6;
-	--sl-color-accent-high: #c4b5fd;
-	--sl-color-black: #06080d;
-	--sl-color-gray-6: #0a0e14;
-	--sl-color-gray-5: #0d1117;
-}
+/* Starlight (/docs/) on the Sirius tokens.
+ * tokens.css already flips every --token for the light scheme, and Starlight sets a resolved
+ * data-theme on <html>, so the mapping below is declared once for both of Starlight's own
+ * selectors (:root and :root[data-theme='light']) and the tokens do the switching.
+ * House rules apply here too: no gradients, no soft shadows — rings and hairlines only. */
+:root,
 :root[data-theme='light'] {
-	--sl-color-accent-low: #ede9fe;
-	--sl-color-accent: #6d28d9;
-	--sl-color-accent-high: #4c1d95;
-	--sl-color-white: #0b1220;
-	--sl-color-gray-7: #f5f7fb;
-	--sl-color-gray-6: #eef2f8;
+	--sl-font: var(--font-sans, system-ui, sans-serif);
+	--sl-font-mono: var(--font-mono, ui-monospace, monospace);
+
+	--sl-color-accent-low: var(--accent-low);
+	--sl-color-accent: var(--accent);
+	--sl-color-accent-high: var(--accent-high);
+	--sl-color-white: var(--fg);
+	--sl-color-gray-1: var(--fg);
+	--sl-color-gray-2: var(--fg-muted);
+	--sl-color-gray-3: var(--fg-dim);
+	--sl-color-gray-4: var(--border-strong);
+	--sl-color-gray-5: var(--surface-3);
+	--sl-color-gray-6: var(--surface-2);
+	--sl-color-gray-7: var(--surface);
+	--sl-color-black: var(--bg);
+
+	--sl-color-bg: var(--bg);
+	--sl-color-bg-nav: var(--bg);
+	--sl-color-bg-sidebar: var(--surface);
+	--sl-color-bg-inline-code: var(--surface-2);
+	--sl-color-bg-accent: var(--accent-strong);
+	--sl-color-text: var(--fg-muted);
+	--sl-color-text-accent: var(--accent-text);
+	--sl-color-text-invert: var(--on-accent);
+	--sl-color-hairline-light: var(--border);
+	--sl-color-hairline: var(--border);
+	--sl-color-hairline-shade: var(--border-strong);
+	--sl-color-backdrop-overlay: rgba(6, 8, 13, 0.72);
+
+	--sl-shadow-sm: 0 0 0 1px var(--border);
+	--sl-shadow-md: 0 0 0 1px var(--border-strong);
+	--sl-shadow-lg: 0 0 0 1px var(--border-strong), 0 0 0 4px var(--ring-soft);
+
+	--sl-nav-height: 64px;
+	--sl-content-width: 48rem;
+	--sl-line-height: 1.65;
 }
+:root { --accent-low: #1b1538; --accent-high: #c4b5fd; }
+:root[data-theme='light'] { --accent-low: #ede9fe; --accent-high: #4c1d95; --sl-color-backdrop-overlay: rgba(11, 18, 32, 0.4); }
+
+/* Headings carry the site's tight tracking; body copy stays as Starlight sets it. */
+.sl-markdown-content :is(h1, h2, h3) { letter-spacing: -0.02em; }
+.sl-markdown-content h1 { font-size: var(--sl-text-4xl); }
+.sl-markdown-content :not(a, strong, em, del, span, input, code, br) + :is(h2) { margin-top: 2.25em; }
+.sl-markdown-content code:not(:where(pre *)) { border: 1px solid var(--border); border-radius: 4px; font-size: 0.9em; }
+.sl-markdown-content kbd { font-family: var(--sl-font-mono); font-size: 0.85em; padding: 0.1em 0.45em; border: 1px solid var(--border-strong); border-bottom-width: 2px; border-radius: 4px; background: var(--surface-2); color: var(--fg); }
+.sl-markdown-content table { font-size: var(--sl-text-sm); }
+.sl-markdown-content :is(th, td) { vertical-align: top; }
+.sl-markdown-content a:not(:where(.not-content *)) { text-decoration-thickness: 1px; text-underline-offset: 0.15em; }
+
+/* Header: the same hairline and height as the site's own navigation. */
+header.header { border-bottom: 1px solid var(--border); }
+.site-title { font-weight: 650; letter-spacing: -0.01em; color: var(--fg); }
+.site-title .docs-tag { font-family: var(--sl-font-mono); font-size: var(--sl-text-xs); letter-spacing: 0.1em; text-transform: uppercase; color: var(--fg-dim); margin-left: 0.6rem; padding-left: 0.6rem; border-left: 1px solid var(--border-strong); }
+
+/* Sidebar: current page as a flat accent bar, no glow. */
+.sidebar-content a[aria-current='page'] { background: var(--accent-low); color: var(--accent-high); font-weight: 600; }
+.sidebar-content summary { color: var(--fg); }
+.sidebar-content .large { font-size: var(--sl-text-sm); font-weight: 600; letter-spacing: 0.02em; }
+
+/* Pagination cards and asides: rings instead of shadows. */
+.pagination-links a { box-shadow: none; border: 1px solid var(--border); border-radius: var(--radius-m); }
+.pagination-links a:hover { border-color: var(--border-strong); background: var(--surface); }
+.starlight-aside { border-radius: var(--radius-s); }
+.content-panel + .content-panel { border-top: 1px solid var(--border); }
+
+/* Focus: the site's ring. */
+:where(.sl-container, .sidebar-content, header.header) :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+/* Asides: the note takes the brand accent; the others keep Starlight's semantic hues. */
+.starlight-aside--note { --sl-color-asides-text-accent: var(--accent-high); --sl-color-asides-border: var(--accent); background-color: var(--accent-low); }

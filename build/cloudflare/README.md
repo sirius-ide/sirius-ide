@@ -33,6 +33,7 @@ Sirius infrastructure unattended:
 | Zone | Cache Purge | Purge | purge stale content |
 | Zone | Cache Rules | Edit | caching behaviour |
 | Zone | Transform Rules | Edit | redirects, header rewrites |
+| Zone | Dynamic URL Redirects | Edit | the Single Redirects `deploy-website.sh` writes: `www` and `siriuside.dev` → `siriuside.com` |
 | Zone | Config Rules | Edit | per-path settings |
 | Zone | Page Rules | Edit | the legacy equivalents |
 | Zone | Zone WAF | Edit | firewall rules for the two zones |
@@ -63,6 +64,17 @@ Sirius; otherwise this is the working set.
   property on the account.
 - TTL: your call; a year is reasonable. Tokens can be rolled or revoked any
   time from the same page.
+
+## The website
+
+`deploy-website.sh` builds `website/`, creates the Pages project `sirius-website`, uploads
+`website/dist`, attaches `siriuside.com`, writes the DNS records and the two Single
+Redirects, and verifies — step by step or `all` (PROJECT-STATE §13 has the sequence). It
+uses the same token and the same rules. CI deploys on its own through
+`.github/workflows/sirius-website.yml`, which needs a **second, narrow token**: Account →
+Cloudflare Pages: Edit and nothing else, stored as the repository secret
+`CLOUDFLARE_PAGES_TOKEN`, with the account id in the repository variable
+`CLOUDFLARE_ACCOUNT_ID`. Without them the workflow builds and tests and stops green.
 
 ## Where the token lives
 

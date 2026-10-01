@@ -5,6 +5,7 @@ import { chromium } from '@playwright/test';
 import { createServer } from 'node:http';
 import { readFile, stat, mkdir } from 'node:fs/promises';
 import { extname, join, normalize, resolve } from 'node:path';
+import sharp from 'sharp';
 
 const DIST = resolve(import.meta.dirname, '..', 'dist');
 const OUT = resolve(process.argv[2] ?? resolve(import.meta.dirname, '..', 'design'));
@@ -81,7 +82,10 @@ for (const path of pages) {
 			} else {
 				await page.waitForTimeout(REDUCED ? 800 : SETTLE_MS);
 			}
-			await page.screenshot({ path: join(OUT, `${slug}-${v.tag}-${scheme}${SUFFIX}.png`), fullPage: false });
+			const out = join(OUT, `${slug}-${v.tag}-${scheme}${SUFFIX}.png`);
+			const png = await page.screenshot({ fullPage: false });
+			// Palette PNGs: a third of the size for a review render that is committed to the repository.
+			await sharp(png).png({ palette: true, quality: 90, compressionLevel: 9, effort: 7 }).toFile(out);
 			await context.close();
 			console.log(`  ${slug}-${v.tag}-${scheme}${SUFFIX}.png`);
 		}

@@ -1,0 +1,14 @@
+---
+import { readFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
+import Doc from '../layouts/Doc.astro';
+import { site } from '../site.config';
+// The build runs from website/; the licence is the repository's own file, one level up.
+const text = await readFile(resolve(process.cwd(), '..', 'LICENSE.txt'), 'utf8');
+---
+<Doc title="Licence" eyebrow="Software licence agreement" sourceFile="LICENSE.txt"
+	description="The Sirius IDE Software License Agreement: free to install and use on any number of devices for personal or commercial development; no redistribution or hosting."
+	intro="Free to install and use on any number of devices you own, for personal or commercial development. Sirius is proprietary; Code - OSS and every third-party component keep their own licences.">
+	<pre class="license">{text}</pre>
+	<p>Third-party licences, including Code - OSS (MIT, copyright Microsoft Corporation), are reproduced in <a href={`${site.github}/blob/sirius/ThirdPartyNotices.txt`} rel="noopener">ThirdPartyNotices.txt</a>.</p>
+</Doc>

@@ -1,0 +1,42 @@
+---
+import MediaSlot from '../MediaSlot.astro';
+import GitArt from '../art/GitArt.astro';
+import Logo from '../Logo.astro';
+---
+<section class="section feature" id="git" aria-labelledby="git-title">
+	<div class="container split">
+		<div class="copy head">
+			<p class="eyebrow">06 — Git assist</p>
+			<h2 id="git-title">Commit messages and conflicts, <span class="muted">from the Source Control view.</span></h2>
+			<p class="lede">
+				The sparkle on the commit box writes the message from your diff — an imperative summary under 72
+				characters, then the why. Merge conflicts go to the agent: it reads both sides of every conflict and
+				resolves each one to keep the intent of both changes, explaining as it goes.
+			</p>
+		</div>
+		<div class="demo">
+			<MediaSlot name="git-assist" label="The Source Control view in Sirius: the commit message generated from the staged changes, with two modified files listed."><GitArt /></MediaSlot>
+		</div>
+		<div class="copy more">
+			<ul class="points">
+				<li><Logo size={20} class="pt-icon" /><div><b>The buttons the workbench already has.</b> Code - OSS renders the commit-message sparkle and the merge-conflict action; Sirius is what makes them do something.</div></li>
+				<li><Logo size={20} class="pt-icon" /><div><b>Any model, including local.</b> Both run through the model you have selected — a hosted one or the Ollama model on your machine.</div></li>
+				<li><Logo size={20} class="pt-icon" /><div><b>No model, no mystery.</b> Without a configured model the button tells you exactly what to do: add a provider key with <em>Sirius: Set API Key</em>, or start Ollama.</div></li>
+			</ul>
+		</div>
+	</div>
+</section>
+
+<style>
+	.split { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); grid-template-areas: "demo head" "demo more"; column-gap: clamp(2rem, 6vw, 5.5rem); row-gap: 1.75rem; align-items: center; }
+	.head { grid-area: head; align-self: end; }
+	.more { grid-area: more; align-self: start; }
+	.demo { grid-area: demo; }
+	.copy h2 { margin-top: 1rem; }
+	.copy .lede { margin-top: 1.25rem; font-size: var(--text-m); }
+	.points { list-style: none; padding: 0; margin: 0; display: grid; gap: 1rem; }
+	.points li { display: grid; grid-template-columns: 20px 1fr; gap: 0.85rem; align-items: start; color: var(--fg-muted); font-size: var(--text-s); line-height: 1.55; }
+	.points b { color: var(--fg); }
+	.points :global(.pt-icon) { margin-top: 0.3em; }
+	@media (max-width: 900px) { .split { grid-template-columns: minmax(0, 1fr); grid-template-areas: "head" "demo" "more"; row-gap: 2.25rem; } }
+</style>
