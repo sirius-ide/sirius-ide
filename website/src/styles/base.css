@@ -36,8 +36,8 @@ p { text-wrap: pretty; }
 a { color: var(--link); text-decoration: none; text-underline-offset: 0.18em; }
 a:hover { color: var(--link-hover); text-decoration: underline; }
 /* A link inside running text is marked by more than its colour (WCAG 1.4.1): a hairline underline. */
-:is(p, li, td, dd, figcaption, small, .callout, .note, .fine, .foot) a:not(.btn) { text-decoration: underline; text-decoration-thickness: 1px; text-decoration-color: color-mix(in srgb, currentColor 55%, transparent); }
-:is(p, li, td, dd, figcaption, small, .callout, .note, .fine, .foot) a:not(.btn):hover { text-decoration-color: currentColor; }
+:is(p, li, td, dd, figcaption, small, .callout, .note, .fine, .foot) a:not(.btn, .release, nav a, .links a, .menu a) { text-decoration: underline; text-decoration-thickness: 1px; text-decoration-color: color-mix(in srgb, currentColor 55%, transparent); }
+:is(p, li, td, dd, figcaption, small, .callout, .note, .fine, .foot) a:not(.btn, .release, nav a, .links a, .menu a):hover { text-decoration-color: currentColor; }
 /* Command blocks wrap on a phone instead of becoming a scroll region that needs focus management. */
 @media (max-width: 480px) { pre.wrap-sm, .cmd pre, pre.arch { white-space: pre-wrap; overflow-wrap: anywhere; overflow-x: visible; } }
 strong, b { font-weight: 650; }

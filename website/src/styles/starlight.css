@@ -108,5 +108,5 @@ header.header { border-bottom: 1px solid var(--border); }
 /* Markdown tables lay out as tables and wrap their cells, instead of becoming a scroll region. */
 .sl-markdown-content table:not(.ref-table table) { display: table; width: 100%; overflow: visible; }
 .sl-markdown-content :is(th, td) { overflow-wrap: anywhere; }
-.sl-markdown-content :is(th, td) code { white-space: normal; }
+.sl-markdown-content :is(th, td) code { white-space: normal; overflow-wrap: anywhere; }
 

@@ -321,8 +321,10 @@ const icons: Record<string, string> = { ts: 'TS', json: '{}', md: 'M↓' };
 		.changed { animation: w-rise 0.4s cubic-bezier(0.2, 0.7, 0.2, 1) 5.3s both; }
 		.appear-late { animation: w-show 0.3s ease-out 3.4s both; }
 	}
-	@keyframes w-rise { from { opacity: 0; transform: translate3d(0, 6px, 0); } to { opacity: 1; transform: translate3d(0, 0, 0); } }
-	@keyframes w-show { from { opacity: 0; } to { opacity: 1; } }
+	/* Text arrives by moving, not fading: visibility is discrete, so an accessibility audit never
+	 * catches a half-faded line against the window's background. The spinner may still fade. */
+	@keyframes w-rise { from { visibility: hidden; transform: translate3d(0, 6px, 0); } to { visibility: visible; transform: translate3d(0, 0, 0); } }
+	@keyframes w-show { from { visibility: hidden; } to { visibility: visible; } }
 	@keyframes w-spin { 0% { opacity: 1; transform: rotate(0deg); } 92% { opacity: 1; transform: rotate(540deg); } 100% { opacity: 0; transform: rotate(540deg); } }
-	@keyframes w-diff { from { opacity: 0; transform: translate3d(-6px, 0, 0); } to { opacity: 1; transform: none; } }
+	@keyframes w-diff { from { visibility: hidden; transform: translate3d(-6px, 0, 0); } to { visibility: visible; transform: none; } }
 </style>

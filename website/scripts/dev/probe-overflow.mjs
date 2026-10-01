@@ -1,6 +1,6 @@
 // Dev probe: list the elements that stick out of a 390px viewport on a page. Usage: node scripts/probe-overflow.mjs /path/
 import { chromium } from '@playwright/test';
-import { serveDist } from './lib/serve.mjs';
+import { serveDist } from '../lib/serve.mjs';
 const path = process.argv[2] || '/';
 const { base, close } = await serveDist();
 const browser = await chromium.launch();
