@@ -41,7 +41,8 @@ const date = new Intl.DateTimeFormat('en', { dateStyle: 'long', timeZone: 'UTC' 
 
 <style>
 	.section-head .lede { margin-top: 1rem; }
-	.scroll { margin-top: 2.5rem; overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius-l); background: var(--surface); }
+	/* contain: paint — without it Chrome lets the table's width leak into the document's scrollable overflow on phones. */
+	.scroll { margin-top: 2.5rem; overflow-x: auto; contain: paint; border: 1px solid var(--border); border-radius: var(--radius-l); background: var(--surface); }
 	.scroll:focus-visible { outline-offset: 2px; }
 	/* Seven columns fit a 1200px container at 1440; narrower screens scroll the table sideways. */
 	table { border-collapse: separate; border-spacing: 0; width: 100%; min-width: 1040px; font-size: var(--text-xs); }
