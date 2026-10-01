@@ -702,9 +702,9 @@ deployed, no DNS. On the branch, over `f8cc08e`:
   `dist/`; `npm run check` clean; Node 22, its own lockfile, never the editor's `npm ci`):
   tokens for both schemes, the Base layout (OS and theme attributes set by an inline script before
   first paint, so the served HTML names no OS; canonical, OpenGraph, manifest, icons), Nav,
-  Footer, the vector Logo, the OS-aware DownloadButton, the Hero (the Aurora backdrop and the
+  Footer, the flat vector Logo, the OS-aware DownloadButton, the Hero (the Sky backdrop and the
   HTML-drawn Sirius window with its once-on-load agent sequence in the product's own strings),
-  the "Bring your own model" section with the drawn *Select AI Model* picker, a 404, a Starlight
+  the "Bring your own model" section with the drawn model picker, a 404, a Starlight
   stub at `/docs/`, `scripts/screenshots.mjs`, the two OFL fonts (Schibsted Grotesk, JetBrains
   Mono; Latin woff2, 36 KB together) with their licences, and `src/data/release.json`, the
   committed snapshot of v1.118.7's 17 assets the build falls back to.
@@ -718,6 +718,17 @@ deployed, no DNS. On the branch, over `f8cc08e`:
   `website/src/site.config.ts` too; `.eslint-ignore` keeps `website/` out of the editor's lint.
 - `LICENSE.txt` §9 names the State of Delaware, United States of America. `SECURITY.md` is the
   Sirius policy: GitHub private vulnerability reporting, scope, latest-release-only, attestation.
+
+**The owner's answers so far (2026-10-01, mid-review), applied on the branch:** no gradients
+anywhere on the site (no gradient functions, glows or soft shadows — `tokens.css` carries the
+rule, depth is flat planes and 1 px rings, the logo and bullets are flat two-tone, the headline
+accent is a solid colour); no "AI" in the site's own text — the positioning is *native, advanced,
+agentic* and the headline reads "The native, advanced, agentic code editor."; no mention of the
+company (footer, metadata, SECURITY.md). Two consequences to know: the drawn model picker
+leaves out the command's title row because that product string says "AI" (renaming the
+extension's command titles is a product change for a later item), and LICENSE.txt still names
+its copyright holder, as a licence must — it will render verbatim at `/license/`. The repo's
+README still carries the old brand line; the owner decides whether it follows.
 
 **Verified in the VM:** the build and `astro check`; the four renders plus a reduced-motion pass
 whose product window is pixel-identical to the settled animated one (reduced motion is the end
