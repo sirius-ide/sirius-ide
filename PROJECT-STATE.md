@@ -49,7 +49,7 @@ the docs — about thirty places, which is why it exists.
 | REH server | ✅ **shipped in v1.118.6** — `sirius-server-linux-{x64,arm64}.tar.gz`, the asset `serverDownloadUrlTemplate` promised since v1.118.0; x64 gated at glibc 2.28 / GLIBCXX 3.4.25 and started in the containers. Both template URLs answer 200. Since v1.118.7 the arm64 server has the same 2.28 / 3.4.25 floor and is started in the arm64 containers too |
 | macOS | ❌ not built (needs Apple Developer cert) |
 | Windows signing | ❌ unsigned — SmartScreen warns |
-| Website | ❌ `siriuside.com` has no DNS record at all |
+| Website | ❌ `siriuside.com` has no DNS record at all — **in progress**: the Astro site's design direction is on branch `claude/youthful-pascal-9wsrxd` for the owner's OK (§13, `website/BRIEF.md`) |
 | Model layer | ✅ 12 providers, keyring, native tool calling |
 | Editor AI surfaces | ✅ registered as language-model vendor + tools + default agent |
 | Tab completion | ✅ FIM-based, shipped |
@@ -377,6 +377,8 @@ item as soon as it is resolved rather than leaving it here. Numbers are stable r
 2. **No website.** `siriuside.com` and `siriuside.dev` have no DNS records. Every
    user-facing URL in `product.json` points at GitHub instead. The Cloudflare token
    already carries Pages permissions for exactly this.
+   **In progress** (2026-10-01): the site is being built under `website/` to `website/BRIEF.md`;
+   the design direction is on branch `claude/youthful-pascal-9wsrxd`, awaiting the owner's OK (§13).
 
 3. **AUR not published.** `sirius-ide-bin` and `sirius-ide-git` PKGBUILDs are ready and
    correct (identity already rewritten to `sirius-ide/sirius-ide`), but nothing is on
@@ -692,7 +694,52 @@ Cloud sessions work on `claude/…` branches and stop; they never land or releas
 
 ## 13. If you are a new session, start here
 
-**Last handoff (2026-10-01, local): v1.118.7 is live, verified from the outside.** It is the
+**Last handoff (2026-10-01, cloud, branch `claude/youthful-pascal-9wsrxd`): the website's design
+direction is up for the owner's OK** (`website/BRIEF.md` §7, step 2). Nothing landed, nothing
+deployed, no DNS. On the branch, over `f8cc08e`:
+
+- `website/` — the Astro 7.3 + Starlight 0.42 project (`cd website && npm ci && npm run build` →
+  `dist/`; `npm run check` clean; Node 22, its own lockfile, never the editor's `npm ci`):
+  tokens for both schemes, the Base layout (OS and theme attributes set by an inline script before
+  first paint, so the served HTML names no OS; canonical, OpenGraph, manifest, icons), Nav,
+  Footer, the vector Logo, the OS-aware DownloadButton, the Hero (the Aurora backdrop and the
+  HTML-drawn Sirius window with its once-on-load agent sequence in the product's own strings),
+  the "Bring your own model" section with the drawn *Select AI Model* picker, a 404, a Starlight
+  stub at `/docs/`, `scripts/screenshots.mjs`, the two OFL fonts (Schibsted Grotesk, JetBrains
+  Mono; Latin woff2, 36 KB together) with their licences, and `src/data/release.json`, the
+  committed snapshot of v1.118.7's 17 assets the build falls back to.
+- `website/design/` — `DIRECTION.md` (type, palette and both schemes, the motion idea, the
+  section map, five decisions to confirm) and the renders the owner reviews:
+  `home-1440x900-{dark,light}.png`, `home-390x844-{dark,light}.png`, and
+  `home-1440x900-dark-mid.png`, the window 5.8 s into its sequence with the diff and the
+  Keep / Undo controls on screen.
+- `build/sirius/make-icons.py --web DIR` writes the favicon, touch and manifest icons, the
+  maskable icon and `og/default.png` (run into `website/public`); `set-identity.mjs` now rewrites
+  `website/src/site.config.ts` too; `.eslint-ignore` keeps `website/` out of the editor's lint.
+- `LICENSE.txt` §9 names the State of Delaware, United States of America. `SECURITY.md` is the
+  Sirius policy: GitHub private vulnerability reporting, scope, latest-release-only, attestation.
+
+**Verified in the VM:** the build and `astro check`; the four renders plus a reduced-motion pass
+whose product window is pixel-identical to the settled animated one (reduced motion is the end
+state, as the brief requires); landing-page JavaScript is Astro's ClientRouter and prefetch, about
+16 KB before compression, and the page HTML is 8 KB gzipped; Astro's fonts API emits
+metric-matched fallbacks (`size-adjust` 103.8 % Arial, 99.98 % Courier New). **Written, not
+verified:** nothing is deployed, so no Lighthouse, axe or real-device numbers yet — those belong to
+the full build. One capture gotcha, not a site bug: Playwright's `fullPage` screenshot re-emulates
+the device at capture time and in Chromium that restarts the animations of elements inside the
+containers the phone layout hides (a plain resize does not; checked), so the script sizes the
+viewport to the page first and takes plain captures.
+
+**The stop.** The owner reviews `website/design/` locally and answers in the cloud; the full build
+(BRIEF §7, step 3) starts from the answer and the five decisions in `DIRECTION.md`. Not built yet:
+every page beyond `/` (download, docs content, changelog, roadmap, privacy, licence, security),
+the three-reasons strip and the other seven feature sections, the comparison table and its
+sources file, the media-slots README, `_headers` / `_redirects`, the Lighthouse budget file, axe
+and the link checker, `build/cloudflare/deploy-website.sh`, `.github/workflows/sirius-website.yml`,
+the token-recipe line for "Dynamic URL Redirects: Edit". The exact deploy steps and the
+`product.json` lines come with the full build's handoff, as the brief says.
+
+**Previous handoff (2026-10-01, local): v1.118.7 is live, verified from the outside.** It is the
 first release with arm64 `.deb` and `.rpm`, and the first whose arm64 tarball and server hold
 the glibc-2.28 floor (cross-compiled through the sysroot; v1.118.6's needed 2.38). Released
 commit `603044c` ("1.118.7", annotated tag `v1.118.7`); over v1.118.6 it carries release
@@ -734,16 +781,17 @@ PRs #1–#4 are closed; #5 is moot and left for Dependabot.
 
 **Next, in order** (one cloud session per item, each on its own branch; the owner lands it
 locally by cherry-pick, §12, before the next item starts — so each builds on the merged state):
-(1) **cloud for the code, owner for the rest:** the website (hole 2), to the specification
-in `website/BRIEF.md` (2026-10-01): a flagship site — Astro + Starlight, the Sirius Star
+(1) **cloud for the code, owner for the rest — in progress on `claude/youthful-pascal-9wsrxd`,
+stopped at the design direction for the owner's OK (the handoff above):** the website (hole 2),
+to the specification in `website/BRIEF.md` (2026-10-01): a flagship site — Astro + Starlight, the Sirius Star
 identity, hard Lighthouse budgets, honest content from the repo's own files — built in two
 stops: the design direction (screenshots under `website/design/`) for the owner's OK, then the
 full build with screenshot review and two Opus passes. Stop before DNS or any deploy (they
 need the owner's token) and write the exact deploy steps here. **Local, alongside it:** real
 product footage for the media slots the brief defines (the built app + a local model, via the
-`launch` skill), then deploy, DNS, outside checks and the `product.json` URL flip. The same
-branch fixes LICENSE.txt §9 (Delaware, USA — the placeholder shipped in every release through
-v1.118.7) and replaces Microsoft's SECURITY.md; GitHub private vulnerability reporting is
+`launch` skill), then deploy, DNS, outside checks and the `product.json` URL flip. Done on the
+branch: LICENSE.txt §9 names Delaware, USA (the placeholder shipped in every release through
+v1.118.7) and Microsoft's SECURITY.md is replaced; GitHub private vulnerability reporting is
 already enabled on the repo (2026-10-01);
 (2) **cloud, small:** `create_file` inside the chat-editing stream (hole 8), so creating a
 file gets the same diff, checkpoint and accept/reject as an edit;
