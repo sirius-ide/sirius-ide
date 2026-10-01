@@ -4,6 +4,9 @@ import { releases, releaseDate, formatSize, cdnUrl, fetchedAt } from '../data/re
 import { site } from '../site.config';
 
 const isDocs = (s: string) => /^(docs|state|roadmap)(\(|:)/i.test(s) || /^\d+\.\d+\.\d+$/.test(s);
+// Release engineering — the pipeline, packaging and CI — is folded under its own line so a release
+// made of tooling work reads as exactly that, and user-facing changes come first.
+const isEngineering = (s: string) => /^(release|build|ci|chore|update-server|arch|deps?)(\(|:)/i.test(s);
 const compareOnly = (body: string) => /^\s*\*\*Full Changelog\*\*:\s*\S+\s*$/.test(body.trim());
 const escape = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] ?? c);
 const built = new Intl.DateTimeFormat('en', { dateStyle: 'long', timeZone: 'UTC' }).format(new Date(fetchedAt));
@@ -18,8 +21,10 @@ const built = new Intl.DateTimeFormat('en', { dateStyle: 'long', timeZone: 'UTC'
 		</div>
 		<div class="container list">
 			{releases.map((r, i) => {
-				const changes = r.commits.filter((c) => !isDocs(c.subject));
-				const folded = r.commits.length - changes.length;
+				const nonDocs = r.commits.filter((c) => !isDocs(c.subject));
+				const changes = nonDocs.filter((c) => !isEngineering(c.subject));
+				const engineering = nonDocs.filter((c) => isEngineering(c.subject));
+				const folded = r.commits.length - nonDocs.length;
 				const assets = r.assets.filter((a) => a.name !== 'commit.txt');
 				return (
 					<article class="release" id={r.tag}>
@@ -28,12 +33,19 @@ const built = new Intl.DateTimeFormat('en', { dateStyle: 'long', timeZone: 'UTC'
 							<p class="meta"><time datetime={r.publishedAt}>{releaseDate(r)}</time> · <a href={r.url} rel="noopener">on GitHub</a></p>
 						</header>
 						{r.body && !compareOnly(r.body) && <pre class="notes">{r.body}</pre>}
-						{changes.length > 0 ? (
+						{changes.length > 0 && (
 							<details class="changes" open={i === 0}>
 								<summary>{changes.length} {changes.length === 1 ? 'change' : 'changes'}{folded > 0 && <span class="folded"> · {folded} documentation {folded === 1 ? 'commit' : 'commits'} folded</span>}</summary>
 								<ul>{changes.map((c) => <li><code>{c.sha}</code> <span set:html={escape(c.subject)} /></li>)}</ul>
 							</details>
-						) : (
+						)}
+						{engineering.length > 0 && (
+							<details class="changes eng">
+								<summary>{engineering.length} release-engineering {engineering.length === 1 ? 'commit' : 'commits'}{changes.length === 0 && folded > 0 && <span class="folded"> · {folded} documentation {folded === 1 ? 'commit' : 'commits'} folded</span>}</summary>
+								<ul>{engineering.map((c) => <li><code>{c.sha}</code> <span set:html={escape(c.subject)} /></li>)}</ul>
+							</details>
+						)}
+						{changes.length === 0 && engineering.length === 0 && (
 							<p class="none">{i === releases.length - 1 ? 'The first release.' : 'Only documentation changed.'}</p>
 						)}
 						<details class="assets">
@@ -48,15 +60,16 @@ const built = new Intl.DateTimeFormat('en', { dateStyle: 'long', timeZone: 'UTC'
 </Base>
 
 <style>
-	.head { max-width: 820px; }
+	.head > * { max-width: 820px; }
 	.head h1 { margin-top: 0.75rem; }
 	.head .lede { margin-top: 1rem; }
 	.list { margin-top: 2.5rem; display: grid; gap: 1rem; max-width: 820px; }
+	.changes li { display: grid; grid-template-columns: auto 1fr; gap: 0 0.6rem; align-items: baseline; }
 	.release { padding: 1.5rem; border: 1px solid var(--border); border-radius: var(--radius-l); background: var(--surface); scroll-margin-top: 84px; }
 	.release header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0.5rem 1rem; }
-	.release h2 { font-size: var(--text-xl); display: inline-flex; align-items: center; gap: 0.6rem; }
+	.release h2 { font-size: var(--text-xl); display: inline-flex; align-items: center; gap: 0.6rem; letter-spacing: 0; font-variant-numeric: tabular-nums; }
 	.release h2 a { color: var(--fg); }
-	.tag { font-family: var(--font-mono); font-size: 0.6em; letter-spacing: 0.08em; text-transform: uppercase; padding: 0.25em 0.6em; border-radius: 999px; background: var(--accent-strong); color: var(--on-accent); font-weight: 500; }
+	.tag { font-family: var(--font-mono); font-size: var(--text-xs); letter-spacing: 0.08em; text-transform: uppercase; padding: 0.2em 0.6em; border-radius: 999px; border: 1px solid var(--accent); color: var(--accent-text); font-weight: 500; }
 	.tag.pre { background: var(--surface-3); color: var(--fg-muted); }
 	.meta { color: var(--fg-dim); font-size: var(--text-s); }
 	.notes { margin-top: 1rem; white-space: pre-wrap; font-family: var(--font-sans); font-size: var(--text-s); color: var(--fg-muted); }
@@ -67,8 +80,8 @@ const built = new Intl.DateTimeFormat('en', { dateStyle: 'long', timeZone: 'UTC'
 	details ul { list-style: none; margin: 0.75rem 0 0; padding: 0; display: grid; gap: 0.45rem; font-size: var(--text-s); color: var(--fg-muted); }
 	details li { display: flex; flex-wrap: wrap; gap: 0.3rem 0.6rem; align-items: baseline; }
 	details code { font-size: 0.8em; }
-	.assets a { font-family: var(--font-mono); font-size: var(--text-xs); }
-	.size { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--fg-dim); }
+	.assets a { font-family: var(--font-mono); font-variant-ligatures: none; font-size: var(--text-xs); }
+	.size { font-family: var(--font-mono); font-variant-ligatures: none; font-size: var(--text-xs); color: var(--fg-dim); }
 	.sha { flex-basis: 100%; color: var(--fg-dim); font-size: 0.7rem; background: none; border: 0; padding: 0; word-break: break-all; }
 	.none { margin-top: 1rem; color: var(--fg-dim); font-size: var(--text-s); }
 </style>

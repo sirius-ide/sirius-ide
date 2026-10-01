@@ -2,7 +2,7 @@
 import MediaSlot from '../MediaSlot.astro';
 import BrowserArt from '../art/BrowserArt.astro';
 import Logo from '../Logo.astro';
-const tools = ['open_browser_page', 'navigate_page', 'click_element', 'type_in_page', 'hover_element', 'drag_element', 'handle_dialog', 'read_page', 'screenshot_page', 'run_playwright_code'];
+const tools = ['open_browser_page', 'navigate_page', 'click_element', 'type_in_page', 'read_page', 'screenshot_page'];
 ---
 <section class="section feature" id="browser" aria-labelledby="browser-title">
 	<div class="container split">
@@ -10,9 +10,9 @@ const tools = ['open_browser_page', 'navigate_page', 'click_element', 'type_in_p
 			<p class="eyebrow">05 — Integrated browser</p>
 			<h2 id="browser-title">The agent can see <span class="muted">the page too.</span></h2>
 			<p class="lede">
-				A Playwright-backed browser lives inside the editor, and the agent gets its tools — thirty-eight in all,
-				on by default. Open a page, navigate, click, type, hover, read the page's accessibility tree, take a
-				screenshot, run Playwright code: the loop from change to check closes without leaving the editor.
+				A Playwright-backed browser lives inside the editor, and the agent gets its tools — six of them,
+				on by default. Open a page, navigate, click, type, read the page's accessibility tree, take a
+				screenshot: the loop from change to check closes without leaving the editor.
 			</p>
 		</div>
 		<div class="demo">
@@ -21,7 +21,7 @@ const tools = ['open_browser_page', 'navigate_page', 'click_element', 'type_in_p
 		<div class="copy more">
 			<ul class="points">
 				<li><Logo size={20} class="pt-icon" /><div><b>Read first, look when it helps.</b> <code>read_page</code> returns the accessibility snapshot, which any text model can use; <code>screenshot_page</code> reaches the models that accept images.</div></li>
-				<li><Logo size={20} class="pt-icon" /><div><b>Real Playwright underneath.</b> Dialogs, drag and drop, hover states and arbitrary Playwright code are all there — the same engine your end-to-end tests use.</div></li>
+				<li><Logo size={20} class="pt-icon" /><div><b>Real Playwright underneath.</b> The integrated browser is driven by Playwright in-process — the same engine your end-to-end tests use — with no separate Chrome to install.</div></li>
 				<li><Logo size={20} class="pt-icon" /><div><b>Offered where it fits.</b> The browser family sits in the agent's extended tool tier, so a small local model is not handed sixteen schemas it cannot hold.</div></li>
 			</ul>
 			<p class="chips" aria-label="Browser tools">{tools.map((t) => <code class="chip">{t}</code>)}</p>

@@ -10,28 +10,37 @@ download CDN. How it reaches you depends on how you installed.
 
 | How you installed | How it updates |
 | --- | --- |
-| Arch, the `[sirius]` pacman repository | `sudo pacman -Syu` — the release publishes each tag to the repository in the same run that publishes the GitHub release |
+| Arch, the `[sirius]` pacman repository | `sudo pacman -Syu` — the release publishes each tag to the repository in the same run that publishes the GitHub release; the repository is unsigned (`SigLevel = Optional`), so the attestation is the integrity check |
 | `.deb` or `.rpm` | Install the newer package from the [download page](/download/); no apt or dnf repository is added to your system |
 | Linux tarball | The editor checks for a newer build, notifies you, and opens the download page; you unpack the new tarball over the old directory |
-| Windows installer | In place: the editor downloads and installs the new version itself |
+| Windows installer | The editor downloads the new installer in the background and runs it when you restart |
 | Remote server tarballs | Match the server to the editor — the release ships both from the same commit |
 
-## What the update check sends
+## The update check
 
-Builds with an update channel configured (the tarball and the Windows installer) ask
-`update.siriuside.com` periodically whether a newer build exists. That request carries
-the platform, the channel and the current build commit — enough to answer the question
-and no identifier for you or your machine. Package installs (pacman, `.deb`, `.rpm`)
-make no update request at all; your package manager is the channel. This is the same
-statement the [privacy statement](/privacy/) makes, rendered from the repository.
+Every build asks `update.siriuside.com` whether a newer build exists — 30 seconds after
+start, then hourly. The request carries the platform, the channel (`stable`) and the
+current build commit, and no identifier for you or your machine; on Windows the user agent
+also names the OS version, as browsers do. The server answers *nothing newer* or the asset
+to fetch, with its sha256.
 
-To turn the check off on a tarball or Windows install, set `update.mode` to `none` in
-Settings; **Help → Check for Updates** still works on demand.
+The check runs on every install, the distribution packages included: there is no
+package-type detection in 1.118.7, so a pacman, `.deb` or `.rpm` install sees the same
+notification as a tarball. If your package manager is the channel, set `update.mode` to
+`none` (or `manual`) in Settings and the editor stays quiet; **Help → Check for Updates**
+still works on demand. (The repository's PRIVACY.md says package installs make no request;
+the code does not yet match that sentence, and the owner has it on the list.)
+
+On Linux the editor never replaces itself: it notifies and opens the download page. On
+Windows it downloads the installer in the background (not on a metered connection unless
+you check by hand), verifies the sha256, and installs it when you next restart.
 
 ## Verifying what you downloaded
 
-Every asset on a release has a `.sha256` sidecar and a GitHub build attestation that ties
-the bytes to the workflow run and commit that produced them:
+Every asset on a release carries a GitHub build attestation that ties the bytes to the
+workflow run and commit that produced them; the tarballs, the server tarballs, the Windows
+installer and the Arch package also have a `.sha256` sidecar (the `.deb` and `.rpm` rely on
+the attestation):
 
 ```sh
 sha256sum -c sirius-linux-x64.tar.gz.sha256

@@ -1,0 +1,114 @@
+---
+title: Troubleshooting
+description: What Sirius says when something is missing or wrong, what it means, and what to do — matched to the messages you will see in 1.118.7.
+sidebar:
+  order: 16
+---
+
+Each entry quotes the message as Sirius shows it. The log for all of this is the Output
+panel's **Sirius AI** channel; setting the environment variable `SIRIUS_AGENT_DEBUG` before
+launching also prints it to the console.
+
+## No model
+
+**"No model is available yet. Add a provider key with Sirius: Set API Key (Ctrl+Shift+P),
+or start Ollama and pull a model — Sirius finds it automatically."** — nothing is
+configured. Keyed providers are listed only once they have a key; Ollama only while it is
+reachable. Run **Sirius: Set API Key**, or start Ollama and pull a model.
+
+**"⚠️ Anthropic API key not configured. Run Sirius: Set API Key from the command palette."**
+(same for Gemini; *"⚠️ No OpenAI API key set. Run Sirius: Set API Key. Get one at …"* for the
+OpenAI-compatible providers) — the model was selected but its provider has no key.
+
+**"⚠️ No endpoint set for Custom OpenAI-Compatible. Set `sirius.ai.custom.baseUrl`."** — the
+custom entry needs a URL, including the `/v1` suffix.
+
+**"Language model unavailable"** on a freshly opened window — a request raced the model
+discovery that runs at startup. Send it again.
+
+## The provider says no
+
+| Message | Meaning | Do |
+| --- | --- | --- |
+| *⚠️ Anthropic rejected the API key. Run Sirius: Set API Key to enter a new one.* (401/403; same wording for other providers) | the key is wrong, revoked, or for another product | paste a fresh key; keys are stored as typed and not validated when saved |
+| *⚠️ Gemini API Error (403): …* | Gemini returns its raw error body | read it — usually the key or a disabled API |
+| *… does not recognise that model.* (404) | the model id is not available to your key or region | pick another with **Sirius: Select AI Model** |
+| *Rate limited by Anthropic — try again in Ns* (429) | too many requests | wait, or lower the pace |
+| *… has reached its monthly spend cap, so requests are paused until it resets* | the account's budget | the provider console |
+| *Anthropic rejected the request: …* (400) | a malformed request for that model | if thinking is on, try <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>T</kbd> to turn it off and [report it](https://github.com/sirius-ide/sirius-ide/issues) |
+
+## Local models
+
+**"⚠️ Ollama is not running. Start it with `ollama serve` in your terminal."** /
+**"⚠️ Cannot connect to Ollama at http://…"** — start Ollama, or fix `sirius.ai.ollama.endpoint`.
+With the wrong endpoint no models are listed at all.
+
+**"Model "…" is X.X GB — larger than the configured safety limit (12 GB). Loading it can freeze
+this machine."** — the large-model guard. Use a smaller quantisation, or raise
+`sirius.ai.ollama.largeModelBytes` (`0` disables it).
+
+**A model I just pulled is not in the picker.** The **Sirius: Select AI Model** command queries
+the local servers live; the chat view's own picker may need **Developer: Reload Window** to
+see a model started after Sirius.
+
+**A small model prints JSON instead of using tools.** Expected on models without a tool
+API: Sirius prompts the tools and recognises calls written as text. If it still fails, the
+model is too small for agent work; use it for Ask and a larger one for Agent.
+
+## Tab completion shows nothing
+
+By design it fails silently. In order: `sirius.ai.enable` is `{"*": false}` by default — turn
+it on for the language; no local backend was found — `auto` needs a running Ollama with a
+model whose name says it is a code model, or a configured llama.cpp URL; the model does
+not support fill-in-the-middle — use one that does (`qwen2.5-coder`, `codestral`,
+`starcoder2`, `codegemma`); you changed `sirius.ai.completions.model` — reload the window.
+See [Local models](/docs/local-models/#tab-completion-needs-a-fim-model).
+
+## The agent
+
+**"Stopping here — this task took more tool rounds than expected. Say "continue" to keep
+going."** — the 25-round cap per message. Say *continue*.
+
+**Results end with "[truncated]"** — a tool result over 24,000 characters was cut; ask for a
+line range or a narrower search. `searchFiles` looks at the first 100 matching files and
+returns 20 hits, `listDirectory` hides `node_modules`, `.git`, `dist` and similar, and all
+file tools work in the **first** folder of a multi-root workspace.
+
+**"Search text not found. Read the file again — it may have changed."** /
+**"Search text appears more than once; include more surrounding context to make it
+unique."** — `edit_file` needs a unique, exact match; the model usually retries. **"… already
+exists. Read it, then use edit_file to change it"** — `create_file` never overwrites.
+
+**The model does not follow my rules.** Rules are read from the first workspace folder only,
+from `.siriusrules`, `.sirius/rules.md` and `AGENTS.md`, capped at 8,000 characters in total
+— see [Rules and context](/docs/rules-and-context/).
+
+## Keys
+
+**Keys vanish after a restart (Linux).** No OS keyring was available, so the editor kept the
+secret in memory only; it will have shown *An OS keyring couldn't be identified for storing
+the encryption related data in your current desktop environment.* Run a Secret Service
+provider (`gnome-keyring`) or KWallet, or accept the dialog's weaker file-based store, which
+writes `"password-store": "basic"` into `~/.sirius/argv.json`. Then set the key again.
+
+**A key is still in settings.json.** It is moved into the keyring and the setting is cleared
+at the next start, with a toast saying so.
+
+## Shortcuts do the wrong thing
+
+Sirius's three default shortcuts shadow stock ones: <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>M</kbd>
+(the Problems view), <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>T</kbd> (Reopen Closed Editor) and
+<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>I</kbd> (the editor's own open-chat-in-agent-mode).
+Rebind either side in **Keyboard Shortcuts**; see [Keyboard shortcuts](/docs/reference/keyboard-shortcuts/).
+
+## Known limits in 1.118.7
+
+- Reasoning summaries are requested but not shown in the transcript.
+- An image pasted into the chat box is not forwarded to the model; images reach vision
+  models through tool results such as `screenshot_page`.
+- LM Studio, llama.cpp/vLLM and custom endpoints cannot be given an API key.
+- The commit-message command uses the first model in Sirius's list, not the chat's
+  selected model.
+- The status-bar model item refreshes when you pick a model, not when settings change.
+- The update check runs on every install, the distribution packages included; `update.mode`
+  turns it off.

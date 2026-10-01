@@ -9,6 +9,7 @@
  */
 :root {
 	color-scheme: dark light;
+	/* The mono face keeps no ligatures anywhere on the site (see base.css). */
 
 	/* brand constants — the same in both schemes */
 	--brand-violet: #8b5cf6;
@@ -44,7 +45,7 @@
 	--surface-3: #161b22;
 	--fg: #e6edf3;
 	--fg-muted: #8b949e;
-	--fg-dim: #6e7781;
+	--fg-dim: #7d8590;
 	--border: #21262d;
 	--border-strong: #30363d;
 	--accent: #8b5cf6;
@@ -67,7 +68,8 @@
 	--ring-soft: rgba(139, 92, 246, 0.2);
 	--focus: #8b5cf6;
 	--selection: rgba(139, 92, 246, 0.35);
-	--nav-bg: rgba(6, 8, 13, 0.72);
+	--nav-bg: #06080d;
+	--mark-left: #e6edf3;
 }
 
 @media (prefers-color-scheme: light) {
@@ -78,7 +80,7 @@
 		--surface-3: #e3e9f2;
 		--fg: #0b1220;
 		--fg-muted: #4a5568;
-		--fg-dim: #6b7687;
+		--fg-dim: #5f6b7c;
 		--border: #d6dde8;
 		--border-strong: #c9d3e0;
 		--accent: #6d28d9;
@@ -97,11 +99,12 @@
 		--star-bright: rgba(11, 18, 32, 0.45);
 		--bolt: rgba(3, 105, 161, 0.55);
 		--shine: #0369a1;
-		--ring: rgba(11, 18, 32, 0.16);
-		--ring-soft: rgba(11, 18, 32, 0.08);
+		--ring: rgba(11, 18, 32, 0.24);
+		--ring-soft: rgba(11, 18, 32, 0.14);
 		--focus: #6d28d9;
 		--selection: rgba(109, 40, 217, 0.22);
-		--nav-bg: rgba(245, 247, 251, 0.78);
+		--nav-bg: #f5f7fb;
+		--mark-left: #4a5568;
 	}
 }
 
@@ -112,7 +115,7 @@
 	--surface-3: #e3e9f2;
 	--fg: #0b1220;
 	--fg-muted: #4a5568;
-	--fg-dim: #6b7687;
+	--fg-dim: #5f6b7c;
 	--border: #d6dde8;
 	--border-strong: #c9d3e0;
 	--accent: #6d28d9;
@@ -131,9 +134,10 @@
 	--star-bright: rgba(11, 18, 32, 0.45);
 	--bolt: rgba(3, 105, 161, 0.55);
 	--shine: #0369a1;
-	--ring: rgba(11, 18, 32, 0.16);
-	--ring-soft: rgba(11, 18, 32, 0.08);
+	--ring: rgba(11, 18, 32, 0.24);
+	--ring-soft: rgba(11, 18, 32, 0.14);
 	--focus: #6d28d9;
 	--selection: rgba(109, 40, 217, 0.22);
-	--nav-bg: rgba(245, 247, 251, 0.78);
+	--nav-bg: #f5f7fb;
+	--mark-left: #4a5568;
 }

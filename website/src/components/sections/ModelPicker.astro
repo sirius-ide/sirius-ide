@@ -49,7 +49,7 @@ const rows: Row[] = [
 <style>
 	.qp {
 		--q-bg: #0d1117; --q-border: rgba(139, 92, 246, 0.19); --q-title: #0a0e14; --q-fg: #e6edf3;
-		--q-muted: #8b949e; --q-dim: #484f58; --q-focus: rgba(139, 92, 246, 0.19); --q-ice: #a8c7fa; --q-violet: #8b5cf6;
+		--q-muted: #8b949e; --q-dim: #7d8590; --q-focus: rgba(139, 92, 246, 0.19); --q-ice: #a8c7fa; --q-violet: #8b5cf6;
 		margin: 0; width: 100%; min-width: 0; max-width: 580px; font-size: 13px; color: var(--q-fg); font-family: var(--font-sans);
 		border-radius: 10px; background: var(--q-bg); border: 1px solid var(--q-border);
 		outline: 1px solid var(--ring-soft); outline-offset: 3px;
@@ -67,7 +67,7 @@ const rows: Row[] = [
 	.active { color: var(--q-violet); flex: none; }
 	.label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 	.badges { font-size: 0.85em; letter-spacing: 0.05em; margin-left: 0.15em; }
-	.desc { color: var(--q-muted); font-size: 0.9em; font-family: var(--font-mono); margin-left: 0.2em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+	.desc { color: var(--q-muted); font-size: 0.9em; font-family: var(--font-mono); font-variant-ligatures: none; margin-left: 0.2em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 	.detail { color: var(--q-muted); font-size: 0.86em; padding-left: 0.1em; margin-top: 0.1em; overflow-wrap: anywhere; }
 	/* light scheme: the quick input in Default Light Modern */
 	@media (prefers-color-scheme: light) {
@@ -76,7 +76,7 @@ const rows: Row[] = [
 			--q-focus: #e8e8e8; --q-ice: #005fb8; --q-violet: #005fb8;
 		}
 		:global(html:not([data-theme="dark"])) .qp-input { background: #ffffff; }
-		:global(html:not([data-theme="dark"])) .sep { color: #8b949e; border-top-color: #e5e5e5; }
+		:global(html:not([data-theme="dark"])) .sep { color: #5f6b7c; border-top-color: #e5e5e5; }
 		:global(html:not([data-theme="dark"])) .row.focus { outline-color: #005fb8; }
 	}
 	:global(html[data-theme="light"]) .qp {
@@ -84,7 +84,7 @@ const rows: Row[] = [
 		--q-focus: #e8e8e8; --q-ice: #005fb8; --q-violet: #005fb8;
 	}
 	:global(html[data-theme="light"]) .qp-input { background: #ffffff; }
-	:global(html[data-theme="light"]) .sep { color: #8b949e; border-top-color: #e5e5e5; }
+	:global(html[data-theme="light"]) .sep { color: #5f6b7c; border-top-color: #e5e5e5; }
 	:global(html[data-theme="light"]) .row.focus { outline-color: #005fb8; }
 	@media (max-width: 480px) { .qp { font-size: 12px; } .desc { display: none; } }
 </style>

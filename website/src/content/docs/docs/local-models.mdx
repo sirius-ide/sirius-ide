@@ -1,0 +1,85 @@
+---
+title: Local models
+description: Ollama, LM Studio, llama.cpp and vLLM for chat and the agent, and the fill-in-the-middle models Tab completion runs on.
+sidebar:
+  order: 4
+---
+
+With a local model nothing leaves your machine: the request goes to a server on
+`localhost` (or one you name) and Sirius never contacts a cloud. Local providers need no
+key and no account; Sirius discovers what the server has loaded.
+
+## Ollama
+
+Install [Ollama](https://ollama.com), start it (`ollama serve`, or the system service the
+installer sets up) and pull a model:
+
+```sh
+ollama pull qwen3
+```
+
+Sirius asks `http://localhost:11434/api/tags` for the model list, then `/api/show` for each
+model's details — context window, and whether it declares vision, thinking or tool
+support. Change `sirius.ai.ollama.endpoint` if Ollama runs elsewhere; **Sirius: Set API Key
+→ Ollama** edits the same setting. Every model appears in the picker under *Ollama (local) —
+detected*, described as *Local model — X.X GB*.
+
+- **Tools without a tool API.** A model that does not declare the `tools` capability still
+  gets the agent's tools: Sirius puts the tool schemas into the prompt and asks Ollama for a
+  constrained JSON reply, so the agent loop works with small models too.
+- **The large-model guard.** A chat request for a model larger than
+  `sirius.ai.ollama.largeModelBytes` (default 12 GB) is refused with: *Model "…" is X.X GB —
+  larger than the configured safety limit (12 GB). Loading it can freeze this machine.
+  Prefer a smaller quantisation (Q4 of the same model), or raise
+  "sirius.ai.ollama.largeModelBytes" knowingly.* Set the limit to `0` to disable it. The
+  guard applies to chat, not to Tab completion.
+- **Vision.** Sirius trusts the server's capability list; on an older Ollama it falls back
+  to recognising vision families by name (llava, moondream, minicpm-v, llama3.2-vision,
+  gemma3, qwen2.5-vl, pixtral, granite-vision and friends).
+- **If Ollama is down**, no Ollama models are listed, and a chat aimed at one answers
+  *⚠️ Ollama is not running. Start it with `ollama serve` in your terminal.*
+
+## LM Studio, llama.cpp and vLLM
+
+All three are OpenAI-compatible servers, so Sirius reads their `/models` list and talks
+`/chat/completions` to them:
+
+| Server | Setting | Default |
+| --- | --- | --- |
+| LM Studio | `sirius.ai.lmstudio.baseUrl` | `http://localhost:1234/v1` |
+| llama.cpp (`llama-server`) | `sirius.ai.llamacpp.baseUrl` | `http://localhost:8080/v1` |
+| vLLM | `sirius.ai.llamacpp.baseUrl` | point it at your vLLM `/v1` |
+
+vLLM shares the llama.cpp entry; there is no separate provider. Models discovered this way
+are assumed to have a 32,768-token window and no vision or thinking — the OpenAI-compatible
+model list does not carry that information.
+
+Sirius treats these three (and Ollama) as always configured, so every model-list refresh
+probes `localhost:11434`, `:1234` and `:8080` with a short timeout. That is a local
+connection and nothing more; a machine without those servers simply lists none.
+
+## Tab completion needs a FIM model
+
+Tab completion and next-edit prediction are fill-in-the-middle requests, which only code
+models trained for FIM answer well. They run **only on local models** — Ollama or
+llama.cpp — never on a hosted provider.
+
+`sirius.ai.completions.model` chooses the model:
+
+- `auto` (the default) — Sirius looks for a running Ollama and takes the first model in its
+  list whose name says it is a code model (`coder`, `code`, `starcoder`, `codegemma`,
+  `codestral`, `codellama`). If there is none, it uses a configured llama.cpp server; if
+  neither, completions stay off.
+- `ollama/<model>` — a specific Ollama model, for example `ollama/qwen2.5-coder:7b`.
+- `llamacpp` — the server at `sirius.ai.llamacpp.baseUrl`.
+
+Good choices are the models built for FIM: `qwen2.5-coder`, `codestral`, `starcoder2`,
+`codegemma`, `codellama:code`. A chat model picked up by the name rule but lacking FIM
+support simply produces nothing — see [Troubleshooting](/docs/troubleshooting/). Turn the
+feature on per language with `sirius.ai.enable`; [Tab completion and next-edit](/docs/tab-and-next-edit/)
+has the details.
+
+:::note
+Tab completion against llama.cpp is written but was not exercised against a live
+`llama-server` for 1.118.7. Ollama is the proven path.
+:::

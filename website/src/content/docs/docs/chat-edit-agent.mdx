@@ -1,0 +1,94 @@
+---
+title: Chat, edit and agent
+description: The three modes of the chat, the tools the agent can use, how edits come back as diffs you keep or undo, and the checkpoints behind them.
+sidebar:
+  order: 5
+---
+
+Sirius is the default participant in the editor's chat view, so there is nothing to invoke:
+open the chat (<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>I</kbd>), type into *Describe what to
+build*, press Enter. The mode selector in the input offers **Ask**, **Edit** and **Agent**.
+
+## What happens to a message
+
+Every message runs the same loop against the model you picked (or the chat view's own
+choice):
+
+1. Sirius sends the model its system prompt, your [project rules](/docs/rules-and-context/),
+   the file you have open with the selection or the lines around the cursor, the earlier
+   turns of the conversation, and the paths of anything you attached.
+2. The model answers, or asks for a tool. A tool call shows as *Running read file…* in
+   the transcript; the result goes back to the model, and the loop continues — for up to
+   **25 tool rounds** per message. After that Sirius stops with *Stopping here — this task
+   took more tool rounds than expected. Say "continue" to keep going.*
+3. Tool output is cut at 24,000 characters so one large file cannot swamp the context.
+
+Small local models that write a tool call as text instead of using the tool API are
+caught: Sirius recognises up to six such calls per round and runs them as real tools.
+
+## The tools
+
+**Sirius's own, always offered:**
+
+| Tool | What it does |
+| --- | --- |
+| `readFile` | Reads a workspace file, optionally a line range (large files: ask for a range) |
+| `searchFiles` | Searches workspace files for a literal string, like grep; an optional glob narrows the files |
+| `listDirectory` | Lists a directory, folders first; skips `node_modules`, `.git`, `dist` and the like |
+| `problems` | The current errors and warnings, optionally filtered by path |
+| `searchWeb` | Opens a web search in your browser — the model receives only the URL, never results |
+| `edit_file` | Replaces one exactly-matching span in a file |
+| `create_file` | Creates a file that does not exist yet |
+
+`edit_file` insists the search text occurs exactly once; if it does not, the model is told
+to read the file again or include more context, and nothing is changed.
+
+**The editor's own tools, by tier.** The workbench provides terminal, task, test and
+browser tools; Sirius offers them in two sets so that a model is never handed more schemas
+than it can hold:
+
+- **Core** — every model: run a command in the terminal, read terminal output, keep a todo
+  list.
+- **Extended** — adds the rest of the terminal and task tools, test running, sub-agents,
+  plan review and questions back to you, and the [integrated browser](/docs/browser/)
+  tools.
+
+The tier is chosen from what Sirius knows about the model: a model without a tool API gets
+core; a local model of 4 GB or more gets extended; a model whose size is unknown gets
+extended if its context window is at least 32,000 tokens. Hosted models get extended.
+
+Commands the agent wants to run in the terminal go through the editor's own approval
+flow — the prompt you see is the workbench's, with its allow-once and allow-always choices.
+
+## Edits come back as diffs
+
+`edit_file` and `create_file` stream their changes into the editor's chat-editing
+session, which is what gives you:
+
+- the change shown as a diff in the file, hunk by hunk;
+- **Keep** / **Undo** per hunk and per file, and **Keep All Edits** / **Undo All Edits** in
+  the chat;
+- **Open Changes in Diff Editor**;
+- checkpoints: **Restore Checkpoint**, **Restore to Last Checkpoint** and **Start Over**
+  from the conversation, which roll the files back to how they were before a turn.
+
+:::note
+In 1.118.7, creating a *new* file writes the empty file first and then streams its
+content, so the creation itself may not be covered by Undo the way an edit is; the content
+is. This is tracked as an open item in the repository's PROJECT-STATE.md.
+:::
+
+## Ask, Edit, Agent
+
+The three modes are the editor's. Sirius serves them with the same loop and the same
+tools, so the difference is how the workbench frames the request and what it shows — Ask
+for a question with the answer in the transcript, Edit for changes to the files you have
+in context, Agent for a task the model should carry through with tools. Pick per message;
+it sticks until you change it.
+
+## Thinking
+
+Models that reason (Claude, Gemini — 🧠 in the picker) are asked to, at the effort you set
+(**Sirius: Set Thinking Effort Level**); <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>T</kbd> turns
+it off. Sirius does not render the reasoning summaries in the transcript in 1.118.7; you see
+the answer and the tool calls.

@@ -1,0 +1,85 @@
+---
+title: Getting started
+description: First run — give Sirius a model with a provider key or a local Ollama, pick it, and send the first message.
+sidebar:
+  order: 2
+---
+import { Steps } from '@astrojs/starlight/components';
+
+Sirius needs a model before the chat can answer. Everything else — the editor, extensions
+from Open VSX, your settings — works without one.
+
+<Steps>
+
+1. **Install and open Sirius.** The [install guide](/docs/install/) covers every platform.
+   On first launch a toast says *★ Sirius AI — multi-model chat with thinking, tools and
+   agent mode. Add a provider key, or start Ollama and Sirius finds your models.* with two
+   buttons, **Set API Key** and **Select Model**. It shows once. If the editor's own welcome
+   overlay appears first, it does not set up a model; close it and carry on.
+
+2. **Give it a model** — one of two ways.
+
+   **A provider key.** Open the Command Palette (<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd>)
+   and run **Sirius: Set API Key**. Pick the provider — Anthropic Claude, Google Gemini,
+   OpenAI, OpenRouter, Groq, DeepSeek, Mistral or xAI Grok — and paste the key into the
+   password field. The prompt says where it goes: *stored in the system keyring — never
+   written to settings.json*. A toast confirms *✅ Anthropic Claude key saved to the system
+   keyring*, and the provider's models appear at once; no reload. Sirius does not test the
+   key when you save it — the first message does.
+
+   **Or a local model.** Install [Ollama](https://ollama.com), then:
+
+   ```sh
+   ollama serve          # if it is not already running as a service
+   ollama pull qwen3     # any model you like
+   ```
+
+   Sirius looks for Ollama at `http://localhost:11434` and lists every model it finds —
+   nothing to configure, no key, and nothing leaves your machine. See
+   [Local models](/docs/local-models/) for LM Studio, llama.cpp and vLLM.
+
+3. **Pick the model.** <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>M</kbd> opens **Sirius: Select
+   AI Model**: every provider you have configured, with 🧠 for models that can reason and
+   👁️ for models that accept images, then a *detected* group for each local server. The
+   choice becomes the default (`sirius.ai.defaultProvider` and `sirius.ai.defaultModel`),
+   the status bar shows **★ *model name***, and clicking that status item reopens the
+   picker. The chat view has its own model picker too, grouped by provider, for a
+   per-conversation choice.
+
+4. **Say what you want.** Open the chat with <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>I</kbd>
+   (**Sirius: Open AI Chat**; the editor's own <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>I</kbd>
+   works as well). **Sirius** is the default participant, so you type into the box that
+   says *Describe what to build* and press Enter. Switch between **Ask**, **Edit** and
+   **Agent** in the chat input — see [Chat, edit and agent](/docs/chat-edit-agent/).
+
+</Steps>
+
+## If nothing answers
+
+With neither a key nor a running Ollama, the chat replies: *No model is available yet. Add a
+provider key with **Sirius: Set API Key** (Ctrl+Shift+P), or start Ollama and pull a model —
+Sirius finds it automatically.* A provider without a key is not listed in the picker at all.
+More cases are in [Troubleshooting](/docs/troubleshooting/).
+
+## Thinking
+
+Models that can reason (the Claude and Gemini models marked 🧠) reason by default.
+<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>T</kbd> (**Sirius: Toggle Thinking Mode**) turns it off
+and on for the session's default; **Sirius: Set Thinking Effort Level** picks Low, Medium,
+High, Extra High or Max. The status bar shows 🧠 beside the model name while thinking is on
+for a model that supports it. Local and OpenAI-compatible models are not sent a thinking
+parameter; if their server returns reasoning text, Sirius shows it.
+
+## Defaults worth knowing
+
+| Setting | Default |
+| --- | --- |
+| `sirius.ai.defaultProvider` | `anthropic` |
+| `sirius.ai.defaultModel` | `claude-opus-5` |
+| `sirius.ai.thinking.enabled` | `true` |
+| `sirius.ai.thinking.effort` | `high` |
+| `sirius.ai.maxTokens` | `16384` |
+| `sirius.ai.temperature` | `0.7` |
+
+The full list is on the [Settings](/docs/reference/settings/) page, generated from the
+shipped manifest.

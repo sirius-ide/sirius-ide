@@ -25,13 +25,13 @@ for (const path of pages) {
 			if (!res || (res.status() >= 400 && !path.endsWith('404.html'))) { problems.push(`${tag}: status ${res?.status()}`); }
 			const checks = await page.evaluate(() => ({
 				title: document.title, h1: document.querySelectorAll('h1').length, main: document.querySelectorAll('main').length,
-				canonical: document.querySelector('link[rel=canonical]')?.getAttribute('href') ?? '', description: document.querySelector('meta[name=description]')?.getAttribute('content') ?? '',
+				canonical: document.querySelector('link[rel=canonical]')?.getAttribute('href') ?? '', noindex: !!document.querySelector('meta[name=robots][content*=noindex]'), description: document.querySelector('meta[name=description]')?.getAttribute('content') ?? '',
 				lang: document.documentElement.lang, overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
 			}));
 			if (!checks.title) { problems.push(`${tag}: no <title>`); }
 			if (checks.h1 !== 1) { problems.push(`${tag}: ${checks.h1} <h1> elements`); }
 			if (checks.main !== 1) { problems.push(`${tag}: ${checks.main} <main> elements`); }
-			if (!checks.canonical) { problems.push(`${tag}: no canonical link`); }
+			if (!checks.canonical && !checks.noindex) { problems.push(`${tag}: no canonical link (and not noindex)`); }
 			if (!checks.description) { problems.push(`${tag}: no meta description`); }
 			if (checks.lang !== 'en') { problems.push(`${tag}: lang is "${checks.lang}"`); }
 			if (checks.overflow) { problems.push(`${tag}: horizontal overflow (page wider than the viewport)`); }

@@ -17,13 +17,16 @@ unchanged. This page is the short version with the practical details.
 - **Nothing, with a local model.** With Ollama, LM Studio, llama.cpp or vLLM the request
   goes to the local endpoint you configured and no prompt, file or fragment of code reaches
   a third party.
-- **The update check**, on tarball and Windows installs only: platform, channel and build
-  commit — see [Updates](/docs/updates/).
+- **The update check**, on every install: platform, channel and build commit, no identifier
+  — see [Updates](/docs/updates/). `update.mode: "none"` turns it off.
+- **Extension queries** to Open VSX when you search, install or auto-update extensions.
 - **Extensions** you install from Open VSX are third-party software with their own
   behaviour; nothing in Sirius's statement constrains them.
 
-There is no telemetry, no crash reporting, no analytics and no account. There is no
-setting to find because there is no code that reports anything.
+There is no telemetry, no crash reporting, no analytics and no account. The editor's
+inherited `telemetry.telemetryLevel` setting is inert: the build has no telemetry
+destination configured, so nothing is sent whatever it says. The crash reporter never
+uploads: it has nowhere to upload to.
 
 ## Where keys live
 
@@ -37,7 +40,7 @@ The old `sirius.ai.<provider>.apiKey` settings are deprecated: a key in one of t
 works for now, but a key in a settings file is a key on disk in plain text, so move it with
 **Sirius: Set API Key** and delete the setting.
 
-To remove a key, run **Sirius: Set API Key**, pick the provider and clear the value.
+To remove a key, run **Sirius: Set API Key**, pick the provider and choose **Remove key**.
 
 ## This website
 

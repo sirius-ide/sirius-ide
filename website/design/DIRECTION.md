@@ -1,10 +1,10 @@
 # siriuside.com — the design direction
 
 Approved by the owner on 2026-10-01 with six answers (recorded at the end); the full build
-runs on it. What is here is real: the landing hero and the first feature section, built in
-Astro under `website/`, rendered by `npm run screenshots` at 1440×900 and 390×844 in dark
-and light. The PNGs beside this file are those renders; `home-1440x900-dark-mid.png` is the
-product window 5.8 s into its sequence.
+was made on it the same day (PROJECT-STATE.md §13 has the state of that build). The PNGs
+beside this file are the landing page as built, rendered by `npm run screenshots` at
+1440×900 and 390×844 in dark and light; `home-1440x900-dark-mid.png` is the product window
+5.8 s into its sequence.
 
 ## House rules from the owner (2026-10-01), applied
 
@@ -35,14 +35,18 @@ HTML in its own theme, is the brilliant thing in the middle of the page.
   The owner asked for the engineering-ideal pair, and this is it: one family designed as a
   system for developer products, so the sans and the mono share proportions, x-height and
   rhythm; proven hinting at UI sizes, which the docs will lean on; a full weight range in one
-  variable file each; and Latin subsets of 16 KB and 15 KB. Geist's technical, even texture
+  variable file each; and Latin subsets of 24 KB and 25 KB (`scripts/make-fonts.py` cuts
+  the upstream variable fonts to the Latin range and to the weights the site uses, 400–800
+  and 400–700). Geist's technical, even texture
   suits "advanced agentic" better than a face with more personality would.
   Considered and set aside: Schibsted Grotesk (the first proposal — sharper character, less
   proven small-size legibility), Inter (the competitors' default), Instrument Sans (no weight
   above 700), Manrope (rounder than the mark).
 - Both are self-hosted through Astro's fonts API, which also writes metric-matched
   fallbacks against Arial and Courier New so text does not shift when the web fonts arrive.
-  Preloaded, `font-display: swap`, 31 KB in total.
+  The text face is preloaded; the mono face is not, so it never competes with the headline
+  for bandwidth. `font-display: swap`, 50 KB in total. Geist Mono's ligatures are off
+  everywhere (`--` and `=>` must read as typed in a command or a diff).
 
 ## Palette and the two schemes
 
@@ -84,8 +88,11 @@ anything.
    **The end state is the resting state**, and it is exactly what `prefers-reduced-motion`
    renders (checked pixel for pixel in the review).
 3. **Everywhere else:** the primary button's hover is the bolt again — a solid diagonal bar
-   of light sweeping across, transform only; scroll reveals for sections in the full build
-   (IntersectionObserver); view transitions between pages (Astro's ClientRouter is on).
+   of light sweeping across, transform only; the flare's ring and point open every feature
+   eyebrow; scroll reveals (a 12 px rise as a block enters the viewport) run on the CSS
+   scroll timeline alone — no script, and a browser without `animation-timeline: view()` or
+   with reduced motion simply shows the settled state; view transitions between pages
+   (Astro's ClientRouter is on).
 
 Nothing loops. No canvas; the starfield is two masked SVG dot patterns that cost one paint.
 
@@ -117,14 +124,15 @@ footer. The other pages follow the BRIEF §4 inventory.
 
 ## What is on the branch
 
-Astro 7.3 with Starlight 0.42, static output, `npm ci && npm run build` → `dist/`. Tokens
-and base styles; the Base layout (OS and theme attributes set before first paint, the
-served HTML names no OS; canonical, OpenGraph, manifest and icons); Nav, Footer, the flat
-vector Logo, the OS-aware DownloadButton; the Hero (Sky + EditorWindow); the Providers
-section with the ModelPicker; a 404 page; a Starlight stub at `/docs/`; the screenshot
-script; `make-icons.py --web` for the favicons, manifest icons and default social image; the
-two fonts with their licences. Landing-page JavaScript is Astro's ClientRouter and prefetch,
-about 16 KB before compression; the page HTML is 8 KB compressed. `astro check` passes.
+The full build — every page of BRIEF §4, the docs, the tests, the deploy script and the
+workflow; PROJECT-STATE.md §13 is the inventory and the verification record. Two things the
+direction promised changed in the making: the starfield is cut out of the hero's copy
+column (a flat rectangular mask subtracted from the dot layers, no gradient), and the bolt
+drops steeply from the flare to the window's corner instead of crossing the page, so it
+never strikes through text at any width. The seven feature demos other than the model
+picker are flat SVG stand-ins until the owner's footage lands in the media slots
+(`src/media/README.md`); the design critique (2026-10-01) asks for them to be rebuilt as
+HTML surfaces like the picker if the footage is late.
 
 ## The six decisions, as the owner answered them (2026-10-01)
 

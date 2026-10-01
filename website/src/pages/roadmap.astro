@@ -10,7 +10,8 @@ let html = rewriteRepoLinks(entry.rendered.html).replace(/^\s*<h1[^>]*>.*?<\/h1>
 for (const [re, to] of states) { html = html.replace(re, to); }
 const headings = (entry.rendered.metadata?.headings ?? []) as Array<{ depth: number; slug: string; text: string }>;
 ---
-<Doc title="Roadmap" eyebrow="Roadmap" sourceFile="ROADMAP.md" headings={headings}
+<Doc
+	headline="Shipped, in progress, planned." title="Roadmap" eyebrow="Roadmap" sourceFile="ROADMAP.md" headings={headings}
 	description="What Sirius IDE has shipped and what is planned, phase by phase, rendered from the repository's ROADMAP.md."
 	intro="What has shipped, what is in progress, and what is planned. Nothing marked planned is on the download page.">
 	<p class="legend" aria-label="Legend"><span class="done">shipped</span><span class="wip">in progress</span><span class="todo">planned</span></p>

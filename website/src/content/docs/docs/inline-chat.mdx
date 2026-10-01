@@ -1,0 +1,42 @@
+---
+title: Inline chat and the selection commands
+description: Explain, fix, test and refactor from the right-click menu, and the editor's inline chat.
+sidebar:
+  order: 6
+---
+
+## The four selection commands
+
+Select code and right-click. The context menu has a Sirius group:
+
+| Command | What is sent |
+| --- | --- |
+| **Sirius: Explain Selected Code** | *Explain this code* + the selection |
+| **Sirius: Fix Errors in Selection** | *Find and fix the problems in this code* + the selection |
+| **Sirius: Write Tests for Selection** | *Write tests for this code* + the selection |
+| **Sirius: Refactor Selection** | *Refactor this code, explaining what you changed and why* + the selection |
+
+The selection goes along as a fenced block tagged with the file's language, together with
+the usual context — the file name and where the selection sits — and the request is
+submitted straight away to the chat view, in whatever mode and model the chat is on. The
+answer, and any edits, appear there with the same diffs, Keep / Undo and checkpoints as any
+chat turn. The four commands are also in the Command Palette; without a selection they
+send only the instruction, which still carries the active file as context.
+
+*Fix Errors* asks the model to find the problems itself; it does not pass the Problems
+panel along. If you want the model to see the diagnostics, ask in the chat — the agent's
+`problems` tool reads them.
+
+## Inline chat
+
+<kbd>Ctrl</kbd>+<kbd>I</kbd> (<kbd>⌘</kbd>+<kbd>I</kbd>) opens the editor's inline chat at
+the cursor — a small input inside the editor whose edits land in place. It is the
+workbench's own feature and it uses the editor's language-model plumbing, where Sirius
+registers its models.
+
+:::caution
+Inline chat against Sirius's models was not exercised in the build verification for
+1.118.7; the chat view and the selection commands are the proven paths. If inline chat
+does nothing for you, use the selection commands or the chat and
+[tell us](https://github.com/sirius-ide/sirius-ide/issues).
+:::

@@ -40,6 +40,8 @@ LATIN = (
     'U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD'
 )
 WEB = {'Geist': ROOT / 'src/fonts/Geist-latin.woff2', 'GeistMono': ROOT / 'src/fonts/GeistMono-latin.woff2'}
+# The site uses weights 400–800 of the text face and 400–700 of the mono face; the axis is cut to that.
+AXIS = {'Geist': (400, 800), 'GeistMono': (400, 700)}
 STATIC = [('Geist', 400, ROOT / 'src/og/Geist-Regular.ttf'), ('Geist', 700, ROOT / 'src/og/Geist-Bold.ttf'), ('GeistMono', 400, ROOT / 'src/og/GeistMono-Regular.ttf')]
 
 
@@ -90,7 +92,9 @@ def check(path: Path) -> None:
 def main() -> None:
     for name, dest in WEB.items():
         font = TTFont(fetch(name))
-        subset(font, 'woff2')
+        subset(font, None)                    # subset first: the subsetter chokes on a partially instanced font
+        font = instantiateVariableFont(font, {'wght': AXIS[name]}, inplace=False)
+        font.flavor = 'woff2'
         dest.parent.mkdir(parents=True, exist_ok=True)
         font.save(dest)
         check(dest)

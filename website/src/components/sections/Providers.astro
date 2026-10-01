@@ -25,7 +25,7 @@ const local = ['Ollama', 'LM Studio', 'llama.cpp', 'vLLM', 'Any OpenAI-compatibl
 				</li>
 				<li>
 					<Logo size={20} class="pt-icon" />
-					<div><b>Keys stay in the keyring.</b> libsecret, Keychain or Credential Manager — never <code>settings.json</code>, never synchronised, never sent anywhere but the provider they belong to.</div>
+					<div><b>Keys stay in the keyring.</b> The Keychain, DPAPI, libsecret or KWallet, whichever your system has — never <code>settings.json</code>, never synchronised, never sent anywhere but the provider they belong to.</div>
 				</li>
 				<li>
 					<Logo size={20} class="pt-icon" />
@@ -57,7 +57,7 @@ const local = ['Ollama', 'LM Studio', 'llama.cpp', 'vLLM', 'Any OpenAI-compatibl
 	.points :global(.pt-icon) { margin-top: 0.3em; }
 	.chips { margin-top: 1.75rem; display: grid; gap: 0.6rem; }
 	.chips p { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; }
-	.chips-label { font-family: var(--font-mono); font-size: var(--text-xs); letter-spacing: 0.08em; text-transform: uppercase; color: var(--fg-dim); margin-right: 0.25rem; min-width: 4.5ch; }
+	.chips-label { font-family: var(--font-mono); font-variant-ligatures: none; font-size: var(--text-xs); letter-spacing: 0.08em; text-transform: uppercase; color: var(--fg-dim); margin-right: 0.25rem; min-width: 4.5ch; }
 	.chip {
 		font-size: var(--text-xs); padding: 0.3em 0.7em; border-radius: 999px;
 		border: 1px solid var(--border-strong); color: var(--fg-muted); background: var(--surface);

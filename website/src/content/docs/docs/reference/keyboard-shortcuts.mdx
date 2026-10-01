@@ -25,12 +25,22 @@ Code - OSS ships work unchanged:
 | Accept a Tab completion or next-edit suggestion | <kbd>Tab</kbd> | <kbd>Tab</kbd> |
 | Dismiss a suggestion | <kbd>Esc</kbd> | <kbd>Esc</kbd> |
 | Command Palette | <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd> | <kbd>⌘</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd> |
+| Keep all edits | <kbd>Ctrl</kbd>+<kbd>Enter</kbd> in the chat input, with edits pending | <kbd>⌘</kbd>+<kbd>Enter</kbd> |
+| Undo all edits | <kbd>Ctrl</kbd>+<kbd>Backspace</kbd> in an empty chat input | <kbd>⌘</kbd>+<kbd>Backspace</kbd> |
+| Keep all chat edits in the current editor | <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>Y</kbd> | <kbd>⌘</kbd>+<kbd>Alt</kbd>+<kbd>Y</kbd> |
+| Toggle the diff of chat edits | <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>F7</kbd> | <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>F7</kbd> |
+| Restore checkpoint (chat focused) | <kbd>Delete</kbd> | <kbd>⌘</kbd>+<kbd>Backspace</kbd> |
+
+:::note[Three shortcuts Sirius takes over]
+Because the extension is built in, its three defaults win over the stock bindings for the
+same chords: <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>M</kbd> no longer opens the Problems view,
+<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>T</kbd> no longer reopens the last closed editor, and
+<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>I</kbd> opens Sirius's chat instead of the editor's
+"open chat in agent mode" (which is the same chat). Rebind whichever side you prefer in
+**Keyboard Shortcuts**; the identifiers are `sirius.ai.selectModel`, `sirius.ai.toggleThinking`
+and `sirius.ai.openChat`.
+:::
 
 These are the upstream defaults; if you imported keybindings from another editor, yours may
 differ — the Keyboard Shortcuts editor shows what is active.
 
-:::note
-<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>I</kbd> is also the editor's own "open chat in agent
-mode" shortcut. Sirius binds **Sirius: Open AI Chat** to the same chord, so either way the
-chat opens.
-:::

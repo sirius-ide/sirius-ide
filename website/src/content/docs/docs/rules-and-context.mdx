@@ -1,0 +1,52 @@
+---
+title: Project rules and context
+description: The rules files Sirius reads before every request, and the context it attaches from the editor without being asked.
+sidebar:
+  order: 8
+---
+
+## Rules files
+
+Put how your project works — the build commands, the conventions, what never to touch — in
+one of these files at the root of the workspace:
+
+| File | Who reads it |
+| --- | --- |
+| `.siriusrules` | Sirius |
+| `.sirius/rules.md` | Sirius |
+| `AGENTS.md` | Sirius, and the other agents that follow the AGENTS.md convention |
+
+Every existing, non-empty file is included, in that order, under a *From …* heading, and
+re-read on **every request** — edit the file and the next message sees it. The combined
+text is capped at 8,000 characters: an overflowing file is cut with *[rules truncated]* and
+later files are skipped, so keep rules short and put the important ones first. A missing
+or unreadable file never stops a request.
+
+Rules reach the chat participant — Ask, Edit and Agent. They are not applied to Tab
+completion, to the commit-message command or to the importer.
+
+Only the first folder of a multi-root workspace is read. `CLAUDE.md`, `.cursorrules` and
+`.github/copilot-instructions.md` are not read by Sirius; put the shared content in
+`AGENTS.md`, which other tools read as well.
+
+## Context that travels with every request
+
+Without you doing anything, each message carries the file in front of you: *The user
+currently has `src/routes/health.ts` open (typescript; selection, lines 12–30):* followed by
+the selection, or about 60 lines either side of the cursor when nothing is selected, capped
+at 6,000 characters. Only files on disk are included; a preview or a settings tab is not.
+
+To add more, use the editor's context controls in the chat input — attach a file, a
+folder, a selection. Sirius forwards the paths of file and location attachments to the
+model, which then reads what it needs with its tools.
+
+## A small example
+
+```md
+# aurora — rules for the agent
+- Use pnpm, never npm or yarn.
+- Tests live beside the code: foo.ts → foo.test.ts.
+- Never log request bodies; log ids.
+- Public API changes need a note in CHANGELOG.md.
+- Run `pnpm check` before you say you are done.
+```

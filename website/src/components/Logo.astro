@@ -15,7 +15,7 @@ const star = '32.00,4.00 38.94,22.46 58.63,23.35 43.22,35.63 48.46,54.65 32.00,4
 		<clipPath id={`${id}-cl`}><rect x="0" y="0" width="32" height="64" /></clipPath>
 		<clipPath id={`${id}-cr`}><rect x="32" y="0" width="32" height="64" /></clipPath>
 	</defs>
-	<polygon points={star} fill="#e6edf3" clip-path={`url(#${id}-cl)`} />
+	<polygon points={star} fill="var(--mark-left, #e6edf3)" clip-path={`url(#${id}-cl)`} />
 	<polygon points={star} fill="#0094f3" clip-path={`url(#${id}-cr)`} />
 	<polyline points="49,5 31.5,30 36.5,30 15,59" fill="none" stroke="#02060e" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" opacity="0.9" />
 	<polyline points="49,5 31.5,30 36.5,30 15,59" fill="none" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />

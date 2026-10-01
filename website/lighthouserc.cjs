@@ -1,4 +1,4 @@
-// Lighthouse CI: mobile emulation, simulated throttling, three runs per page, and the
+// Lighthouse CI: Lighthouse's default mobile emulation and simulated throttling, three runs per page, and the
 // budgets from BRIEF.md §1 as hard assertions. `npm run lighthouse` runs it against dist/.
 const pages = ['/', '/download/', '/docs/', '/docs/install/', '/changelog/', '/roadmap/', '/privacy/', '/license/', '/security/'];
 module.exports = {
@@ -8,7 +8,6 @@ module.exports = {
 			url: pages.map((p) => `http://localhost${p}`),
 			numberOfRuns: 3,
 			settings: {
-				preset: 'mobile',
 				chromeFlags: '--no-sandbox --headless=new --disable-gpu',
 				budgetPath: './budgets.json',
 			},

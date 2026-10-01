@@ -4,9 +4,26 @@ import { resolve } from 'node:path';
 import Doc from '../layouts/Doc.astro';
 import { site } from '../site.config';
 // The build runs from website/; the licence is the repository's own file, one level up.
-const text = await readFile(resolve(process.cwd(), '..', 'LICENSE.txt'), 'utf8');
+const raw = await readFile(resolve(process.cwd(), '..', 'LICENSE.txt'), 'utf8');
+// The file is hard-wrapped at ~78 columns, which re-wraps raggedly on a phone. Lines of one
+// paragraph are joined with a space so the browser wraps them; blank lines, indentation and
+// clause markers (1., a., -) are kept, so every word and the structure stay verbatim.
+const marker = /^\s*(\d+\.|[a-z]\.|[ivx]+\.|[-•*])\s/;
+const indentOf = (l: string) => l.match(/^\s*/)?.[0].length ?? 0;
+const text = raw.split(/\n\n+/).map((block) => {
+	const lines = block.split('\n');
+	const out: string[] = [];
+	for (const line of lines) {
+		const prev = out[out.length - 1];
+		if (prev !== undefined && line.trim() && !marker.test(line) && indentOf(line) >= indentOf(prev) && prev.trim()) {
+			out[out.length - 1] = prev.replace(/\s+$/, '') + ' ' + line.trim();
+		} else { out.push(line); }
+	}
+	return out.join('\n');
+}).join('\n\n');
 ---
-<Doc title="Licence" eyebrow="Software licence agreement" sourceFile="LICENSE.txt"
+<Doc
+	headline="Free to install and use on your own devices." title="Licence" eyebrow="Software licence agreement" sourceFile="LICENSE.txt"
 	description="The Sirius IDE Software License Agreement: free to install and use on any number of devices for personal or commercial development; no redistribution or hosting."
 	intro="Free to install and use on any number of devices you own, for personal or commercial development. Sirius is proprietary; Code - OSS and every third-party component keep their own licences.">
 	<pre class="license">{text}</pre>

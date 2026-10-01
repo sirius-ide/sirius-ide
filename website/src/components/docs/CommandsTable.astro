@@ -1,9 +1,9 @@
 ---
 import { commands } from './ext';
 ---
-<table>
+<div class="ref-table ref-table--commands not-content"><table>
 	<thead><tr><th>Command Palette title</th><th>Identifier</th></tr></thead>
 	<tbody>
 		{commands.map((c) => <tr><td>{c.title}</td><td><code>{c.command}</code></td></tr>)}
 	</tbody>
-</table>
+</table></div>

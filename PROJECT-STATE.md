@@ -49,7 +49,7 @@ the docs — about thirty places, which is why it exists.
 | REH server | ✅ **shipped in v1.118.6** — `sirius-server-linux-{x64,arm64}.tar.gz`, the asset `serverDownloadUrlTemplate` promised since v1.118.0; x64 gated at glibc 2.28 / GLIBCXX 3.4.25 and started in the containers. Both template URLs answer 200. Since v1.118.7 the arm64 server has the same 2.28 / 3.4.25 floor and is started in the arm64 containers too |
 | macOS | ❌ not built (needs Apple Developer cert) |
 | Windows signing | ❌ unsigned — SmartScreen warns |
-| Website | ❌ `siriuside.com` has no DNS record at all — **in progress**: the Astro site's design direction is on branch `claude/youthful-pascal-9wsrxd` for the owner's OK (§13, `website/BRIEF.md`) |
+| Website | ❌ `siriuside.com` has no DNS record yet — **built, not deployed**: the full Astro + Starlight site is on branch `claude/youthful-pascal-9wsrxd` with its tests, Lighthouse budgets, deploy script and workflow; the owner lands it, runs `build/cloudflare/deploy-website.sh` and sets DNS (§13, `website/BRIEF.md`) |
 | Model layer | ✅ 12 providers, keyring, native tool calling |
 | Editor AI surfaces | ✅ registered as language-model vendor + tools + default agent |
 | Tab completion | ✅ FIM-based, shipped |
@@ -377,8 +377,11 @@ item as soon as it is resolved rather than leaving it here. Numbers are stable r
 2. **No website.** `siriuside.com` and `siriuside.dev` have no DNS records. Every
    user-facing URL in `product.json` points at GitHub instead. The Cloudflare token
    already carries Pages permissions for exactly this.
-   **In progress** (2026-10-01): the site is being built under `website/` to `website/BRIEF.md`;
-   the design direction is on branch `claude/youthful-pascal-9wsrxd`, awaiting the owner's OK (§13).
+   **Built, not deployed** (2026-10-01): the site is complete under `website/` to `website/BRIEF.md`
+   on branch `claude/youthful-pascal-9wsrxd` — every page, docs, tests, Lighthouse budgets, the
+   deploy script and the workflow. What remains is the owner's: land the branch, run
+   `build/cloudflare/deploy-website.sh`, set DNS, check from outside, flip the `product.json`
+   URLs for the next tag (§13 has the exact sequence).
 
 3. **AUR not published.** `sirius-ide-bin` and `sirius-ide-git` PKGBUILDs are ready and
    correct (identity already rewritten to `sirius-ide/sirius-ide`), but nothing is on

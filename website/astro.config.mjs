@@ -15,7 +15,7 @@ const LATIN = [
 export default defineConfig({
 	site: 'https://siriuside.com',
 	trailingSlash: 'always',
-	build: { format: 'directory' },
+	build: { format: 'directory', inlineStylesheets: 'always' },
 	fonts: [
 		{
 			provider: fontProviders.local(),
@@ -25,7 +25,7 @@ export default defineConfig({
 			optimizedFallbacks: true,
 			options: {
 				variants: [
-					{ src: ['./src/fonts/Geist-latin.woff2'], weight: '100 900', style: 'normal', display: 'swap', unicodeRange: LATIN },
+					{ src: ['./src/fonts/Geist-latin.woff2'], weight: '400 800', style: 'normal', display: 'swap', unicodeRange: LATIN },
 				],
 			},
 		},
@@ -37,7 +37,7 @@ export default defineConfig({
 			optimizedFallbacks: true,
 			options: {
 				variants: [
-					{ src: ['./src/fonts/GeistMono-latin.woff2'], weight: '100 900', style: 'normal', display: 'swap', unicodeRange: LATIN },
+					{ src: ['./src/fonts/GeistMono-latin.woff2'], weight: '400 700', style: 'normal', display: 'swap', unicodeRange: LATIN },
 				],
 			},
 		},
@@ -51,13 +51,43 @@ export default defineConfig({
 			disable404Route: true,
 			favicon: '/favicon.ico',
 			customCss: ['./src/styles/starlight.css'],
+			// Code blocks on the site's planes: a hairline frame, no shadow (house rule), the accent on the active tab.
+			expressiveCode: {
+				// Long lines wrap instead of scrolling, so a code block is never a scroll region on a phone.
+				defaultProps: { wrap: true },
+				styleOverrides: {
+					borderRadius: '8px',
+					borderColor: 'var(--border-strong)',
+					codeBackground: 'var(--surface)',
+					codeFontFamily: 'var(--font-mono)',
+					uiFontFamily: 'var(--font-sans)',
+					frames: {
+						shadowColor: 'transparent',
+						frameBoxShadowCssValue: 'none',
+						editorActiveTabIndicatorTopColor: 'var(--accent)',
+						editorActiveTabBackground: 'var(--surface)',
+						editorTabBarBackground: 'var(--surface-2)',
+						terminalTitlebarBackground: 'var(--surface-2)',
+						terminalBackground: 'var(--surface)',
+						inlineButtonBackground: 'var(--surface-2)',
+						inlineButtonBorder: 'var(--border-strong)',
+					},
+				},
+			},
 			components: {
 				Head: './src/components/StarlightHead.astro',
 				Header: './src/components/StarlightHeader.astro',
 				SiteTitle: './src/components/StarlightSiteTitle.astro',
 			},
 			social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/sirius-ide/sirius-ide' }],
-			sidebar: [{ label: 'Start here', items: [{ slug: 'docs' }] }],
+			sidebar: [
+				{ label: 'Start here', items: [{ slug: 'docs' }, { slug: 'docs/install' }, { slug: 'docs/getting-started' }] },
+				{ label: 'Models', items: [{ slug: 'docs/providers' }, { slug: 'docs/local-models' }] },
+				{ label: 'Working with Sirius', items: [{ slug: 'docs/chat-edit-agent' }, { slug: 'docs/inline-chat' }, { slug: 'docs/tab-and-next-edit' }, { slug: 'docs/rules-and-context' }, { slug: 'docs/image-input' }, { slug: 'docs/browser' }, { slug: 'docs/git-assist' }] },
+				{ label: 'Set-up', items: [{ slug: 'docs/import' }, { slug: 'docs/remote-server' }, { slug: 'docs/updates' }, { slug: 'docs/privacy-and-keys' }] },
+				{ label: 'Help', items: [{ slug: 'docs/troubleshooting' }, { slug: 'docs/faq' }] },
+				{ label: 'Reference', items: [{ slug: 'docs/reference/settings' }, { slug: 'docs/reference/commands' }, { slug: 'docs/reference/keyboard-shortcuts' }] },
+			],
 			head: [
 				{ tag: 'meta', attrs: { property: 'og:image', content: 'https://siriuside.com/og/docs.png' } },
 				{ tag: 'meta', attrs: { name: 'twitter:card', content: 'summary_large_image' } },

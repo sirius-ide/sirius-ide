@@ -7,7 +7,7 @@ import { site } from '../../site.config';
 		<div class="section-head">
 			<p class="eyebrow">Platforms · {release.tag}</p>
 			<h2 id="platforms-title">Linux and Windows today. <span class="muted">macOS when it can be signed.</span></h2>
-			<p class="lede">Every build comes from the release pipeline, is attested, and is installed and run on clean machines before it is published.</p>
+			<p class="lede">Every build comes from the release pipeline and is attested. The Linux builds are installed and run on clean machines before anything is published; the Windows installer is checked for size, checksum and provenance.</p>
 		</div>
 		<div class="grid">
 			<article class="card">
@@ -27,7 +27,7 @@ import { site } from '../../site.config';
 				<p class="arch">x64</p>
 				<ul>
 					<li>Installer, per user or per machine</li>
-					<li>Updates in place, automatically</li>
+					<li>Updates download in the background and install on restart</li>
 				</ul>
 				<p class="note warn">The installer is not code-signed yet, so SmartScreen warns on first run: choose <em>More info</em>, then <em>Run anyway</em>. Signing is on the roadmap.</p>
 			</article>
@@ -47,7 +47,7 @@ import { site } from '../../site.config';
 	.grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; margin-top: 2.5rem; }
 	.card { padding: 1.5rem; border: 1px solid var(--border); border-radius: var(--radius-l); background: var(--surface); display: grid; gap: 0.75rem; align-content: start; }
 	.card h3 { font-size: var(--text-l); }
-	.arch { font-family: var(--font-mono); font-size: var(--text-xs); letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent-text); margin-top: -0.4rem; }
+	.arch { font-family: var(--font-mono); font-variant-ligatures: none; font-size: var(--text-xs); letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent-text); margin-top: -0.4rem; }
 	.card ul { margin: 0; padding-left: 1.1rem; color: var(--fg-muted); font-size: var(--text-s); display: grid; gap: 0.35rem; }
 	.note { color: var(--fg-muted); font-size: var(--text-s); line-height: 1.55; }
 	.warn { padding: 0.75rem 0.9rem; border-radius: var(--radius-s); background: var(--surface-2); border: 1px solid var(--border); }

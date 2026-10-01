@@ -1,0 +1,55 @@
+---
+title: Remote server
+description: The headless server that ships with every release — what is in the tarball, how to run it, and what is not there yet.
+sidebar:
+  order: 13
+---
+
+Every release carries `sirius-server-linux-x64.tar.gz` and `sirius-server-linux-arm64.tar.gz`
+— the headless half a remote extension installs on the machine you connect to, built from
+the same commit as the editor. Each has a `.sha256` sidecar and a build attestation. There
+is no macOS, Windows or Alpine server.
+
+## Requirements
+
+glibc 2.28 and GLIBCXX 3.4.25 or newer — Debian 10, Ubuntu 20.04, RHEL 8 and later. Both
+architectures are built against that floor and started on Debian 12, Ubuntu 22.04 and
+Rocky 9 by the release pipeline before anything is published. The tarball brings its own
+Node; nothing else needs installing.
+
+## Running it by hand
+
+```sh
+mkdir sirius-server && tar -xzf sirius-server-linux-x64.tar.gz -C sirius-server --strip-components 1
+sirius-server/bin/helpers/check-requirements.sh      # non-zero exit = this host is below the floor
+sirius-server/bin/sirius-server --version            # first line: the version
+sirius-server/bin/sirius-server --host 127.0.0.1 --port 8317 --accept-server-license-terms \
+    --without-connection-token --server-data-dir ~/.sirius-server
+curl http://127.0.0.1:8317/version                   # answers the release commit
+```
+
+`bin/sirius-server` does not run the requirements check itself; run it first on a host you
+are unsure about. The server stores its state in `~/.sirius-server` (`--server-data-dir` or
+`VSCODE_AGENT_FOLDER` to move it). Useful options: `--host`, `--port` (`0` for a random
+port, or a range), `--socket-path`, `--connection-token` / `--connection-token-file` /
+`--without-connection-token` (only when the connection is secured by other means),
+`--install-extension`, `--reconnection-grace-time`. The server has no telemetry, like the
+editor.
+
+## Connecting from the editor
+
+The editor's `product.json` points `serverDownloadUrlTemplate` at these tarballs, so a
+remote extension that follows the convention — Open Remote - SSH from Open VSX is the
+usual one — can fetch the server matching your editor on first connect. Sirius ships **no**
+remote extension of its own: the built-in set is git, GitHub, GitHub authentication and
+tunnel forwarding.
+
+:::caution
+A remote-extension connect against a Sirius server has not been exercised end to end for
+1.118.7 — the server tarballs are built, installed and started by the release pipeline, and
+`/version` is checked, but no session has been opened through an extension yet. The
+[comparison table](/#compare) says the same. If you try it, please
+[report](https://github.com/sirius-ide/sirius-ide/issues) what you find.
+:::
+
+Tunnels (`sirius tunnel`) are not available: the release builds no tunnel binary.

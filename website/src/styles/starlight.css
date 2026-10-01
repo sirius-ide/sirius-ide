@@ -1,3 +1,6 @@
+/* The tokens first: Starlight pages do not go through Base.astro, so nothing else loads them. */
+@import './tokens.css';
+
 /* Starlight (/docs/) on the Sirius tokens.
  * tokens.css already flips every --token for the light scheme, and Starlight sets a resolved
  * data-theme on <html>, so the mapping below is declared once for both of Starlight's own
@@ -76,3 +79,34 @@ header.header { border-bottom: 1px solid var(--border); }
 
 /* Asides: the note takes the brand accent; the others keep Starlight's semantic hues. */
 .starlight-aside--note { --sl-color-asides-text-accent: var(--accent-high); --sl-color-asides-border: var(--accent); background-color: var(--accent-low); }
+
+/* Reference tables (settings, commands, shortcuts): fit the column, wrap long identifiers. */
+.ref-table { margin-top: 1rem; border: 1px solid var(--border); border-radius: var(--radius-m); overflow: hidden; }
+.ref-table table { display: table; width: 100%; table-layout: fixed; border-collapse: collapse; margin: 0; font-size: var(--sl-text-sm); }
+.ref-table th, .ref-table td { padding: 0.65rem 0.8rem; text-align: left; vertical-align: top; border-top: 1px solid var(--border); overflow-wrap: anywhere; }
+.ref-table th { background: var(--surface); color: var(--fg); font-weight: 600; border-top: 0; }
+.ref-table td { color: var(--fg-muted); }
+.ref-table code { font-size: 0.85em; }
+.ref-table small { display: block; margin-top: 0.3rem; color: var(--fg-dim); font-family: var(--font-mono); font-size: 0.72rem; line-height: 1.5; }
+.ref-table em { color: var(--warn, #d29922); font-style: normal; }
+.ref-table--settings th:nth-child(1) { width: 34%; }
+.ref-table--settings th:nth-child(2) { width: 20%; }
+.ref-table--commands th:nth-child(1) { width: 42%; }
+.ref-table--keybindings th:nth-child(1) { width: 40%; }
+.ref-table kbd { white-space: nowrap; }
+@media (max-width: 640px) {
+	.ref-table table, .ref-table thead, .ref-table tbody, .ref-table tr, .ref-table th, .ref-table td { display: block; width: auto; }
+	.ref-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+	.ref-table td { border-top: 0; padding-top: 0.25rem; padding-bottom: 0.25rem; }
+	.ref-table tr { border-top: 1px solid var(--border); padding: 0.5rem 0; }
+	.ref-table td:first-child { padding-top: 0.6rem; }
+}
+
+/* Expressive Code draws its tab bar with linear-gradient(); a flat plane and a hairline instead. */
+.expressive-code .frame.has-title:not(.is-terminal) .header { background: var(--surface-2) !important; border-bottom: 1px solid var(--border-strong); }
+
+/* Markdown tables lay out as tables and wrap their cells, instead of becoming a scroll region. */
+.sl-markdown-content table:not(.ref-table table) { display: table; width: 100%; overflow: visible; }
+.sl-markdown-content :is(th, td) { overflow-wrap: anywhere; }
+.sl-markdown-content :is(th, td) code { white-space: normal; }
+

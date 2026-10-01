@@ -1,0 +1,37 @@
+---
+title: Image input
+description: Which models can see images, how images reach them, and what does not work yet.
+sidebar:
+  order: 9
+---
+
+## Models that can see
+
+| Provider | Vision |
+| --- | --- |
+| Anthropic Claude | all listed models (👁️ in the picker) |
+| Google Gemini | all listed and discovered models |
+| Ollama | models whose server details declare `vision`; older servers: recognised by family name (llava, moondream, minicpm-v, llama3.2-vision, gemma3, qwen2.5-vl, pixtral, granite-vision) |
+| OpenAI, OpenRouter, Groq, DeepSeek, Mistral, xAI, LM Studio, llama.cpp / vLLM, custom | registered **without** vision in 1.118.7, even when the model behind the endpoint can see |
+
+For a model without vision Sirius strips the images and tells the model *[N image(s)
+attached — this model cannot view images]* instead of failing the request.
+
+## How images reach the model
+
+Each provider gets images in its own format — Anthropic image blocks, Gemini inline data,
+OpenAI-style data URIs, Ollama's base64 list. The path that is wired end to end in 1.118.7
+is **tool output**: when the agent takes a screenshot with the
+[integrated browser](/docs/browser/)'s `screenshot_page`, the image goes back to a vision
+model as part of the tool result, and the model reasons about what it sees.
+
+:::caution
+An image pasted or dropped into the chat box is **not** forwarded to the model by the
+Sirius participant in 1.118.7: the participant passes on file and location attachments,
+and a pasted image is neither. The chat input accepts and shows the image, but the model
+does not receive it. Until this is fixed, save the image into the workspace and ask the
+agent about the file, or let the browser tools take the screenshot.
+:::
+
+No image *generation* is exposed: the Gemini image models exist in the catalog but are
+hidden from every picker and no command uses them.
