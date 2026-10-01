@@ -1,0 +1,28 @@
+---
+/**
+ * The primary call to action. The served HTML names no operating system: a few inline
+ * bytes in <head> set data-os on <html> before first paint, and the CSS below shows the
+ * matching label. Without JavaScript the label is plain "Download". The link always
+ * goes to /download/, which carries the same detection and a manual override.
+ */
+interface Props { size?: 'lg' | 'sm'; class?: string }
+const { size = 'lg', class: className = '' } = Astro.props;
+---
+<a class:list={['btn', 'btn-primary', 'download-cta', { 'btn-sm': size === 'sm' }, className]} href="/download/" data-download>
+	<svg aria-hidden="true" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+		<path d="M8 2v8m0 0 3-3M8 10 5 7M2.5 11.5v1a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-1" />
+	</svg>
+	<span class="os os-default">Download</span>
+	<span class="os os-linux">Download for Linux</span>
+	<span class="os os-windows">Download for Windows</span>
+</a>
+
+<style>
+	.os { display: none; }
+	:global(html:not([data-os])) .os-default,
+	:global(html[data-os="macos"]) .os-default,
+	:global(html[data-os="mobile"]) .os-default,
+	:global(html[data-os="other"]) .os-default { display: inline; }
+	:global(html[data-os="linux"]) .os-linux { display: inline; }
+	:global(html[data-os="windows"]) .os-windows { display: inline; }
+</style>

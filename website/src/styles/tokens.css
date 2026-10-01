@@ -1,0 +1,157 @@
+/*
+ * Design tokens — the product's colours, not a separate brand.
+ * Dark is the default and the hero experience; light is designed, not inverted.
+ * Values trace to extensions/theme-sirius-star/themes/sirius-star-dark.json (dark) and to
+ * website/design/DIRECTION.md (light), and every text/background pair clears WCAG AA 4.5:1.
+ */
+:root {
+	color-scheme: dark light;
+
+	/* brand constants — the same in both schemes */
+	--brand-violet: #8b5cf6;
+	--brand-violet-deep: #7c3aed;
+	--brand-ice: #a8c7fa;
+	--brand-cyan: #67e8f9;
+	--brand-azure: #0094f3;   /* sampled from the mark's right half */
+	--brand-navy: #000812;    /* the mark's centre */
+	--brand-magenta: #c084fc;
+	--brand-silver: #e6edf3;
+
+	/* shape and rhythm */
+	--radius-s: 6px;
+	--radius-m: 10px;
+	--radius-l: 16px;
+	--container: 1200px;
+	--gutter: clamp(16px, 4vw, 40px);
+	--section-y: clamp(72px, 10vw, 140px);
+
+	/* type scale (Schibsted Grotesk 400–900 · JetBrains Mono 100–800) */
+	--text-xs: 0.8125rem;
+	--text-s: 0.9375rem;
+	--text-m: 1.0625rem;
+	--text-l: 1.25rem;
+	--text-xl: clamp(1.5rem, 1.2rem + 1.4vw, 2.125rem);
+	--text-2xl: clamp(2rem, 1.4rem + 2.6vw, 3.25rem);
+	--text-hero: clamp(2.5rem, 1.3rem + 4.9vw, 4.4rem);
+
+	/* dark scheme */
+	--bg: #06080d;
+	--surface: #0a0e14;
+	--surface-2: #0d1117;
+	--surface-3: #161b22;
+	--fg: #e6edf3;
+	--fg-muted: #8b949e;
+	--fg-dim: #6e7781;
+	--border: #21262d;
+	--border-strong: #30363d;
+	--accent: #8b5cf6;
+	--accent-text: #a78bfa;
+	--accent-strong: #7c3aed;
+	--accent-strong-hover: #6d28d9;
+	--on-accent: #ffffff;
+	--link: #a8c7fa;
+	--link-hover: #c9dcfb;
+	--cyan: #67e8f9;
+	--magenta: #c084fc;
+	--ok: #3fb950;
+	--warn: #fbbf24;
+	--err: #f85149;
+	--glow-violet: rgba(139, 92, 246, 0.36);
+	--glow-azure: rgba(0, 148, 243, 0.30);
+	--glow-cyan: rgba(103, 232, 249, 0.22);
+	--star: rgba(230, 237, 243, 0.55);
+	--bolt: rgba(255, 255, 255, 0.85);
+	--shine-1: #a8c7fa;
+	--shine-2: #67e8f9;
+	--shine-3: #0094f3;
+	--shadow-window:
+		0 0 0 1px rgba(139, 92, 246, 0.22),
+		0 40px 120px -40px rgba(0, 148, 243, 0.35),
+		0 30px 80px -30px rgba(139, 92, 246, 0.45),
+		0 2px 8px rgba(0, 0, 0, 0.6);
+	--focus: #8b5cf6;
+	--selection: rgba(139, 92, 246, 0.35);
+	--nav-bg: rgba(6, 8, 13, 0.72);
+}
+
+@media (prefers-color-scheme: light) {
+	:root:not([data-theme="dark"]) {
+		--bg: #f5f7fb;
+		--surface: #ffffff;
+		--surface-2: #eef2f8;
+		--surface-3: #e3e9f2;
+		--fg: #0b1220;
+		--fg-muted: #4a5568;
+		--fg-dim: #6b7687;
+		--border: #d6dde8;
+		--border-strong: #c9d3e0;
+		--accent: #6d28d9;
+		--accent-text: #6d28d9;
+		--accent-strong: #6d28d9;
+		--accent-strong-hover: #5b21b6;
+		--on-accent: #ffffff;
+		--link: #0369a1;
+		--link-hover: #075985;
+		--cyan: #0e7490;
+		--magenta: #9333ea;
+		--ok: #1a7f37;
+		--warn: #9a6700;
+		--err: #cf222e;
+		--glow-violet: rgba(139, 92, 246, 0.28);
+		--glow-azure: rgba(0, 148, 243, 0.26);
+		--glow-cyan: rgba(103, 232, 249, 0.34);
+		--star: rgba(11, 18, 32, 0.22);
+		--bolt: rgba(0, 148, 243, 0.75);
+		--shine-1: #1d4ed8;
+		--shine-2: #0284c7;
+		--shine-3: #6d28d9;
+		--shadow-window:
+			0 0 0 1px rgba(11, 18, 32, 0.08),
+			0 40px 120px -40px rgba(0, 148, 243, 0.30),
+			0 30px 80px -30px rgba(109, 40, 217, 0.30),
+			0 2px 8px rgba(11, 18, 32, 0.12);
+		--focus: #6d28d9;
+		--selection: rgba(109, 40, 217, 0.22);
+		--nav-bg: rgba(245, 247, 251, 0.78);
+	}
+}
+
+:root[data-theme="light"] {
+	--bg: #f5f7fb;
+	--surface: #ffffff;
+	--surface-2: #eef2f8;
+	--surface-3: #e3e9f2;
+	--fg: #0b1220;
+	--fg-muted: #4a5568;
+	--fg-dim: #6b7687;
+	--border: #d6dde8;
+	--border-strong: #c9d3e0;
+	--accent: #6d28d9;
+	--accent-text: #6d28d9;
+	--accent-strong: #6d28d9;
+	--accent-strong-hover: #5b21b6;
+	--on-accent: #ffffff;
+	--link: #0369a1;
+	--link-hover: #075985;
+	--cyan: #0e7490;
+	--magenta: #9333ea;
+	--ok: #1a7f37;
+	--warn: #9a6700;
+	--err: #cf222e;
+	--glow-violet: rgba(139, 92, 246, 0.28);
+	--glow-azure: rgba(0, 148, 243, 0.26);
+	--glow-cyan: rgba(103, 232, 249, 0.34);
+	--star: rgba(11, 18, 32, 0.22);
+	--bolt: rgba(0, 148, 243, 0.75);
+	--shine-1: #1d4ed8;
+	--shine-2: #0284c7;
+	--shine-3: #6d28d9;
+	--shadow-window:
+		0 0 0 1px rgba(11, 18, 32, 0.08),
+		0 40px 120px -40px rgba(0, 148, 243, 0.30),
+		0 30px 80px -30px rgba(109, 40, 217, 0.30),
+		0 2px 8px rgba(11, 18, 32, 0.12);
+	--focus: #6d28d9;
+	--selection: rgba(109, 40, 217, 0.22);
+	--nav-bg: rgba(245, 247, 251, 0.78);
+}

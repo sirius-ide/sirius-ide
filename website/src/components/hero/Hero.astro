@@ -1,0 +1,78 @@
+---
+import Aurora from './Aurora.astro';
+import EditorWindow from './EditorWindow.astro';
+import DownloadButton from '../DownloadButton.astro';
+import { release } from '../../data/release';
+---
+<section class="hero" aria-labelledby="hero-title">
+	<Aurora />
+	<div class="container copy">
+		<p class="eyebrow">
+			<a class="release" href="/changelog/">{release.tag}</a>
+			<span class="plat plat-long"><span class="sep" aria-hidden="true">·</span> Linux x64 and arm64 <span class="sep" aria-hidden="true">·</span> Windows x64</span>
+			<span class="plat plat-short"><span class="sep" aria-hidden="true">·</span> Linux <span class="sep" aria-hidden="true">·</span> Windows</span>
+		</p>
+		<h1 id="hero-title">The agentic, <span class="shine">AI‑native</span> code editor.</h1>
+		<p class="lede">
+			Everything VS Code does, plus chat, inline edits and an agent that works across your files —
+			running against the models you choose. Twelve providers, or local models that never leave
+			your machine. No telemetry, no account, no relay.
+		</p>
+		<div class="cta">
+			<DownloadButton />
+			<a class="btn btn-secondary" href="/docs/">Read the docs</a>
+		</div>
+		<p class="fine">
+			Free to download and use — you bring your own model keys.
+			<span class="os-note os-macos">macOS isn't available yet; Linux and Windows are.</span>
+			<a class="other" href="/download/">All platforms</a>
+		</p>
+	</div>
+	<div class="container stage">
+		<EditorWindow />
+	</div>
+</section>
+
+<style>
+	.hero { position: relative; padding-block: clamp(48px, 7vw, 88px) clamp(48px, 7vw, 96px); overflow: clip; }
+	.copy { position: relative; z-index: 1; text-align: center; max-width: 880px; }
+	.eyebrow { display: inline-flex; flex-wrap: wrap; justify-content: center; gap: 0.6em; align-items: center; margin-bottom: 1.5rem; color: var(--fg-muted); }
+	.release {
+		color: var(--accent-text); padding: 0.25em 0.7em; border-radius: 999px; text-transform: none;
+		border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+		background: color-mix(in srgb, var(--accent) 12%, transparent);
+		text-decoration: none;
+	}
+	.release:hover { background: color-mix(in srgb, var(--accent) 22%, transparent); }
+	.sep { color: var(--fg-dim); }
+	h1 { margin-inline: auto; max-width: 22ch; }
+	.plat-short { display: none; }
+	@media (max-width: 520px) { .plat-long { display: none; } .plat-short { display: inline; } }
+	.shine {
+		background: linear-gradient(100deg, var(--shine-1) 0%, var(--shine-2) 45%, var(--shine-3) 100%);
+		-webkit-background-clip: text; background-clip: text; color: transparent;
+	}
+	.lede { margin: 1.5rem auto 0; max-width: 62ch; }
+	.cta { margin-top: 2.25rem; display: flex; flex-wrap: wrap; justify-content: center; gap: 0.75rem; }
+	.fine { margin-top: 1.1rem; color: var(--fg-muted); font-size: var(--text-s); }
+	.os-note { display: none; }
+	:global(html[data-os="macos"]) .os-note { display: inline; }
+	.other { margin-left: 0.35em; }
+	.stage { position: relative; z-index: 1; margin-top: clamp(36px, 5vw, 60px); }
+	@media (max-width: 640px) {
+		.cta .btn { width: 100%; }
+		.cta { flex-direction: column; }
+	}
+	@media (prefers-reduced-motion: no-preference) {
+		.copy > * { animation: rise 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+		.copy > :nth-child(2) { animation-delay: 0.06s; }
+		.copy > :nth-child(3) { animation-delay: 0.12s; }
+		.copy > :nth-child(4) { animation-delay: 0.18s; }
+		.copy > :nth-child(5) { animation-delay: 0.24s; }
+		.stage { animation: rise 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) 0.2s both; }
+	}
+	@keyframes rise {
+		from { opacity: 0; transform: translate3d(0, 14px, 0); }
+		to { opacity: 1; transform: translate3d(0, 0, 0); }
+	}
+</style>

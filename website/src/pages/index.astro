@@ -1,0 +1,10 @@
+---
+import Base from '../layouts/Base.astro';
+import Hero from '../components/hero/Hero.astro';
+import Providers from '../components/sections/Providers.astro';
+import { site } from '../site.config';
+---
+<Base title={site.name} description={site.description}>
+	<Hero />
+	<Providers />
+</Base>

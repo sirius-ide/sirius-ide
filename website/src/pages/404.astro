@@ -1,0 +1,19 @@
+---
+import Base from '../layouts/Base.astro';
+---
+<Base title="Page not found" description="That page does not exist on siriuside.com.">
+	<section class="section container nf">
+		<p class="eyebrow">404</p>
+		<h1>Nothing here.</h1>
+		<p class="lede">The page you asked for does not exist, or it has moved.</p>
+		<div class="links">
+			<a class="btn btn-primary" href="/">Home</a>
+			<a class="btn btn-secondary" href="/download/">Download</a>
+			<a class="btn btn-secondary" href="/docs/">Docs</a>
+		</div>
+	</section>
+</Base>
+<style>
+	.nf { min-height: 60dvh; display: grid; align-content: center; gap: 1rem; max-width: 720px; }
+	.links { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 1rem; }
+</style>

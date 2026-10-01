@@ -54,6 +54,17 @@ ICNS_ENTRIES = (
 INNO_SMALL = {100: (55, 55), 125: (64, 68), 150: (83, 80), 175: (92, 97), 200: (110, 106), 225: (119, 123), 250: (138, 140)}
 INNO_BIG = {100: (164, 314), 125: (192, 386), 150: (246, 459), 175: (273, 556), 200: (328, 604), 225: (355, 700), 250: (410, 797)}
 
+# The website (website/public). Favicon frames, the iOS touch icon (iOS discards alpha,
+# so it is composed on the site background), the manifest icons, a maskable icon with the
+# mark inside the 80 % safe zone, and the default social image — no text, the page
+# title travels in og:title.
+WEB_FAVICON_SIZES = (48, 32, 16)
+WEB_PNGS = {'icon-192.png': 192, 'icon-512.png': 512}
+WEB_TOUCH_ICON = 180
+WEB_MASKABLE = 512
+WEB_OG = (1200, 630)
+WEB_BG = (6, 8, 13, 255)  # #06080d — editor.background in Sirius Star Dark, the site background
+
 
 class Renderer:
 	def __init__(self, main: Path, small: Path | None):
@@ -112,12 +123,20 @@ def write_bmp_on_white(r: Renderer, path: Path, w: int, h: int, icon_px: int) ->
 	canvas.convert('RGB').save(path, format='BMP')
 
 
+def write_png_on_bg(r: Renderer, path: Path, w: int, h: int, icon_px: int, bg: tuple[int, int, int, int]) -> None:
+	canvas = Image.new('RGBA', (w, h), bg)
+	icon = r.at(icon_px)
+	canvas.alpha_composite(icon, ((w - icon_px) // 2, (h - icon_px) // 2))
+	canvas.save(path, format='PNG', optimize=True)
+
+
 def main() -> int:
 	ap = argparse.ArgumentParser(description='Generate every platform icon from one source image.')
 	ap.add_argument('source', type=Path, help='square PNG, at least 1024 px; 2048 recommended')
 	ap.add_argument('--small', type=Path, help=f'simplified mark used for renditions of {SMALL_MAX} px and under')
 	ap.add_argument('--out', type=Path, default=Path('resources'), help='output root (default: resources/)')
 	ap.add_argument('--installer', action='store_true', help='also regenerate the Inno Setup wizard bitmaps')
+	ap.add_argument('--web', type=Path, metavar='DIR', help='also write the website favicons, manifest icons and default social image into DIR (website/public)')
 	args = ap.parse_args()
 
 	r = Renderer(args.source, args.small)
@@ -143,6 +162,19 @@ def main() -> int:
 			emit(f'win32/inno-small-{scale}.bmp', write_bmp_on_white, w, h, min(w, h) - 6)
 		for scale, (w, h) in INNO_BIG.items():
 			emit(f'win32/inno-big-{scale}.bmp', write_bmp_on_white, w, h, min(w, h) - 24)
+
+	if args.web:
+		def emit_web(rel: str, fn, *fargs) -> None:
+			path = args.web / rel
+			path.parent.mkdir(parents=True, exist_ok=True)
+			fn(r, path, *fargs)
+			written.append(path)
+		emit_web('favicon.ico', write_ico, WEB_FAVICON_SIZES)
+		for name, size in WEB_PNGS.items():
+			emit_web(name, write_png, size)
+		emit_web('apple-touch-icon.png', write_png_on_bg, WEB_TOUCH_ICON, WEB_TOUCH_ICON, WEB_TOUCH_ICON, WEB_BG)
+		emit_web('icon-maskable-512.png', write_png_on_bg, WEB_MASKABLE, WEB_MASKABLE, int(WEB_MASKABLE * 0.8), WEB_BG)
+		emit_web('og/default.png', write_png_on_bg, WEB_OG[0], WEB_OG[1], 420, WEB_BG)
 
 	for p in written:
 		print(f'  {p}  ({p.stat().st_size:,} bytes)')
