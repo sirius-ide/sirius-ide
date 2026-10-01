@@ -697,10 +697,36 @@ Cloud sessions work on `claude/…` branches and stop; they never land or releas
 
 ## 13. If you are a new session, start here
 
-**Last handoff (2026-10-01, cloud, branch `claude/youthful-pascal-9wsrxd`): the website is built
-to `website/BRIEF.md`, reviewed, and stopped before DNS and any deploy** (BRIEF §7, step 4).
-Nothing is deployed; `siriuside.com` still has no DNS record; the Cloudflare token was never in
-the VM. On the branch, over `620d227` (the design direction the owner approved):
+**Last handoff (2026-10-02, local): the website is merged onto `sirius` — NOT deployed.** The
+cloud branch `claude/youthful-pascal-9wsrxd` was reviewed and cherry-picked as fourteen commits,
+`acb848e`…`7826426` (identical tree to its tip `eb5c2ca`; branch deleted, no PR existed), then
+`5cfd5be` corrected PRIVACY.md, which `/privacy/` renders verbatim, on the two points the docs
+pass found: keys are encrypted with DPAPI on Windows (not "Credential Manager"), with the Linux
+no-keyring prompt stated; and every install checks for updates, packages included, 30 s after
+start and then hourly, with `update.mode` to turn it off. Nothing is deployed; `siriuside.com`
+still has no DNS record.
+
+**Verified on the owner's machine (2026-10-02, Node 22.22.1, a worktree of the branch tip):**
+`npm ci`, build (29 pages), `astro check` (0 warnings), smoke (29 pages × 4 variants), links
+(1,466 internal references) and axe (29 × 4, no violations) all clean; the release train is
+untouched (the only active workflows are Sirius Release and Dependabot, and neither lints or
+hygiene-checks the tree). Lighthouse: every page 100/100/100/100 with CLS 0 — but `/docs/` and
+`/docs/install/` land at an LCP of **1.504 s**, 4 ms over the 1.5 s assertion, on all three runs
+(the VM measured 1.36 and 1.43 s). Pages fall on ~150 ms steps — one simulated round trip: 1.20 s,
+1.35 s (`/`, `/roadmap/`), 1.50 s (docs) — and the docs HTML is 28.5 KB gzipped, carrying 76 KB of
+inline CSS (Starlight + Expressive Code). Dropping the mono preload on the docs does not move it
+and adds a 0.0001 CLS, so the fix is shrinking or externalising the docs CSS. Until then the
+workflow's Lighthouse step may go red on a runner: it gates nothing (no Pages token yet).
+**Cloudflare, read-only from here:** the full-control token is active; `siriuside.com` and
+`siriuside.dev` are both active zones on the account; the Pages project `sirius-website` does not
+exist yet; the token **cannot read** the zone's dynamic-redirect phase ("request is not
+authorized") — "Dynamic URL Redirects: Edit" must be added in the dashboard before the
+`redirects` step, which replaces that phase's rules; the apex today carries the email-routing MX,
+SPF and DKIM records, which the flattened apex CNAME must sit beside.
+
+**Below, the cloud's handoff as it stopped (2026-10-01, branch `claude/youthful-pascal-9wsrxd`):**
+built to `website/BRIEF.md`, reviewed, and stopped before DNS and any deploy (BRIEF §7, step 4).
+On the branch, over `620d227` (the design direction the owner approved):
 
 - **Every page of BRIEF §4.** `/` — hero (the drawn Sirius window with its once-on-load agent
   sequence, the Sky backdrop), the three reasons, eight feature sections (agent mode, Tab and
@@ -825,7 +851,11 @@ user's browser and returns only the URL; README's "Inline AI", "read, edit, sear
 "Signature look" overstate; the extension description promises "vision input"; ROADMAP.md
 opens by naming two competitors and calls the foundation "open", and marks the browser in
 progress while the site presents it as shipped. These want a product decision or a code
-change, not a website change; §10 is the place for the ones the owner keeps.
+change, not a website change; §10 is the place for the ones the owner keeps. Two of them are
+settled on `sirius` since `5cfd5be` (PRIVACY.md's update checks and Windows key storage). One
+more, found on landing: upstream's `update.mode` setting description still says "The updates
+are fetched from a Microsoft online service" (`src/vs/platform/update/common/update.config.contribution.ts`)
+— they come from `update.siriuside.com`.
 
 **Not done from the design critique, in order of value:** rebuild the seven SVG feature
 stand-ins as HTML surfaces like the model picker (or land the footage — the stand-ins are
@@ -915,9 +945,9 @@ PRs #1–#4 are closed; #5 is moot and left for Dependabot.
 
 **Next, in order** (one cloud session per item, each on its own branch; the owner lands it
 locally by cherry-pick, §12, before the next item starts — so each builds on the merged state):
-(1) **built on `claude/youthful-pascal-9wsrxd`, stopped before deploy (the handoff above) —
-owner next: land the branch, then footage, deploy, DNS, the outside checks and the `product.json`
-flip, in the order the handoff gives:** the website (hole 2),
+(1) **merged 2026-10-02, not deployed — owner next: look at the site, then the deploy steps,
+DNS, the outside checks and the `product.json` flip, in the order the handoff gives; a small
+cloud follow-up brings the docs pages under the 1.5 s LCP line (above):** the website (hole 2),
 to the specification in `website/BRIEF.md` (2026-10-01): a flagship site — Astro + Starlight, the Sirius Star
 identity, hard Lighthouse budgets, honest content from the repo's own files — built in two
 stops: the design direction (screenshots under `website/design/`) for the owner's OK, then the
