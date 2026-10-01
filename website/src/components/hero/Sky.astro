@@ -31,10 +31,9 @@
 <style>
 	.sky { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; }
 	.stars { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
-	.field { fill: var(--star); }
-	.field.bright { fill: var(--star-bright); }
-	/* The patterns carry no fill of their own; the circles inherit the rect's fill through currentColor-free SVG inheritance. */
-	pattern circle { fill: inherit; }
+	/* The rects keep their pattern fills (set as attributes); the colour lives on the pattern's circles. */
+	#sky-dots circle { fill: var(--star); }
+	#sky-bright circle { fill: var(--star-bright); }
 	.bolt {
 		position: absolute; top: 17.5%; right: 3%; width: 60%; height: 1px;
 		transform-origin: right center; transform: rotate(-79deg) scaleX(1);
