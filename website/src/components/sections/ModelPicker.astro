@@ -1,10 +1,11 @@
 ---
 /**
- * The model quick pick, drawn in HTML in the product's colours. Every string is the real
- * one from extensions/sirius-ai (modelRouter.ts, secretStore.ts and the provider catalogues
- * at 1.118.7): the placeholder, the per-provider separators, the 🧠/👁️ badges, the
- * active-model star and the "— detected" group for a running Ollama. The command's title
- * row is left out: the site's own text does not use the word the command title uses.
+ * The "Select AI Model" quick pick, drawn in HTML in the product's colours. Every string
+ * is the real one from extensions/sirius-ai (modelRouter.ts, secretStore.ts and the
+ * provider catalogues at 1.118.7): the title, the placeholder, the per-provider
+ * separators, the 🧠/👁️ badges, the active-model star and the "— detected" group for a
+ * running Ollama. Product strings are shown as the product shows them (owner, 2026-10-01);
+ * the site's own copy is what avoids the word "AI".
  */
 import Icon from '../hero/Icon.astro';
 type Row =
@@ -22,8 +23,9 @@ const rows: Row[] = [
 	{ label: 'gemma3:27b', id: 'gemma3:27b' },
 ];
 ---
-<figure class="qp" role="img" aria-label="The model picker in Sirius: hosted models from Anthropic and Google listed above local models detected from a running Ollama; the local model qwen3:32b is active and Claude Opus 5 is highlighted.">
+<figure class="qp" role="img" aria-label="The Select AI Model picker in Sirius: hosted models from Anthropic and Google listed above local models detected from a running Ollama; the local model qwen3:32b is active and Claude Opus 5 is highlighted.">
 	<div class="qp-inner" aria-hidden="true">
+		<div class="qp-title">✨ Select AI Model</div>
 		<div class="qp-input"><span class="ph">Choose a model from any provider... (🧠=Thinking 👁️=Vision)</span></div>
 		<ul class="qp-list">
 			{rows.map((r) =>
@@ -53,6 +55,7 @@ const rows: Row[] = [
 		outline: 1px solid var(--ring-soft); outline-offset: 3px;
 		overflow: hidden;
 	}
+	.qp-title { background: var(--q-title); color: var(--q-fg); text-align: center; padding: 0.45em; font-size: 0.95em; border-bottom: 1px solid var(--q-border); }
 	.qp-input { margin: 0.55em 0.6em 0.3em; height: 2em; border: 1px solid var(--q-violet); border-radius: 3px; background: #0d1117; display: flex; align-items: center; padding: 0 0.6em; }
 	.ph { color: var(--q-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 	.qp-list { list-style: none; margin: 0; padding: 0.2em 0.35em 0.5em; }

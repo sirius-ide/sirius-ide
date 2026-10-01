@@ -11,12 +11,12 @@ sequence, with the diff and its controls on screen.
 1. **No gradients anywhere.** No gradient functions, no glows, no soft shadows. Depth comes
    from flat planes and 1 px rings; light is a crisp line, not a bloom. `src/styles/tokens.css`
    carries the rule.
-2. **No "AI" in the site's own text.** The positioning is *native, advanced, agentic*. The
-   product's own strings inside the drawn surfaces stay what the product shows; where one of
-   them says "AI" (the model command's title row) the illustration leaves that row out.
-3. **No mention of the company.** The footer, the metadata and SECURITY.md name no company.
-   The licence text, which must name its copyright holder, is a legal document and is
-   rendered verbatim on `/license/` in the full build.
+2. **No "AI" in the site's own copy** — the headline and the marketing text. The positioning is
+   *native, advanced, agentic*. The product's own strings inside the drawn surfaces stay exactly
+   what the product shows, including the "Select AI Model" title of the picker.
+3. **No company in the website's footer.** The footer and the page metadata name no company.
+   The licence keeps its copyright holder and is rendered verbatim on `/license/` in the full
+   build.
 
 ## The idea, in one line
 

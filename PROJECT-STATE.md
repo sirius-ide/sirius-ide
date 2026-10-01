@@ -722,13 +722,13 @@ deployed, no DNS. On the branch, over `f8cc08e`:
 **The owner's answers so far (2026-10-01, mid-review), applied on the branch:** no gradients
 anywhere on the site (no gradient functions, glows or soft shadows — `tokens.css` carries the
 rule, depth is flat planes and 1 px rings, the logo and bullets are flat two-tone, the headline
-accent is a solid colour); no "AI" in the site's own text — the positioning is *native, advanced,
-agentic* and the headline reads "The native, advanced, agentic code editor."; no mention of the
-company (footer, metadata, SECURITY.md). Two consequences to know: the drawn model picker
-leaves out the command's title row because that product string says "AI" (renaming the
-extension's command titles is a product change for a later item), and LICENSE.txt still names
-its copyright holder, as a licence must — it will render verbatim at `/license/`. The repo's
-README still carries the old brand line; the owner decides whether it follows.
+accent is a solid colour); no "AI" in the site's own copy — the headline and the marketing text; the
+positioning is *native, advanced, agentic* and the headline reads "The native, advanced,
+agentic code editor." — while the product's own strings in the drawn surfaces stay exactly as
+the product shows them (the picker keeps its "Select AI Model" title row; the owner confirmed
+this); no company in the website's footer or metadata (the licence keeps its copyright holder
+and renders verbatim at `/license/`). The repo's README still carries the old brand line; the
+owner decides whether it follows.
 
 **Verified in the VM:** the build and `astro check`; the four renders plus a reduced-motion pass
 whose product window is pixel-identical to the settled animated one (reduced motion is the end
