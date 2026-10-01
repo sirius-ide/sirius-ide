@@ -1,0 +1,20 @@
+---
+// Starlight <MobileMenuFooter> override: the site's own pages are reachable from the docs menu on a phone.
+import Default from '@astrojs/starlight/components/MobileMenuFooter.astro';
+const links = [
+	{ href: '/', label: 'Home' },
+	{ href: '/download/', label: 'Download' },
+	{ href: '/changelog/', label: 'Changelog' },
+	{ href: '/roadmap/', label: 'Roadmap' },
+];
+---
+<nav class="site-pages" aria-label="Site">
+	<ul>{links.map((l) => <li><a href={l.href}>{l.label}</a></li>)}</ul>
+</nav>
+<Default />
+<style>
+	.site-pages { padding: 0 var(--sl-sidebar-pad-x) 1rem; border-bottom: 1px solid var(--sl-color-hairline); margin-bottom: 1rem; }
+	.site-pages ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 0.5rem 1.25rem; }
+	.site-pages a { color: var(--sl-color-white); text-decoration: none; font-size: var(--sl-text-sm); font-weight: 500; }
+	.site-pages a:hover { color: var(--sl-color-text-accent); }
+</style>

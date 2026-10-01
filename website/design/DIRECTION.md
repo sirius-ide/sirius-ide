@@ -91,8 +91,9 @@ anything.
    of light sweeping across, transform only; the flare's ring and point open every feature
    eyebrow; scroll reveals (a 12 px rise as a block enters the viewport) run on the CSS
    scroll timeline alone — no script, and a browser without `animation-timeline: view()` or
-   with reduced motion simply shows the settled state; view transitions between pages
-   (Astro's ClientRouter is on).
+   with reduced motion simply shows the settled state; page-to-page transitions are the
+   browser's own cross-document view transitions, one CSS rule and no router (the router
+   lost the theme and OS attributes and the page scripts on client-side navigation).
 
 Nothing loops. No canvas; the starfield is two masked SVG dot patterns that cost one paint.
 

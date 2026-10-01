@@ -12,7 +12,7 @@ npm run build         # prebuild fetches release data → astro build → postbu
 npm run preview
 npm run check         # astro check
 npm test              # Playwright smoke (every page × 2 widths × 2 schemes), link check, axe
-npm run lighthouse    # Lighthouse CI against budgets.json (CHROME_PATH if Chrome is not on PATH)
+npm run lighthouse    # Lighthouse CI against the brief's budgets in lighthouserc.cjs (CHROME_PATH if Chrome is not on PATH)
 npm run screenshots   # review PNGs at 1440×900 and 390×844, dark and light → design/
                       # PAGES="/,/download/" node scripts/screenshots.mjs <outDir> for other pages
 ```

@@ -27,6 +27,7 @@ for (const path of pages) {
 				title: document.title, h1: document.querySelectorAll('h1').length, main: document.querySelectorAll('main').length,
 				canonical: document.querySelector('link[rel=canonical]')?.getAttribute('href') ?? '', noindex: !!document.querySelector('meta[name=robots][content*=noindex]'), description: document.querySelector('meta[name=description]')?.getAttribute('content') ?? '',
 				lang: document.documentElement.lang, overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
+				bodyBg: getComputedStyle(document.body).backgroundColor,
 			}));
 			if (!checks.title) { problems.push(`${tag}: no <title>`); }
 			if (checks.h1 !== 1) { problems.push(`${tag}: ${checks.h1} <h1> elements`); }
@@ -34,6 +35,7 @@ for (const path of pages) {
 			if (!checks.canonical && !checks.noindex) { problems.push(`${tag}: no canonical link (and not noindex)`); }
 			if (!checks.description) { problems.push(`${tag}: no meta description`); }
 			if (checks.lang !== 'en') { problems.push(`${tag}: lang is "${checks.lang}"`); }
+			if (!checks.bodyBg || checks.bodyBg === 'rgba(0, 0, 0, 0)') { problems.push(`${tag}: body has no background — the tokens are not loaded`); }
 			if (checks.overflow) { problems.push(`${tag}: horizontal overflow (page wider than the viewport)`); }
 			await ctx.close();
 		}

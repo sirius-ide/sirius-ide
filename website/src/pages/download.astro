@@ -159,10 +159,14 @@ ollama pull qwen3</code></pre><CopyButton text={'ollama serve\nollama pull qwen3
 
 <script>
 	// The manual override: a pick sets data-os for this page and is remembered for the hero's button.
-	for (const b of document.querySelectorAll<HTMLButtonElement>('[data-os-pick]')) {
+	const chips = document.querySelectorAll<HTMLButtonElement>('[data-os-pick]');
+	const reflect = () => { for (const c of chips) { c.setAttribute('aria-pressed', String(c.dataset.osPick === document.documentElement.dataset.os)); } };
+	reflect();
+	for (const b of chips) {
 		b.addEventListener('click', () => {
 			const os = b.dataset.osPick!;
 			document.documentElement.dataset.os = os;
+			reflect();
 			try { localStorage.setItem('sirius-os', os); } catch { /* private mode */ }
 			document.getElementById(os)?.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
 		});
@@ -178,7 +182,7 @@ ollama pull qwen3</code></pre><CopyButton text={'ollama serve\nollama pull qwen3
 	:global(html[data-os="linux"]) .os-linux { display: inline; }
 	:global(html[data-os="windows"]) .os-windows { display: inline; }
 	:global(html[data-os="macos"]) .os-macos { display: inline; }
-	:global(html[data-os="macos"]) .head .os-default { display: inline; }
+	:global(html[data-os="macos"]) .head h1 .os-default { display: inline; }
 	.detect { margin-top: 1.75rem; display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
 	.detect-label { font-family: var(--font-mono); font-variant-ligatures: none; font-size: var(--text-xs); letter-spacing: 0.06em; text-transform: uppercase; color: var(--fg-muted); margin-right: 0.5rem; }
 	.chip { padding: 0.45em 0.9em; border-radius: 999px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--fg); font-size: var(--text-s); font-weight: 500; cursor: pointer; }

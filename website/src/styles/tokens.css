@@ -9,6 +9,10 @@
  */
 :root {
 	color-scheme: dark light;
+}
+:root[data-theme="light"] { color-scheme: light; }
+:root[data-theme="dark"] { color-scheme: dark; }
+:root {
 	/* The mono face keeps no ligatures anywhere on the site (see base.css). */
 
 	/* brand constants — the same in both schemes */
