@@ -1,6 +1,6 @@
 # Sirius IDE — Project State
 
-**Last full audit: 2026-09-30** (against code at `10f1cc8d`) · released `v1.118.6` (2026-09-30; seven releases `v1.118.0`…`v1.118.6`) · the release train ships the REH server, proves the `.deb`/`.rpm` install in Debian 12 / Ubuntu 22.04 / Rocky 9, and publishes the Arch repo itself — all first run for real on the v1.118.6 tag and verified from the outside (§13) · shipping
+**Last full audit: 2026-09-30** (against code at `10f1cc8d`) · released `v1.118.7` (2026-10-01; eight releases `v1.118.0`…`v1.118.7`) · the release train ships the REH server and `.deb`/`.rpm` for x64 and arm64 (arm64 cross-compiled at a glibc-2.28 floor since v1.118.7), proves each install in Debian 12 / Ubuntu 22.04 / Rocky 9 on its own architecture, and publishes the Arch repo itself — all verified from the outside on the v1.118.7 tag (§13) · shipping
 
 This file is the single place a new session should start. It records what exists,
 what is deployed, what has actually been verified, and — explicitly — what is still
@@ -40,13 +40,13 @@ the docs — about thirty places, which is why it exists.
 | --- | --- |
 | Fork + rebrand | ✅ complete (branding, icons, protocols, gallery, legal) |
 | Build from source | ✅ produces `VSCode-linux-x64` (~720 MB unpacked) |
-| Release CI | ✅ tag → Linux x64/arm64 + Windows x64, attested, mirrored to R2. **On `sirius` since 2026-09-30 (`2d98ba0`…`7e3c08c`), first shipping in v1.118.7: arm64 is cross-compiled on the x64 runner through the glibc-2.28 sysroot and gets `.deb`/`.rpm`** — rehearsal 36788412045 green |
-| Update server | ✅ **live** at `update.siriuside.com`, serving v1.118.6 (verified 2026-09-30 after deploying worker version `b8394745`: an old linux-x64 / linux-arm64 / win32-x64 client gets 200 → 1.118.6 with its own asset and the sha256 from that asset's `.sha256`; a 1.118.6 client gets 204) |
+| Release CI | ✅ tag → Linux x64/arm64 + Windows x64, attested, mirrored to R2. **Since v1.118.7 (2026-10-01, tag run 36803858361, 13/13 green): arm64 is cross-compiled on the x64 runner through the glibc-2.28 sysroot and ships `.deb`/`.rpm`** |
+| Update server | ✅ **live** at `update.siriuside.com`, serving v1.118.7 (verified 2026-10-01, worker version `b8394745`: an old or a 1.118.6 linux-x64 / linux-arm64 / win32-x64 client gets 200 → 1.118.7 with its own asset, the sha256 from that asset's `.sha256` and commit `603044c`; a 1.118.7 client gets 204) |
 | Download CDN | ✅ **live** at `dl.siriuside.com` (R2, zero egress) |
-| Arch pacman repo | ✅ **automated and live** — every stable tag builds `sirius-ide-bin` from its own tarball, installs it on Arch, and publishes it to `dl.siriuside.com/arch/x86_64` (jobs `arch` + `arch-publish`). First real publish on v1.118.6 (run 36773757646): `sirius.db` lists `sirius-ide-bin-1.118.6-1`. **Hardened on `sirius` since 2026-10-01 (`9f6f202` + `ced0349`), first used by the v1.118.7 tag: the publish script accepts only 200 / 404 from R2, requires all four database objects present or all absent, and fails closed on anything else; self-tested in every branch rehearsal (36793636385 green, 13/13)** |
+| Arch pacman repo | ✅ **automated and live** — every stable tag builds `sirius-ide-bin` from its own tarball, installs it on Arch, and publishes it to `dl.siriuside.com/arch/x86_64` (jobs `arch` + `arch-publish`). First real publish on v1.118.6 (run 36773757646). **On v1.118.7 (run 36803858361) the hardened script (`9f6f202` + `ced0349`) fetched the live database, saw 1.118.6-1 and published 1.118.7-1: `sirius.db` lists exactly `sirius-ide-bin-1.118.7-1`.** The script accepts only 200 / 404 from R2, requires all four database objects present or all absent, and fails closed on anything else; self-tested in every branch rehearsal |
 | AUR | ❌ not published (see §11) |
-| deb / rpm | ✅ **shipped since v1.118.5** (2026-09-27, the first ever), x64. Built and gated on every run since, and **installed and run in Debian 12 / Ubuntu 22.04 / Rocky 9 containers on every run** (job `install-test`, required by Publish). **arm64 `.deb`/`.rpm`: built, gated and installed the same way, on `sirius` since 2026-09-30 (rehearsal 36788412045); they ship with v1.118.7** |
-| REH server | ✅ **shipped in v1.118.6** — `sirius-server-linux-{x64,arm64}.tar.gz`, the asset `serverDownloadUrlTemplate` promised since v1.118.0; x64 gated at glibc 2.28 / GLIBCXX 3.4.25 and started in the containers. Both template URLs answer 200. On `sirius` since 2026-09-30 (ships with v1.118.7) the arm64 server has the same 2.28 / 3.4.25 floor and is started in the arm64 containers too |
+| deb / rpm | ✅ **shipped since v1.118.5** (2026-09-27, the first ever), x64. Built and gated on every run since, and **installed and run in Debian 12 / Ubuntu 22.04 / Rocky 9 containers on every run** (job `install-test`, required by Publish). **arm64 `.deb`/`.rpm`: shipped since v1.118.7** (2026-10-01), built, gated and installed the same way, on arm64 hardware |
+| REH server | ✅ **shipped in v1.118.6** — `sirius-server-linux-{x64,arm64}.tar.gz`, the asset `serverDownloadUrlTemplate` promised since v1.118.0; x64 gated at glibc 2.28 / GLIBCXX 3.4.25 and started in the containers. Both template URLs answer 200. Since v1.118.7 the arm64 server has the same 2.28 / 3.4.25 floor and is started in the arm64 containers too |
 | macOS | ❌ not built (needs Apple Developer cert) |
 | Windows signing | ❌ unsigned — SmartScreen warns |
 | Website | ❌ `siriuside.com` has no DNS record at all |
@@ -56,7 +56,7 @@ the docs — about thirty places, which is why it exists.
 | Next-edit prediction | ✅ shipped (default off, needs local FIM model) |
 | Project rules | ✅ shipped (Phase 2 opened) |
 | Working tree | see `git status`; this file lags the log |
-| Unreleased | `git log --oneline v1.118.6..HEAD` — do not trust a number written here. At 2026-09-30: the update-worker fix (`db3e2b6`, already deployed — the worker ships separately from releases) and this state-doc update |
+| Unreleased | `git log --oneline v1.118.7..HEAD` — do not trust a number written here. At 2026-10-01: this state-doc update only |
 
 ---
 
@@ -74,9 +74,10 @@ sirius  → all Sirius work. THE ACTIVE BRANCH. Pushed to origin/sirius.
   grows; recompute with `git rev-list --count main..upstream/main` where the `upstream`
   remote exists. Rebase debt is real; see §4 for where conflicts will land.
 
-Version tags: `v1.118.0` … `v1.118.6`. Everything up to `b8a169d` ("1.118.6") is released.
-Commits after it are docs, the cloud-session files and the new icon (`52d2794`, `3be0dda`);
-none touch `src/` or `extensions/`. The icon is in no tag yet and ships with the next one.
+Version tags: `v1.118.0` … `v1.118.7`, all annotated. Everything up to `603044c` ("1.118.7")
+is released. v1.118.7 over v1.118.6 is release tooling only — the arm64 cross-build, the Arch
+publish hardening, the update-worker fix (deployed separately) and docs; nothing under `src/`
+or `extensions/`.
 
 ### Why the version is 1.118.x
 
@@ -241,17 +242,17 @@ Server = https://dl.siriuside.com/arch/$arch
 
 ---
 
-## 7. Live infrastructure (verified 2026-09-28)
+## 7. Live infrastructure (verified 2026-10-01)
 
 | Endpoint | Status |
 | --- | --- |
-| `https://update.siriuside.com/api/update/<platform>/stable/<commit>` | ✅ **200** → v1.118.6 for an older commit, **204** for the v1.118.6 commit, on linux-x64, linux-arm64 and win32-x64 (verified 2026-09-30); dl CDN URL + a sha256 matching the asset's own `.sha256` |
-| `https://dl.siriuside.com/releases/v1.118.6/<asset>` | ✅ **200** for all 15 v1.118.6 assets (tarballs, server tarballs, installer, `.deb`, `.rpm`, Arch package, checksums), each the same size as on GitHub |
-| `https://dl.siriuside.com/arch/x86_64/sirius.db` | ✅ **200** → contains `sirius-ide-bin-1.118.4-1` |
+| `https://update.siriuside.com/api/update/<platform>/stable/<commit>` | ✅ **200** → v1.118.7 for an older commit (including v1.118.6's), **204** for the v1.118.7 commit, on linux-x64, linux-arm64 and win32-x64; dl CDN URL + a sha256 matching the asset's own `.sha256`. Worker version `b8394745` (rollback target `2125f6cc`) |
+| `https://dl.siriuside.com/releases/v1.118.7/<asset>` | ✅ all 17 v1.118.7 assets (tarballs, server tarballs, installer, `.deb` and `.rpm` for amd64/x86_64 and arm64/aarch64, Arch package, checksums) downloaded from the CDN: each the same size as on GitHub, each with a `.sha256` matching it, every one passing `gh attestation verify` |
+| `https://dl.siriuside.com/arch/x86_64/sirius.db` | ✅ **200** → lists exactly `sirius-ide-bin-1.118.7-1`, `%SHA256SUM%` = the release asset; `sirius.db` / `sirius.db.tar.gz` and `sirius.files` / `sirius.files.tar.gz` byte-identical, all `no-cache` |
 | `https://dl.siriuside.com/` | 404 (expected — bucket root, not an index) |
 | `https://siriuside.com` | ❌ **no DNS record** |
 | `https://siriuside.dev` | ❌ **no DNS record** |
-| GitHub releases | ✅ 7 releases, latest v1.118.6 (2026-09-30) — 15 assets, the first with the REH server and the Arch package |
+| GitHub releases | ✅ 8 releases, latest v1.118.7 (2026-10-01) — 17 assets, the first with arm64 `.deb` / `.rpm` (v1.118.6 was the first with the REH server and the Arch package) |
 
 **Cloudflare** — worker `sirius-update`, bucket `sirius-releases`, custom domains
 `update.` and `dl.`. Managed by `build/cloudflare/deploy.sh` (idempotent, addresses
@@ -351,11 +352,12 @@ Be precise about this; several things are wired but never exercised live.
 | The **published** v1.118.5 `.deb` / `.rpm` | ✅ inspected from the CDN (ranged fetch of the control/header sections): deb `Depends` floors at `libc6 (>= 2.28)`, `libcups2` present, **no `libstdc++6`**; `postrm` executable lines carry no Microsoft/apt-repo reference; rpm `GLIBC_2.28` max, `libcups` in, no `libstdc++`, Vendor `Clicksora, L.L.C.` |
 | Release provenance | ✅ `gh attestation verify commit.txt --owner sirius-ide` exit 0 (Sigstore bundle, cert issued at release time). It prints nothing on success outside a TTY — check the exit code |
 | deb / rpm installed on Debian 12 / Ubuntu 22.04 / Rocky 9 | ✅ **CI, every run** (run 36762589539): apt/dnf resolve the generated dependency lists from the distros' own repos, `sirius --version` reports the release commit, all 12 shipped binaries resolve every library, the editor stays up under Xvfb for 60 s with `window1/renderer.log` written, and the server starts and answers `/version`. Since the arm64 cross-build (merged 2026-09-30) every leg also dlopens every native module under the shipped Electron and the server's under its node (`build/sirius/dlopen-smoke.cjs`) |
-| deb / rpm / tarball (arm64) | ✅ **rehearsal 36788412045** (on `sirius` since 2026-09-30, unreleased until v1.118.7): cross-compiled on the x64 runner (sysroot aarch64 gcc 10.5 for the client, gcc 8.5 for remote/), ABI floor glibc ≤ 2.28 / GLIBCXX ≤ 3.4.26, every ELF in both trees checked for machine type (`build/sirius/elf-arch.sh`), byte-exact dep-list match, then **installed and run on arm64 hardware**: `.deb` on Debian 12 and Ubuntu 22.04, `.rpm` on Rocky 9, tarball on Debian 12 — the leg that was red for v1.118.6. Not yet on `sirius`, not yet in a release |
+| deb / rpm / tarball (arm64) | ✅ **shipped in v1.118.7** (tag run 36803858361; first proven in rehearsal 36788412045): cross-compiled on the x64 runner (sysroot aarch64 gcc 10.5 for the client, gcc 8.5 for remote/), ABI floor glibc ≤ 2.28 / GLIBCXX ≤ 3.4.26, every ELF in both trees checked for machine type (`build/sirius/elf-arch.sh`), byte-exact dep-list match, then **installed and run on arm64 hardware**: `.deb` on Debian 12 and Ubuntu 22.04, `.rpm` on Rocky 9, tarball on Debian 12 — the leg that was red for v1.118.6. On the tag run every arm64 leg reported `--version 1.118.7` and `/version` answered `603044c` |
 | REH server x64 | ✅ built and gated on CI: 9 server binaries at glibc ≤ 2.28, GLIBCXX ≤ 3.4.25 (the floor `check-requirements.sh` promises); nodejs.org's Node 22.22.1 verified against `build/checksums/nodejs.txt`; `sirius-server --version` and `/version` proven in all three containers. **Not yet exercised by a real remote extension** (Open Remote - SSH from a client): local-only proof |
-| REH server arm64 | ✅ rehearsal 36788412045 (on `sirius`, unreleased until v1.118.7): gated at glibc ≤ 2.28 / GLIBCXX ≤ 3.4.25 like x64, modules dlopen under its node, started and `/version` answered in all four arm64 containers. **v1.118.6's published arm64 server still has the native runner's glibc 2.38 floor** until the next tag |
-| arm64 tarball on Debian 12 arm64 | ✅ rehearsal 36788412045 (on `sirius`, unreleased until v1.118.7): installs its dependency set, every binary resolves, every module dlopens, the window comes up. **v1.118.6's published tarball still does not run there** (measured in run 36762589539: GLIBC_2.38 / GLIBCXX_3.4.31 from the native build); the next tag replaces it |
-| Arch package | ✅ CI, every run: built with makepkg in `archlinux:base-devel`, `pacman -U` resolves every declared dependency, `sirius --version` correct, 11+ binaries link, desktop files validate; `repo-add` rehearsed on the runner. The R2 upload ran for real on the v1.118.6 tag (run 36773757646). Since `9f6f202` / `ced0349` (on `sirius`, first used by v1.118.7) the publish logic is also proven against a stub R2 by `publish-arch-repo.test.sh` (18 cases: first publish, upgrade, refused downgrade, same-bytes re-run, rebuilt bytes refused, 403 / 500 / no-connection on either database object and on the package object, failed download, four half-repository shapes including the reproduced downgrade, a CLI error format that hides the 404, unreadable database, dry run makes no call) and, by the review, with the real AWS CLI 2.37.7 against a moto S3 mock end to end — rehearsal 36793636385 green, 13/13 jobs, the self-test's 18 `ok` lines in the runner's log; all 18 also pass on Arch with pacman 7.1.0 (2026-10-01, local). **Unverified for real: that R2 answers HeadObject on a missing key with 404 through the mirror token** (§13) |
+| REH server arm64 | ✅ shipped in v1.118.7: gated at glibc ≤ 2.28 / GLIBCXX ≤ 3.4.25 like x64, modules dlopen under its node, started and `/version` answered in all four arm64 containers. (v1.118.6's arm64 server had the native runner's glibc 2.38 floor) |
+| arm64 tarball on Debian 12 arm64 | ✅ shipped in v1.118.7: installs its dependency set, every binary resolves, every module dlopens, the window comes up. (v1.118.6's tarball did not run there: GLIBC_2.38 / GLIBCXX_3.4.31 from the native build, measured in run 36762589539 and again from the CDN on 2026-10-01) |
+| The **published** v1.118.7 Linux artifacts | ✅ 2026-10-01, from the CDN: CI's own `abi-floor.sh` and `elf-arch.sh`, rerun on the published bytes, pass for all eight — tarball, server, `.deb` and `.rpm` for each of x64 and arm64 (client glibc ≤ 2.28 with no libstdc++ on x64 and ≤ 3.4.26 on arm64; server ≤ 2.28 / 3.4.25; every ELF the package's architecture). The same check run on v1.118.6's arm64 tarball and server fails, as it should |
+| Arch package | ✅ CI, every run: built with makepkg in `archlinux:base-devel`, `pacman -U` resolves every declared dependency, `sirius --version` correct, 11+ binaries link, desktop files validate; `repo-add` rehearsed on the runner. The R2 upload ran for real on the v1.118.6 tag (run 36773757646). Since `9f6f202` / `ced0349` (on `sirius`, first used by v1.118.7) the publish logic is also proven against a stub R2 by `publish-arch-repo.test.sh` (18 cases: first publish, upgrade, refused downgrade, same-bytes re-run, rebuilt bytes refused, 403 / 500 / no-connection on either database object and on the package object, failed download, four half-repository shapes including the reproduced downgrade, a CLI error format that hides the 404, unreadable database, dry run makes no call) and, by the review, with the real AWS CLI 2.37.7 against a moto S3 mock end to end — rehearsal 36793636385 green, 13/13 jobs, the self-test's 18 `ok` lines in the runner's log; all 18 also pass on Arch with pacman 7.1.0 (2026-10-01, local). **R2 answers HeadObject on a missing key with 404 through the mirror token** — proven by the v1.118.7 tag run, whose package upload only happens after a recognised `(404)` |
 | Image input to models | ⚠️ wire format proven for all 4 providers by probe; **no vision model exercised live** (`ollama pull moondream` would close it) |
 | Integrated browser tools | ✅ 38 tools on a fresh profile, all seven browser ids present (`test/harness/probes/agent-tools.js`) |
 | Tiered / size-aware native tools | ✅ probe-proven: 1.5B → core, ≥ 6 GB → extended |
@@ -367,18 +369,10 @@ Be precise about this; several things are wired but never exercised live.
 ## 10. Open holes
 
 Ordered by how much they hurt. Last audited against code on 2026-09-30 (`f4688fa`); delete an
-item as soon as it is resolved rather than leaving it here.
+item as soon as it is resolved rather than leaving it here. Numbers are stable references
+(§13 and other docs cite them), so a deleted item leaves a gap rather than renumbering the rest.
 
 ### Blocking users right now
-
-1. **Closed on `sirius` (merged 2026-09-30), ships with v1.118.7 — `.deb` and `.rpm`
-   existed for x64 only.** arm64 is now cross-compiled on
-   the x64 runner through upstream's aarch64 glibc-2.28 sysroot, and gets the packages,
-   a tarball and a server with the same floor as x64 — installed and run on arm64
-   hardware in Debian 12, Ubuntu 22.04 and Rocky 9 containers on every run (rehearsal
-   36788412045; §9, §11). Until the tag lands, v1.118.6's arm64 tarball and server keep the
-   native build's glibc 2.38 floor and do not run on Debian 12 arm64. Delete this item
-   once the tag is out.
 
 2. **No website.** `siriuside.com` and `siriuside.dev` have no DNS records. Every
    user-facing URL in `product.json` points at GitHub instead. The Cloudflare token
@@ -391,16 +385,6 @@ item as soon as it is resolved rather than leaving it here.
    is the first-class path either way, so this is reach, not function.
 
 ### Operational
-
-4. **Closed 2026-09-30 — the Arch repository publishes itself.** v1.118.6's tag run
-   (36773757646) ran `arch-publish` for the first time: `sirius.db` on
-   `dl.siriuside.com/arch/x86_64` lists `sirius-ide-bin-1.118.6-1` and the script verified
-   the package bytes through the CDN. Arch users moved 1.118.4 → 1.118.6 (1.118.5 was never
-   rebuilt for them). The owner's `~/Projects/aur/sirius-ide-bin` is history: the PKGBUILD
-   lives in `build/arch/`. The hardening item found that day — a failed fetch of the live
-   database was read as a first publish — is fixed on `sirius`
-   (`9f6f202`, then `ced0349` from its review), first used by the v1.118.7 tag. The proof
-   that R2 answers a missing key with 404 through the mirror token is still open; see §13.
 
 5. **Dependabot "devcontainers" runs were flaky** — failed 2026-08-31, 09-07 and 09-14,
    then succeeded 09-21 and 09-28. Watch one more weekly cycle and delete this if it stays
@@ -602,9 +586,9 @@ Each of these cost real time.
   a rotated token, a timeout or a wrong endpoint all read as "no database yet", skipped the
   downgrade check, and would have replaced the live index with one listing only the run's
   package. Every existence check is now a HeadObject with two accepted answers — 200 and
-  404 — and anything else stops the publish with the CLI's message. R2 should answer a
-  missing key with 404 (not yet observed through the mirror token — §13); S3 would answer
-  403 to a token that cannot list the bucket, so if the mirror token is (or is ever) narrowed, the tag run stops at `== package object` with a `(403)` in the
+  404 — and anything else stops the publish with the CLI's message. R2 answers a missing
+  key with 404 through the mirror token (observed on the v1.118.7 tag run); S3 would answer
+  403 to a token that cannot list the bucket, so if the mirror token is ever narrowed, the tag run stops at `== package object` with a `(403)` in the
   error, and the token scope (not the script) is what to fix. Two more from the review
   (`ced0349`): **check all four database objects**, not just the `.tar.gz` pair — pacman
   reads `sirius.db` / `sirius.files`, and a bucket where the pair was deleted but those
@@ -644,7 +628,7 @@ nvm use && npm install -g npm@10
 # 2. Bump — exactly three lines, by hand, never `npm install` (that rewrote the
 #    whole lock once): package.json:3, package-lock.json:3, package-lock.json:9.
 #    Commit subject is the bare version, as every prior bump (d4ad0d51114).
-#    <X.Y.Z> below is the NEW version (v1.118.6 is already tagged; next is 1.118.7).
+#    <X.Y.Z> below is the NEW version (v1.118.7 is already tagged; next is 1.118.8).
 git commit -m "<X.Y.Z>"
 # 3. Push the branch first (silent — nothing triggers on a branch push), then an
 #    ANNOTATED tag pushed BY NAME. All shipped tags are annotated; `--tags` would
@@ -708,111 +692,50 @@ Cloud sessions work on `claude/…` branches and stop; they never land or releas
 
 ## 13. If you are a new session, start here
 
-**Last handoff (2026-10-01, local): the Arch publish hardening is merged onto `sirius` —
-NOT yet in a release.** The cloud branch `claude/friendly-gauss-e7tq9o` was reviewed and
-cherry-picked as five commits (identical tree to its tip `3b7c59c`; branch deleted, no PR
-existed): two code commits, `9f6f202` and `ced0349`, and the state-doc commits `99a7b9a`,
-`920b8fc` and `62720ef`. `9f6f202`: `build/sirius/publish-arch-repo.sh`
-asks R2 with HeadObject before it touches anything and accepts exactly two answers — 200
-(present) and 404 (absent). A 403, a timeout, a wrong endpoint, a database that exists but
-fails to download, a half-present database and a fetched database `tar` cannot read all
-stop the publish before `repo-add`, with the CLI's own message as the error annotation.
-The same rule guards the package object, so a failed HeadObject can no longer upload
-different bytes under an immutable name. A genuine first publish still works and is
-announced as a `::warning::`. `ced0349`, from an Opus review that also ran the script with
-the real AWS CLI 2.37.7 against a moto S3 mock: all **four** database objects are checked
-(the review reproduced a downgrade with only the `.tar.gz` pair checked — §11),
-`AWS_CLI_ERROR_FORMAT=legacy` is pinned so the `(404)` stays recognisable, and the work
-directory is removed on exit. The new `build/sirius/publish-arch-repo.test.sh` runs the
-real script, in publish mode, against a stub `aws` and `curl` on PATH (a directory is the
-bucket; each case sets the fault the stub answers with) — 18 cases, 3–4 s, no network, no
-credentials — and the workflow's branch rehearsal step now runs it after the `--dry-run`
-(`zstd` added to that runner's apt line for the synthetic packages). The tag path is
-unchanged apart from the hardened script.
+**Last handoff (2026-10-01, local): v1.118.7 is live, verified from the outside.** It is the
+first release with arm64 `.deb` and `.rpm`, and the first whose arm64 tarball and server hold
+the glibc-2.28 floor (cross-compiled through the sysroot; v1.118.6's needed 2.38). Released
+commit `603044c` ("1.118.7", annotated tag `v1.118.7`); over v1.118.6 it carries release
+tooling only — the arm64 cross-build (`2d98ba0`…`7e3c08c`) and the Arch publish hardening
+(`9f6f202`, `ced0349`). Rehearsal 36802537238 (on `680df6e`) and tag run 36803858361 are both
+green in all 13 jobs; on the tag run all seven install legs, x64 and arm64 hardware, reported
+`--version 1.118.7` and `/version` answered `603044c`.
 
-**Verified:** rehearsal 36793636385 (on the pre-merge head `20d7760`, code-identical to
-`ced0349`; it differs from the branch tip only in this file) is **green in all 13 jobs** —
-the "Rehearse the repository update" step repo-added the run's own `sirius-ide-bin-1.118.6-1`
-in `--dry-run`, then printed `ok` for all 18 self-test cases on `ubuntu-latest` with pacman
-6.0.2. The earlier rehearsal 36792162007 (on `af7f765`, now `9f6f202`) failed only in the
-arm64 deb step, on a GitHub 429 page served as `dpkg-shlibdeps.pl` (§11, transient). Both
-were read with `gh run view` on landing, not taken from the handoff. Also on landing, from the
-owner's machine: all 18 cases pass on Arch with pacman 7.1.0, `shellcheck` is clean on both
-scripts, and the live repository through `dl.siriuside.com` has all four database objects
-at 200 / `no-cache`, each pair byte-identical, `sirius.db` listing
-`sirius-ide-bin-1.118.6-1` — the all-present state, so the v1.118.7 tag takes the
-fetch-and-upgrade path, not the half-repository refusal. From the cloud session: the CLI
-facts (the `(404)` line under the default and `legacy` formats, the json/text/yaml/table
-shapes without it, an unknown format value ignored) observed on AWS CLI 2.37.7 against moto.
+**Verified from the outside (§7, §9):** all 17 assets downloaded from `dl.siriuside.com` —
+each the size GitHub lists, each matching its `.sha256`, each passing `gh attestation verify`;
+`commit.txt` is the tag's commit. CI's `abi-floor.sh` and `elf-arch.sh`, rerun on the
+published bytes, pass for all eight Linux artifacts — among them the new
+`sirius_1.118.7-1790820696_arm64.deb` (Architecture `arm64`, `libc6 (>= 2.28)` the highest
+libc it asks for) and `sirius-1.118.7-1790820782.el8.aarch64.rpm` (ARCH `aarch64`,
+`GLIBC_2.28` max). The update server offers linux-x64, linux-arm64 and win32-x64 their own
+1.118.7 asset with the sidecar sha256 and the commit — 200 to an old or a 1.118.6 client, 204
+to a 1.118.7 one. The Arch repository lists exactly `sirius-ide-bin-1.118.7-1`, its
+`%SHA256SUM%` the release asset's. The tag run's "Publish Arch repository" log shows the
+hardened path end to end: `fetched sirius.db.tar.gz`, `database currently lists
+sirius-ide-bin-1.118.6-1`, then the package upload, which the script makes only after a
+recognised `(404)` — so **R2 answers HeadObject on a missing key with 404 through the mirror
+token**, the question the previous handoff left open. The Windows installer was checked for
+size, sha256 and attestation only (it is unsigned, §2). **Not exercised:** a user install on a
+distro outside the three CI tests, and the arm64 packages on anything but CI's arm64 runners
+(the owner's machine has no arm64 emulation).
 
-**Not verified — and not runnable from the owner's machine as it stands:** that R2 answers
-HeadObject on a *missing* key with 404 through the mirror token (the v1.118.6 run's
-`head-object` on the not-yet-uploaded package did fail, but its stderr was discarded, so
-whether it said 404 or 403 is unknown; the cloud reviewer put R2-returns-404 at 85–90%).
-The question is what *that* token gets, so the owner's wider Cloudflare credentials do not
-answer it — and the token's S3 key pair exists only as the repo secrets `R2_ACCESS_KEY_ID` /
-`R2_SECRET_ACCESS_KEY` (Cloudflare shows a secret once; `~/.secrets` holds only the
-Cloudflare API token and `~/.aws` has no R2 profile). With the pair, one command proves it,
-and it must say `(404)`, not `(403)`:
-`AWS_CLI_ERROR_FORMAT=legacy AWS_DEFAULT_REGION=auto aws s3api head-object --bucket sirius-releases --key arch/x86_64/no-such-object --endpoint-url "$(gh variable get R2_ENDPOINT)"`.
-If it says `(403)`, the next tag run will stop at `== package object` (the GitHub release,
-R2 mirror and update manifest are out by then; only the Arch repo lags, nothing is
-overwritten) and the token needs list permission on the bucket.
-
-**Previous handoff (2026-09-30, local): the arm64 sysroot cross-build is merged onto `sirius` —
-NOT yet in a release.** The cloud branch `claude/busy-davinci-2vct4i` was reviewed and
-cherry-picked as six commits (identical tree to its tip `212f853`; branch deleted): four
-code commits, then the two state-doc commits `ce17948` and `3edd5db`. `2d98ba0` (the cross-build itself: arm64 built
-on the x64 runner through the aarch64 glibc-2.28 sysroot, `.deb`/`.rpm` for arm64, seven
-required install-test legs, `install-test.sh` architecture-aware, INSTALL.md), `23af06e`
-(from two Opus reviews: job-level `VSCODE_ARCH` — without it every arm64 artifact carried
-x86-64 MSAL binaries; `build/sirius/dlopen-smoke.cjs` shared by the linux job and every
-install leg; a strict `ldd`; `build/sirius/elf-arch.sh`; the ABI and ELF checks reporting
-through the Packaging gate), `b93d738` (from the third review, which cross-compiled the
-modules locally: `node build/npm/preinstall.ts` by hand before `npm ci` — npm 10 runs the root
-preinstall only after reify, so the V8 `<source_location>` patch came too late for the
-sysroot's gcc 10.5 and native-keymap failed — plus `ELECTRON_SKIP_BINARY_DOWNLOAD` and the
-predicted arm64 deb list), `7e3c08c` (the deb list as the first rehearsal measured it:
-`libstdc++6 (>= 5)`, not `(>= 5.2)`). Rehearsal 36786333471 failed in the Linux arm64 job on that one
-deb line, which skipped every install leg; rehearsal 36788412045 (on the pre-merge
-head `44447de`, code-identical to `7e3c08c`) is green in all 13 jobs.
-
-**Verified by that run (§9):** the arm64 leg cross-compiles on `ubuntu-22.04`; 16 client
-binaries at glibc ≤ 2.28 / GLIBCXX ≤ 3.4.26 and 9 server binaries at ≤ 3.4.25; all 39 ELF
-files aarch64 (the sandbox runtime's per-arch seccomp helpers exempt); the aarch64 rpm and
-arm64 deb dependency lists byte-exact; and on arm64 hardware the `.deb` installs and runs on
-Debian 12 and Ubuntu 22.04, the `.rpm` on Rocky 9, the tarball on Debian 12 — every leg
-dlopens 9 client modules under Electron 39.8.8 and 6 server modules under Node 22.22.1, shows
-a window for 60 s, and the server answers `/version` with the commit. x64, Windows, the Arch
-package and the Arch repository rehearsal stayed green. **Not exercised:** the tag-only Publish
-path with the four extra arm64 assets (the release upload and R2 mirror are per-file and
-arch-agnostic, so nothing arm64-specific is untested there), and any user install on a distro
-outside the three tested — INSTALL.md's "Debian 11 / Ubuntu 20.04 or newer" for arm64 comes
-from the ABI numbers, not from a run. INSTALL.md describes the arm64 packages as "from the
-first release after v1.118.6" — that is v1.118.7; until it is tagged,
-v1.118.6's live arm64 tarball and server keep the native build's glibc 2.38 floor.
-
-**Previous handoff (2026-09-30, local): v1.118.6 is live** — tag run 36773757646, GitHub
-release, R2 mirror, update manifest and Arch repository all verified from the outside (§7).
-The update worker's suffix-match defect (arm64 desktops were offered the server tarball) is
-fixed in `db3e2b6` and deployed as worker version `b8394745` (rollback target `2125f6cc`).
-Dependabot PRs #1–#4 are closed; #5 is moot and left for Dependabot.
+**Earlier handoffs, condensed** (details in §9, §11 and the commit messages). 2026-10-01: the
+Arch publish hardening landed from cloud branch `claude/friendly-gauss-e7tq9o` — `9f6f202`
+(every existence check a HeadObject with only 200 / 404 accepted; anything else stops the
+publish) and `ced0349` (all four database objects, `AWS_CLI_ERROR_FORMAT=legacy`, and
+`publish-arch-repo.test.sh`, 18 stub-R2 cases run in every branch rehearsal). 2026-09-30: the
+arm64 cross-build landed from `claude/busy-davinci-2vct4i` — `2d98ba0` (the cross-build, arm64
+packages, seven install legs), `23af06e` (job-level `VSCODE_ARCH`, `dlopen-smoke.cjs`,
+`elf-arch.sh`), `b93d738` (the root preinstall run by hand before `npm ci`), `7e3c08c` (the
+measured arm64 deb list). 2026-09-30: v1.118.6 went live (tag run 36773757646); the update
+worker's suffix-match defect (arm64 desktops were offered the server tarball) is fixed in
+`db3e2b6` and deployed as worker version `b8394745` (rollback target `2125f6cc`). Dependabot
+PRs #1–#4 are closed; #5 is moot and left for Dependabot.
 
 **Next, in order** (one branch per item; the owner merges by cherry-pick):
-(1) **owner:** close the R2 404 proof above. The key pair is the blocker; three ways out:
-(a) the pair from wherever it was kept when the token was made (2026-08-25) — or roll it and
-update both secrets together, keeping a copy in `~/.secrets`; (b) a read-only HeadObject on
-a missing key in the branch rehearsal, which has the secrets — every rehearsal would then
-prove it (a small code change, cloud-sized); (c) tag without it and accept that a `(403)`
-stops only the Arch publish, safely;
-(2) **owner:** tag 1.118.7 per §12 — it ships the arm64 packages and glibc-2.28 floor and
-the Arch publish hardening, all merged above — then check every platform from outside,
-including the new arm64 `.deb` and `.rpm` assets, and confirm the tag run's "Publish Arch
-repository" log shows `fetched sirius.db.tar.gz` and
-`database currently lists sirius-ide-bin-1.118.6-1`;
-(3) **cloud for the code, owner for the
-rest:** the website (hole 2) — DNS and the Cloudflare Pages deploy need the owner's token;
-(4) **local-only:** the live Anthropic/Gemini/vision runs and the remote-extension connect
+(1) **cloud for the code, owner for the rest:** the website (hole 2) — DNS and the Cloudflare
+Pages deploy need the owner's token;
+(2) **local-only:** the live Anthropic/Gemini/vision runs and the remote-extension connect
 (hole 12).
 
 1. `git log --oneline -20` — this file can lag; the log cannot.
