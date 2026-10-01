@@ -91,21 +91,24 @@ rebase instead of drifting.
 
 ## Near-term next steps
 
-**Released: `v1.118.6` (2026-09-30).** Seven releases so far, all three platform builds
+**Released: `v1.118.7` (2026-10-01).** Eight releases so far, all three platform builds
 from CI, provenance-attested, mirrored to R2 and served by the production update
-endpoint. v1.118.6 is the first to ship the REH server and to publish the Arch pacman
-repository itself — no manual step is left after a tag — and its `.deb`/`.rpm` are
-installed and run in clean Debian 12, Ubuntu 22.04 and Rocky 9 containers before Publish
-may run. It also carries the new icon. v1.118.5 (2026-09-27) was the first with a `.deb`
-and an `.rpm`, and shipped next-edit prediction, project rules, image input to every
-provider, size-aware tool tiers, the integrated browser on by default, and prompted tools
-for local models with no native tool API.
+endpoint. v1.118.7 is the first with arm64 `.deb` and `.rpm` packages and the first whose
+arm64 builds hold the same glibc-2.28 floor as x64 — cross-compiled through upstream's
+sysroot and installed and run on arm64 hardware before Publish. v1.118.6 (2026-09-30) was
+the first to ship the REH server and to publish the Arch pacman repository itself — no
+manual step is left after a tag — and the first whose `.deb`/`.rpm` were installed and run
+in clean Debian 12, Ubuntu 22.04 and Rocky 9 containers before Publish; it also carries the
+new icon. v1.118.5 (2026-09-27) was the first with a `.deb` and an `.rpm`, and shipped
+next-edit prediction, project rules, image input to every provider, size-aware tool
+tiers, the integrated browser on by default, and prompted tools for local models with no
+native tool API.
 
 **A full, current audit of what is done, what is live, what is verified and what is
 still open lives in [PROJECT-STATE.md](PROJECT-STATE.md).** It is the authoritative
 status document; this roadmap is the feature plan.
 
-The open items, highest value first (2026-09-30; items marked ✅ shipped in v1.118.6):
+The open items, highest value first (2026-10-01; items 1–5 shipped in v1.118.6, item 6 in v1.118.7):
 
 1. ✅ **Automate the Arch repo** — every stable tag builds `sirius-ide-bin` from its own
    tarball, installs it on Arch, and publishes it to the pacman repository with downgrade
@@ -114,19 +117,19 @@ The open items, highest value first (2026-09-30; items marked ✅ shipped in v1.
    Rocky 9, in clean containers, on every run: dependencies resolve, the editor shows a
    window, the server answers. Publish requires it.
 3. ✅ **Build the REH server** — `sirius-server-linux-{x64,arm64}.tar.gz`, gated at the
-   floor the server promises remote hosts (x64 since v1.118.6, arm64 from the next tag). A
+   floor the server promises remote hosts (x64 since v1.118.6, arm64 since v1.118.7). A
    real remote-extension connect is the remaining local proof.
 4. ✅ **The new icon** — done on `sirius` (`3be0dda`): `build/sirius/make-icons.py` regenerates
    every platform icon file from `resources/sirius/icon.png` (2048 px master) and
    `icon-small.png` (48 px and under). Shipped in v1.118.6.
 5. ✅ **Cut the tag** — v1.118.6 (2026-09-30) carries all of the above; `Publish` and
    `Publish Arch repository` were green on their first real run (36773757646).
-6. ✅ **arm64 sysroot cross-build** — merged onto `sirius` 2026-09-30 (rehearsal 36788412045), ships in
-   v1.118.7: arm64 is cross-compiled on the x64 runner through
+6. ✅ **arm64 sysroot cross-build** — shipped in v1.118.7 (2026-10-01, tag run 36803858361):
+   arm64 is cross-compiled on the x64 runner through
    upstream's aarch64 glibc-2.28 sysroot, so the tarball, the server and — for the first
    time — the `.deb`/`.rpm` share x64's floor, and all four are installed and run on arm64
    hardware (Debian 12, Ubuntu 22.04, Rocky 9) before Publish. v1.118.6's native arm64
-   build (glibc 2.38, no packages) stays live until then.
+   build needed glibc 2.38 and had no packages.
 7. **A website** — `siriuside.com` has no DNS record; every user-facing URL points at
    GitHub.
 8. **Exercise Anthropic and Gemini against live APIs**, and a vision model against the

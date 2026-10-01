@@ -732,11 +732,28 @@ worker's suffix-match defect (arm64 desktops were offered the server tarball) is
 `db3e2b6` and deployed as worker version `b8394745` (rollback target `2125f6cc`). Dependabot
 PRs #1–#4 are closed; #5 is moot and left for Dependabot.
 
-**Next, in order** (one branch per item; the owner merges by cherry-pick):
-(1) **cloud for the code, owner for the rest:** the website (hole 2) — DNS and the Cloudflare
-Pages deploy need the owner's token;
-(2) **local-only:** the live Anthropic/Gemini/vision runs and the remote-extension connect
-(hole 12).
+**Next, in order** (one cloud session per item, each on its own branch; the owner lands it
+locally by cherry-pick, §12, before the next item starts — so each builds on the merged state):
+(1) **cloud for the code, owner for the rest:** the website (hole 2). Propose the stack,
+pages and structure first and wait for the owner's OK; build it ready for Cloudflare Pages;
+stop before DNS or any deploy (they need the owner's token) and write the exact deploy steps
+here;
+(2) **cloud, small:** `create_file` inside the chat-editing stream (hole 8), so creating a
+file gets the same diff, checkpoint and accept/reject as an edit;
+(3) **cloud, propose first:** the onboarding walkthrough written for Sirius (hole 9) — the
+steps and wording approved before building, through the walkthrough contribution point
+upstream already provides;
+(4) **cloud, propose first:** a settings surface for model providers and API keys (hole 10).
+The rule "never rebuild UI the editor already provides" applies: the proposal must say which
+upstream seam it builds on (settings editor, walkthrough, quick pick, the keyring commands)
+and what is genuinely new;
+(5) **local-only:** the live Anthropic/Gemini/vision runs and the remote-extension connect
+(holes 11, 12).
+For the product items (2)–(4), prove the change with `test/harness/run.sh` if the VM can
+build and run the app headless (§8); if it cannot, say so and mark the change *unverified*
+here — the local landing session proves it in the built app. **Owner decision, not queued:**
+rebase debt (hole 13) — catching up with upstream needs a method that keeps the release tags
+and fits the cherry-pick landing rule, so it is not a task to hand a session as is.
 
 1. `git log --oneline -20` — this file can lag; the log cannot.
 2. `git status` and `git log origin/sirius..HEAD` — is there unpushed or unreleased work?
