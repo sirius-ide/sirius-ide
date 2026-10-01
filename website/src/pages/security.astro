@@ -7,7 +7,8 @@ if (!entry?.rendered) { throw new Error('SECURITY.md did not render'); }
 const html = rewriteRepoLinks(entry.rendered.html).replace(/^\s*<h1[^>]*>.*?<\/h1>/s, '');
 const headings = (entry.rendered.metadata?.headings ?? []) as Array<{ depth: number; slug: string; text: string }>;
 ---
-<Doc title="Security" eyebrow="Security policy" sourceFile="SECURITY.md" headings={headings}
+<Doc
+	headline="Report vulnerabilities privately." title="Security" eyebrow="Security policy" sourceFile="SECURITY.md" headings={headings}
 	description="How to report a vulnerability in Sirius IDE privately through GitHub, what is in scope, which versions receive fixes, and how to verify a download."
 	intro="Report vulnerabilities privately; the policy below is the one in the repository.">
 	<Fragment set:html={html} />

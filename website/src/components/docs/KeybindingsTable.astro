@@ -2,7 +2,7 @@
 import { keybindings } from './ext';
 const keys = (combo: string) => combo.split(' ').map((chord) => chord.split('+'));
 ---
-<table>
+<div class="ref-table ref-table--keybindings not-content"><table>
 	<thead><tr><th>Action</th><th>Linux and Windows</th><th>macOS</th></tr></thead>
 	<tbody>
 		{keybindings.map((k) => (
@@ -13,4 +13,4 @@ const keys = (combo: string) => combo.split(' ').map((chord) => chord.split('+')
 			</tr>
 		))}
 	</tbody>
-</table>
+</table></div>

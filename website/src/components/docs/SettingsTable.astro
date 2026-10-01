@@ -5,7 +5,7 @@ const { deprecated = false, prefix } = Astro.props;
 const rows = (deprecated ? deprecatedSettings : currentSettings).filter((s) => !prefix || s.key.startsWith(prefix));
 const parts = (s: string) => s.split(/(`[^`]+`)/g).filter(Boolean).map((part) => part.startsWith('`') ? { code: true, text: part.slice(1, -1) } : { code: false, text: part });
 ---
-<table>
+<div class="ref-table ref-table--settings not-content"><table>
 	<thead><tr><th>Setting</th><th>Default</th><th>What it does</th></tr></thead>
 	<tbody>
 		{rows.map((s) => (
@@ -16,4 +16,4 @@ const parts = (s: string) => s.split(/(`[^`]+`)/g).filter(Boolean).map((part) =>
 			</tr>
 		))}
 	</tbody>
-</table>
+</table></div>

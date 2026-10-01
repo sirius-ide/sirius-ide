@@ -1,0 +1,46 @@
+---
+title: Integrated browser
+description: The agent can open a page inside the editor, read it, click and type, and take a screenshot — on by default in Sirius.
+sidebar:
+  order: 10
+---
+
+The editor has an integrated browser, driven by Playwright in-process — no separate Chrome
+or Chromium to install. Its tools are gated behind `workbench.browser.enableChatTools`,
+which Sirius turns **on by default** (upstream ships it off). With the gate on and agent
+mode enabled, the Sirius agent offers six browser tools in its extended tier:
+
+| Tool | What the model is told |
+| --- | --- |
+| `open_browser_page` | Open a new browser page in the integrated browser at the given URL; returns a page id for the other tools |
+| `read_page` | Get a snapshot of the current page state — the accessibility tree; "better than screenshot" |
+| `screenshot_page` | Capture a screenshot of the current page; for looking, not for acting |
+| `navigate_page` | Navigate by URL, history or reload |
+| `click_element` | Click an element |
+| `type_in_page` | Type text or press keys |
+
+`read_page` is the primary path: it returns structured text any model can use, including
+small local ones. `screenshot_page` returns an image, which reaches the models that accept
+images — Claude, Gemini and vision-capable Ollama models; for others the image is replaced
+by a note that the model cannot view it ([Image input](/docs/image-input/)).
+
+The extended tier is offered to hosted models, local models of 4 GB or more, and
+unknown-size models with a context window of at least 32,000 tokens; a small local model
+gets the core tools only, so it is not handed sixteen schemas it cannot hold.
+
+## What is not offered
+
+The editor registers a few more browser tools — `hover_element`, `drag_element`,
+`handle_dialog`, `run_playwright_code` — that the Sirius agent does not pass to the model in
+1.118.7. Driving your own Chrome instead of the integrated browser is not implemented.
+
+## Turning it off
+
+Set `workbench.browser.enableChatTools` to `false`. With the gate off the agent can still
+open a page for you, but has no access to its contents. There are no `sirius.ai.browser.*`
+settings; the tools are the workbench's.
+
+:::note
+The tool registration and the on-by-default gate are verified by the build harness; an
+end-to-end page interaction driven by a model is not part of it yet.
+:::

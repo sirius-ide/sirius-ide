@@ -1,0 +1,69 @@
+---
+title: Tab completion and next-edit prediction
+description: Fill-in-the-middle completion on a local model, per language, and the next edit predicted from the one you just made.
+sidebar:
+  order: 7
+---
+
+Tab completion is a fill-in-the-middle request to a **local** model — Ollama or llama.cpp
+— with the text before and after the cursor. It never goes to a hosted provider, so no
+line of your code leaves the machine. It is **off by default**.
+
+## Turning it on
+
+`sirius.ai.enable` is a per-language map. `"*"` is the default for every language; a
+language id overrides it:
+
+```json
+"sirius.ai.enable": { "*": true, "markdown": false }
+```
+
+Then pick the model with `sirius.ai.completions.model` — `auto` finds a running Ollama's
+first code model by name; `ollama/<model>` names one; `llamacpp` uses the server at
+`sirius.ai.llamacpp.baseUrl`. [Local models](/docs/local-models/#tab-completion-needs-a-fim-model)
+lists the models that answer FIM well. Changing the model setting takes effect after a
+window reload.
+
+The editor's inline-suggestion controls — the status-bar entry's *Inline Suggestions*
+checkboxes for all files and the current language — are wired to the same setting, so
+either place works; `settings.json` is the one that is always there.
+
+## What you get
+
+Suggestions appear as ghost text after a 180 ms pause in typing; <kbd>Tab</kbd> accepts,
+<kbd>Esc</kbd> dismisses. Sirius sends up to 2,000 characters before and 600 after the
+cursor, asks for at most 256 tokens at a low temperature, stops at a blank-line gap, and
+trims the result to `sirius.ai.completions.maxLines` (default 12). A newer keystroke cancels
+the request in flight; recent contexts are cached; nothing is requested in an empty file;
+a suggestion that merely repeats the text after the cursor is dropped. It works in files
+on disk and in untitled buffers.
+
+If no backend is reachable, nothing is shown — no error. Sirius re-checks for one every
+30 seconds.
+
+## Next-edit prediction
+
+`sirius.ai.nextEditSuggestions.enabled` (default `false`, experimental) adds a second kind
+of suggestion: after you make a small edit — a single-line change of up to 120 characters —
+Sirius asks the same local model what the *next* edit should be, looking at about 40 lines
+either side of the cursor, and offers it as an inline diff you take with <kbd>Tab</kbd>. The
+prediction is only requested within 8 seconds of the edit, it never targets the line you
+just changed, and the model must answer in a strict format or say `NONE`, so a vague
+answer produces nothing rather than noise. It needs Tab completion to be on for the
+language.
+
+## Settings
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `sirius.ai.enable` | `{"*": false}` | Tab completion per language |
+| `sirius.ai.completions.model` | `auto` | Which local FIM model answers |
+| `sirius.ai.completions.maxLines` | `12` | Longest suggestion offered |
+| `sirius.ai.nextEditSuggestions.enabled` | `false` | Predict the next edit after each change |
+| `sirius.ai.inlineCompletions` | `false` | Deprecated: `true` still turns completion on everywhere |
+
+:::note
+Tab completion and next-edit prediction were not part of the automated build verification
+for 1.118.7 (the harness probes cover the agent, rules and import). They are written as
+described; the Ollama path has been used by hand.
+:::

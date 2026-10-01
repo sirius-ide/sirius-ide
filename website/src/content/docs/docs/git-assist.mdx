@@ -1,0 +1,42 @@
+---
+title: Git assist
+description: A commit message written from your diff, and merge conflicts handed to the agent.
+sidebar:
+  order: 11
+---
+
+Two commands work with the built-in git extension.
+
+## Sirius: Generate Commit Message
+
+Writes a message for the **staged** diff — or, with nothing staged, the working-tree diff —
+into the Source Control commit box. The prompt asks for an imperative summary under 72
+characters and, only when the change needs it, a blank line and a short body; no quotes, no
+code fences. The diff is cut at 12,000 characters, so stage a large change in parts if you
+want each described precisely.
+
+Run it from the Command Palette, or from the Source Control view's commit-box action where
+the editor shows one. From the palette it describes the first repository of the workspace.
+
+It uses the first model in Sirius's list — with an Anthropic key that is Claude Opus 5,
+with only Ollama your first local model — rather than the chat's selected model. Project
+rules are not applied to it.
+
+What it says when it cannot: *Sirius: no git repository found.* · *Sirius: nothing staged
+or changed to describe.* · *Sirius: no model available — add a provider key with "Sirius:
+Set API Key", or start Ollama.*
+
+## Sirius: Resolve Merge Conflicts
+
+Lists the files the repository reports as merge conflicts and opens the chat with:
+*Resolve the merge conflicts in: … Read each file, understand both sides of every conflict,
+and apply a resolution that keeps the intent of both changes. Explain each resolution briefly
+as you go.* The agent then reads and edits the files, and every resolution comes back as a
+diff you keep or undo like any other agent edit. With no conflicts: *Sirius: no merge
+conflicts to resolve.*
+
+:::note
+The editor's own Source Control buttons for these actions depend on upstream's chat-setup
+state, which was not verified in Sirius for 1.118.7. The Command Palette commands are the
+dependable route.
+:::

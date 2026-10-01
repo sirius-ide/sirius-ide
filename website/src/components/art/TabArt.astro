@@ -1,19 +1,19 @@
 ---
 /** Stand-in for the Tab-completion footage slot: code with ghost text after the caret, a Tab key, and a next-edit hint. */
 ---
-<svg viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" class="art" font-family="var(--font-mono)" font-size="15">
+<svg xml:space="preserve" viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" class="art" font-family="var(--font-mono)" font-size="15">
 	<rect x="0" y="0" width="800" height="500" fill="var(--surface)" />
 	<rect x="40" y="40" width="720" height="420" rx="10" fill="none" stroke="var(--border-strong)" />
 	<rect x="40" y="40" width="720" height="34" rx="10" fill="var(--surface-2)" />
-	<rect x="60" y="52" width="86" height="10" rx="3" fill="var(--fg)" />
+	<rect x="60" y="52" width="86" height="10" rx="3" fill="var(--border-strong)" />
 	<g fill="var(--fg-dim)" text-anchor="end">
 		<text x="92" y="118">12</text><text x="92" y="150">13</text><text x="92" y="182">14</text><text x="92" y="214">15</text><text x="92" y="246">16</text><text x="92" y="278">17</text>
 	</g>
-	<g fill="var(--fg)">
+	<g fill="var(--border-strong)">
 		<text x="112" y="118"><tspan fill="var(--magenta)">export function</tspan> <tspan fill="var(--link)">retryAfter</tspan>(ms: <tspan fill="var(--warn)">number</tspan>) {'{'}</text>
 		<text x="112" y="150">  <tspan fill="var(--magenta)">const</tspan> seconds = Math.ceil(ms / <tspan fill="var(--cyan)">1000</tspan>);</text>
-		<text x="112" y="182">  <tspan fill="var(--magenta)">return</tspan> <tspan fill="var(--fg)">{'{'}</tspan></text>
-		<text x="112" y="214">    headers: <tspan fill="var(--fg)">{'{'}</tspan> <tspan fill="var(--string, var(--link))">'Retry-After'</tspan>: String(seconds)<tspan fill="var(--fg-dim)">|</tspan></text>
+		<text x="112" y="182">  <tspan fill="var(--magenta)">return</tspan> <tspan fill="var(--border-strong)">{'{'}</tspan></text>
+		<text x="112" y="214">    headers: <tspan fill="var(--border-strong)">{'{'}</tspan> <tspan fill="var(--string, var(--link))">'Retry-After'</tspan>: String(seconds)<tspan fill="var(--fg-dim)">|</tspan></text>
 	</g>
 	<!-- ghost text -->
 	<g fill="var(--fg-dim)" opacity="0.85">
@@ -22,17 +22,17 @@
 		<text x="112" y="278">  {'}'};</text>
 	</g>
 	<!-- caret -->
-	<rect x="432" y="200" width="2" height="18" fill="var(--fg)" />
+	<rect x="432" y="200" width="2" height="18" fill="var(--border-strong)" />
 	<!-- Tab key -->
 	<rect x="588" y="196" width="60" height="26" rx="6" fill="var(--surface-2)" stroke="var(--border-strong)" />
-	<text x="618" y="214" text-anchor="middle" font-size="13" fill="var(--fg)">Tab</text>
+	<text x="618" y="214" text-anchor="middle" font-size="13" fill="var(--border-strong)">Tab</text>
 	<!-- next-edit hint lower down -->
 	<rect x="60" y="330" width="680" height="1" fill="var(--border)" />
 	<text x="92" y="378" text-anchor="end" fill="var(--fg-dim)">24</text>
 	<rect x="104" y="362" width="4" height="22" fill="var(--accent)" />
-	<text x="120" y="378" fill="var(--fg)">  <tspan fill="var(--magenta)">return</tspan> res.status(<tspan fill="var(--cyan)">429</tspan>).json(body);</text>
+	<text x="120" y="378" fill="var(--border-strong)">  <tspan fill="var(--magenta)">return</tspan> res.status(<tspan fill="var(--cyan)">429</tspan>).json(body);</text>
 	<rect x="470" y="362" width="212" height="24" rx="5" fill="var(--surface-2)" stroke="var(--accent)" />
-	<text x="482" y="379" font-size="13" fill="var(--fg)">.set(retryAfter(wait))</text>
+	<text x="482" y="379" font-size="13" fill="var(--border-strong)">.set(retryAfter(wait))</text>
 	<text x="60" y="430" font-size="13" fill="var(--fg-muted)" font-family="var(--font-sans)">Next edit, predicted from the change you just made — press Tab to take it.</text>
 </svg>
 <style>.art { background: var(--surface); }</style>

@@ -1,0 +1,44 @@
+---
+title: Importing from another editor
+description: Settings, keybindings, snippets and extensions from Visual Studio Code, Cursor, Windsurf or VSCodium, in one command.
+sidebar:
+  order: 12
+---
+
+**Sirius: Import from VS Code, Cursor, or Windsurf** — the title is short; VSCodium is
+supported as well. Sirius looks for each editor's user folder and extensions directory and
+offers only the editors it finds:
+
+| Editor | User folder | Extensions |
+| --- | --- | --- |
+| Visual Studio Code | `Code/User` | `~/.vscode/extensions` |
+| Cursor | `Cursor/User` | `~/.cursor/extensions` |
+| Windsurf (now Devin Desktop) | `Windsurf/User` | `~/.windsurf/extensions` |
+| VSCodium | `VSCodium/User` | `~/.vscode-oss/extensions` |
+
+The user folder lives under `~/.config` on Linux, `~/Library/Application Support` on macOS
+and `%APPDATA%` on Windows. Insiders builds and Flatpak or Snap installs keep their files
+elsewhere and are not found.
+
+## What comes across
+
+Pick the editor, then untick anything that should stay behind — all four categories are
+ticked by default:
+
+- **Settings** — `settings.json` is merged into Sirius's: a key you have already set in
+  Sirius wins, and keys belonging to the other editor's own features (`cursor.*`,
+  `windsurf.*`, `codeium.*`, `github.copilot*`) are left out.
+- **Keybindings** — `keybindings.json` is copied only if Sirius has no keybindings of its
+  own yet; otherwise yours are kept and the report says so.
+- **Snippets** — every file in `snippets/` that does not already exist in Sirius.
+- **Extensions** — each extension id found in the other editor is installed from
+  **Open VSX**. Extensions that are not published there are listed in the *Sirius Import*
+  output channel so you can look for alternatives. GitHub Copilot is skipped.
+
+When it finishes you get the counts: *Imported from Visual Studio Code: 42 settings ·
+keybindings imported · 3 snippets · 18 extensions installed (2 not on Open VSX)*.
+
+Not imported: themes as such (they are extensions, so they come across with the
+extensions), profiles, window and UI state, recent workspaces.
+
+Run it again any time; nothing already in Sirius is overwritten.

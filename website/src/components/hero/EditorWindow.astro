@@ -155,7 +155,7 @@ const icons: Record<string, string> = { ts: 'TS', json: '{}', md: 'M↓' };
 	.win {
 		--ws: 13px;
 		--w-bg: #06080d; --w-side: #0a0e14; --w-s2: #0d1117; --w-s3: #161b22; --w-fg: #e6edf3; --w-fg2: #c9d1d9;
-		--w-muted: #8b949e; --w-dim: #484f58; --w-ln: #30363d; --w-violet: #8b5cf6; --w-ice: #a8c7fa; --w-cyan: #67e8f9;
+		--w-muted: #8b949e; --w-dim: #7d8590; --w-ln: #6e7681; --w-violet: #8b5cf6; --w-ice: #a8c7fa; --w-cyan: #67e8f9;
 		--w-magenta: #c084fc; --w-string: #a5d6ff; --w-type: #fbbf24; --w-green: #3fb950; --w-red: #f85149;
 		--w-func: #a8c7fa; --w-kw2: #c084fc; --w-var: #e6edf3; --w-punct: #8b949e; --w-accent: #8b5cf6; --w-on-accent: #ffffff;
 		--w-border: rgba(139, 92, 246, 0.08); --w-border2: rgba(139, 92, 246, 0.19); --w-tint: rgba(63, 185, 80, 0.14);
@@ -166,10 +166,10 @@ const icons: Record<string, string> = { ts: 'TS', json: '{}', md: 'M↓' };
 	}
 	.win-inner { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: 2.7em 36em 1.7em; min-width: 0; }
 	.win svg { flex: none; }
-	.fi { font-family: var(--font-mono); font-style: normal; font-size: 0.7em; font-weight: 700; width: 2em; text-align: center; letter-spacing: -0.02em; }
-	.fi.ts, .ts .fi { color: #519aba; }
-	.json .fi { color: #cbcb41; }
-	.md .fi { color: #519aba; }
+	.fi { font-family: var(--font-mono); font-variant-ligatures: none; font-style: normal; font-size: 0.7em; font-weight: 700; width: 2em; text-align: center; letter-spacing: -0.02em; }
+	.fi.ts, .ts .fi { color: var(--w-icon-ts, #519aba); }
+	.json .fi { color: var(--w-icon-json, #cbcb41); }
+	.md .fi { color: var(--w-icon-ts, #519aba); }
 
 	/* title bar */
 	.tb { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; padding: 0 0.7em; border-bottom: 1px solid var(--w-border); }
@@ -212,12 +212,13 @@ const icons: Record<string, string> = { ts: 'TS', json: '{}', md: 'M↓' };
 	.tabs-actions { margin-left: auto; display: flex; align-items: center; gap: 0.6em; padding: 0 0.9em; color: var(--w-muted); }
 	.crumbs { display: flex; align-items: center; gap: 0.3em; height: 1.75em; padding: 0 1em; font-size: 0.88em; color: var(--w-muted); white-space: nowrap; overflow: hidden; }
 	.crumbs .here { color: var(--w-ice); }
-	.crumbs .sym { color: var(--w-magenta); font-family: var(--font-mono); }
+	.crumbs .sym { color: var(--w-magenta); font-family: var(--font-mono); font-variant-ligatures: none; }
 
-	.code { position: relative; flex: 1; display: flex; flex-direction: column; padding-top: 0.35em; font-family: var(--font-mono); font-size: 0.92em; line-height: 1.55em; overflow: hidden; }
+	.code { position: relative; flex: 1; display: flex; flex-direction: column; padding-top: 0.35em; font-family: var(--font-mono); font-variant-ligatures: none; font-size: 0.92em; line-height: 1.55em; overflow: hidden; }
 	.row { position: relative; display: grid; grid-template-columns: 3.9em 1fr; }
 	.row.cur { background: var(--w-cur); }
 	.ln { text-align: right; padding-right: 1.5em; color: var(--w-ln); }
+	.row.add .ln { color: var(--w-muted); }
 	.row.cur .ln { color: var(--w-ice); }
 	.src { white-space: pre; overflow: hidden; color: var(--w-fg); }
 	.src b { font-weight: 400; }
@@ -250,7 +251,7 @@ const icons: Record<string, string> = { ts: 'TS', json: '{}', md: 'M↓' };
 	.pi .spin { opacity: 0; color: var(--w-ice); }
 	.pi .done { color: var(--w-muted); }
 	.prose { color: var(--w-fg); line-height: 1.5; }
-	.prose code { font-family: var(--font-mono); font-size: 0.9em; padding: 0.05em 0.3em; border-radius: 3px; background: var(--w-s2); border: 1px solid rgba(139, 92, 246, 0.14); }
+	.prose code { font-family: var(--font-mono); font-variant-ligatures: none; font-size: 0.9em; padding: 0.05em 0.3em; border-radius: 3px; background: var(--w-s2); border: 1px solid rgba(139, 92, 246, 0.14); }
 	.pills { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 0.4em; }
 	.pills li { display: inline-flex; align-items: center; gap: 0.35em; padding: 0.15em 0.55em 0.15em 0.4em; border-radius: 4px; background: var(--w-s2); border: 1px solid var(--w-border2); color: var(--w-ice); font-size: 0.92em; }
 	.pills b { color: var(--w-green); font-weight: 500; }
@@ -281,7 +282,7 @@ const icons: Record<string, string> = { ts: 'TS', json: '{}', md: 'M↓' };
 	@media (prefers-color-scheme: light) {
 		:global(html:not([data-theme="dark"])) .win {
 			--w-bg: #ffffff; --w-side: #f8f8f8; --w-s2: #f8f8f8; --w-s3: #e5e5e5; --w-fg: #3b3b3b; --w-fg2: #3b3b3b;
-			--w-muted: #616161; --w-dim: #868686; --w-ln: #6e7681; --w-ice: #005fb8; --w-cyan: #098658;
+			--w-muted: #616161; --w-dim: #6b6b6b; --w-ln: #5f6b7c; --w-ice: #005fb8; --w-cyan: #09734b; --w-icon-ts: #1b5f94; --w-icon-json: #7a6c00;
 			--w-magenta: #af00db; --w-string: #a31515; --w-type: #267f99; --w-green: #2ea043; --w-red: #cf222e;
 			--w-func: #795e26; --w-kw2: #0000ff; --w-var: #001080; --w-punct: #3b3b3b; --w-accent: #005fb8; --w-on-accent: #ffffff;
 			--w-border: #e5e5e5; --w-border2: #cecece; --w-tint: rgba(155, 185, 85, 0.25);
@@ -290,7 +291,7 @@ const icons: Record<string, string> = { ts: 'TS', json: '{}', md: 'M↓' };
 	}
 	:global(html[data-theme="light"]) .win {
 		--w-bg: #ffffff; --w-side: #f8f8f8; --w-s2: #f8f8f8; --w-s3: #e5e5e5; --w-fg: #3b3b3b; --w-fg2: #3b3b3b;
-		--w-muted: #616161; --w-dim: #868686; --w-ln: #6e7681; --w-ice: #005fb8; --w-cyan: #098658;
+		--w-muted: #616161; --w-dim: #6b6b6b; --w-ln: #5f6b7c; --w-ice: #005fb8; --w-cyan: #09734b; --w-icon-ts: #1b5f94; --w-icon-json: #7a6c00;
 		--w-magenta: #af00db; --w-string: #a31515; --w-type: #267f99; --w-green: #2ea043; --w-red: #cf222e;
 		--w-func: #795e26; --w-kw2: #0000ff; --w-var: #001080; --w-punct: #3b3b3b; --w-accent: #005fb8; --w-on-accent: #ffffff;
 		--w-border: #e5e5e5; --w-border2: #cecece; --w-tint: rgba(155, 185, 85, 0.25);

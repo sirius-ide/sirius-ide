@@ -1,0 +1,98 @@
+---
+title: Providers and keys
+description: The twelve providers Sirius speaks to, which need a key, where the keys are kept, and how to point a provider at your own endpoint.
+sidebar:
+  order: 3
+---
+
+Sirius talks to a provider's API directly from your machine — there is no Sirius account
+and no relay. Eight hosted providers take a key; four local or self-hosted ones take none.
+
+| Provider | Key | Endpoint | Models |
+| --- | --- | --- | --- |
+| Anthropic Claude | yes | fixed | Claude Opus 5, Fable 5, Sonnet 5, Opus 4.8, Haiku 4.5 |
+| Google Gemini | yes | fixed | Gemini 3.5 Flash, 3.1 Pro, 3.1 Flash Lite; replaced by the live list your key can see |
+| OpenAI | yes | `sirius.ai.openai.baseUrl` (default `https://api.openai.com/v1`) | discovered |
+| OpenRouter | yes | fixed | discovered |
+| Groq | yes | fixed | discovered |
+| DeepSeek | yes | fixed | discovered |
+| Mistral | yes | fixed | discovered |
+| xAI Grok | yes | fixed | discovered |
+| Ollama (local) | no | `sirius.ai.ollama.endpoint` (default `http://localhost:11434`) | discovered |
+| LM Studio (local) | no | `sirius.ai.lmstudio.baseUrl` (default `http://localhost:1234/v1`) | discovered |
+| llama.cpp / vLLM (local) | no | `sirius.ai.llamacpp.baseUrl` (default `http://localhost:8080/v1`) | discovered |
+| Custom OpenAI-compatible | no | `sirius.ai.custom.baseUrl` (empty until you set it; include the `/v1` suffix) | discovered |
+
+*Discovered* means Sirius asks the server for its model list (`/models`, or Ollama's
+`/api/tags`) each time it refreshes, so what you see is what the endpoint offers. Every
+provider except Anthropic, Gemini and Ollama is driven through the same OpenAI-compatible
+chat-completions adapter.
+
+## Setting a key
+
+**Sirius: Set API Key** from the Command Palette. The picker lists the eight keyed providers
+— each marked *key stored* or *no key set* — and Ollama, which needs no key and instead lets
+you edit its endpoint. Choose a provider, paste the key into the password field, done: the
+key is kept in the editor's secret storage and the provider's models appear immediately.
+
+- The key is stored as you typed it (trimmed), not validated. If it is wrong, the first
+  request tells you.
+- If a key already exists you are offered **Replace key** or **Remove key**.
+- A key saved in one window is picked up by the others.
+- Keys are never part of Settings Sync and never written to `settings.json`.
+
+Where to get one: [Anthropic](https://console.anthropic.com), [Google](https://ai.google.dev),
+[OpenAI](https://platform.openai.com/api-keys), [OpenRouter](https://openrouter.ai/keys),
+[Groq](https://console.groq.com/keys), [DeepSeek](https://platform.deepseek.com/api_keys),
+[Mistral](https://console.mistral.ai/api-keys), [xAI](https://console.x.ai).
+
+## Where keys live
+
+Keys go through the editor's secret storage, which encrypts them with the operating
+system's facility and keeps the result in the editor's own database — not in any settings
+file:
+
+- **macOS** — the Keychain.
+- **Windows** — DPAPI, the user-account encryption built into Windows.
+- **Linux** — libsecret (GNOME Keyring) or KWallet, whichever the desktop provides. On a
+  system with neither, the editor warns that no OS keyring could be identified and keeps
+  secrets in memory only, so keys do not survive a restart; its dialog offers a weaker,
+  file-based store (`--password-store=basic`, written to `~/.sirius/argv.json`). Install
+  `gnome-keyring` or run KWallet to keep keys properly. The Arch package lists `libsecret`
+  and `gnome-keyring` as optional dependencies for exactly this reason.
+
+### Keys that used to be settings
+
+Early versions kept keys in `sirius.ai.anthropic.apiKey`, `sirius.ai.gemini.apiKey` and
+`sirius.ai.openai.apiKey`. Those settings are deprecated. On every start, Sirius moves any
+value it still finds there — in user or workspace settings — into the keyring, clears the
+setting, and tells you: *Sirius moved your … API key(s) out of settings.json and into the
+system keyring.* Nothing to do by hand.
+
+## Your own endpoint
+
+- **OpenAI** — set `sirius.ai.openai.baseUrl` to an Azure deployment or a corporate proxy
+  that speaks the OpenAI API.
+- **LM Studio, llama.cpp, vLLM** — change the matching `baseUrl` if the server is not on its
+  default port or runs on another machine. vLLM has no provider of its own: it uses the
+  llama.cpp entry; point `sirius.ai.llamacpp.baseUrl` at your vLLM `/v1`.
+- **Anything else OpenAI-compatible** — `sirius.ai.custom.baseUrl`, with the `/v1` suffix.
+
+:::caution
+In 1.118.7 the custom, LM Studio and llama.cpp entries send no `Authorization` header —
+**Sirius: Set API Key** does not offer them. An endpoint that requires a bearer token cannot
+be used through those entries yet; a proxy that injects the token, or an unauthenticated
+local server, works.
+:::
+
+Anthropic and Gemini endpoints are fixed; there is no setting to route them elsewhere.
+OpenRouter requests carry the `HTTP-Referer` and `X-Title` headers OpenRouter asks apps to
+send, identifying Sirius IDE as the client.
+
+## What a request contains
+
+The messages of the conversation, the context the editor attached (the active file and
+selection, anything you added with the context controls, the [rules files](/docs/rules-and-context/)),
+the results of tools the agent ran, and the request settings — `sirius.ai.maxTokens`,
+`sirius.ai.temperature`, streaming on by default. It goes to the provider you picked and
+nowhere else. The [privacy statement](/privacy/) is the binding version of that sentence.

@@ -2,7 +2,7 @@
 const points = [
 	['No telemetry, no crash reports, no analytics, no account.', 'There is no setting to find: there is no code in Sirius that reports anything about you anywhere.'],
 	['No relay.', 'A request goes from your machine to the provider you chose. Sirius runs no proxy, so there is nothing for it to log.'],
-	['Keys in the keyring.', 'libsecret, the Keychain or the Credential Manager — never settings.json, never synchronised.'],
+	['Keys in the keyring.', 'Encrypted by the operating system — the Keychain on macOS, DPAPI on Windows, libsecret or KWallet on Linux — never settings.json, never synchronised.'],
 	['Local means local.', 'With Ollama, LM Studio, llama.cpp or vLLM, no prompt, file or fragment of code reaches a third party.'],
 ];
 ---
@@ -12,7 +12,7 @@ const points = [
 			<div class="lead">
 				<p class="eyebrow">Privacy</p>
 				<h2 id="privacy-title">Collects <span class="muted">nothing.</span></h2>
-				<p class="lede">Sirius has no telemetry to turn off, because none was written. The only thing that ever leaves your machine is the request you send to the provider you picked — and with a local model, not even that.</p>
+				<p class="lede">Sirius has no telemetry to turn off: the build has no telemetry destination, so nothing is ever sent. Beyond the request you send to the provider you picked, the only things that leave your machine are an hourly update check that carries no identifier and the Open VSX queries you make when you browse extensions — and with a local model, the provider request is not even that.</p>
 				<p class="also">This site holds to the same rule: no third-party scripts, no cookies, no analytics. <a href="/privacy/">Read the privacy statement</a>.</p>
 			</div>
 			<ul class="points">

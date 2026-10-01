@@ -12,7 +12,7 @@ const current = (href: string) => (href !== '/' && path.startsWith(href) ? 'page
 ---
 <header class="nav">
 	<div class="container nav-inner">
-		<a class="brand" href="/" aria-label="Sirius IDE — home">
+		<a class="brand" href="/">
 			<Logo size={26} />
 			<span class="wordmark">Sirius<span class="ide"> IDE</span></span>
 		</a>
@@ -44,11 +44,8 @@ const current = (href: string) => (href !== '/' && path.startsWith(href) ? 'page
 <style>
 	.nav {
 		position: sticky; top: 0; z-index: 50;
-		background: var(--nav-bg);
+		background: var(--bg);
 		border-bottom: 1px solid var(--border);
-	}
-	@supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
-		.nav { -webkit-backdrop-filter: saturate(140%) blur(14px); backdrop-filter: saturate(140%) blur(14px); }
 	}
 	.nav-inner { display: flex; align-items: center; gap: 2rem; height: 64px; }
 	.brand { display: inline-flex; align-items: center; gap: 0.6rem; color: var(--fg); font-weight: 700; letter-spacing: -0.02em; font-size: 1.05rem; }

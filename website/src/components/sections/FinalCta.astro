@@ -5,8 +5,8 @@ import { release } from '../../data/release';
 <section class="section final" aria-labelledby="final-title">
 	<div class="container box">
 		<p class="eyebrow">{release.tag} · Linux and Windows</p>
-		<h2 id="final-title">Install Sirius. Bring a model. <span class="muted">Start working.</span></h2>
-		<p class="lede">Under a minute to install; a provider key or a running Ollama to make it think.</p>
+		<h2 id="final-title"><span class="line">Install Sirius. Bring a model.</span> <span class="muted line">Start working.</span></h2>
+		<p class="lede">Install it, add a provider key or start Ollama, and it thinks.</p>
 		<div class="cta">
 			<DownloadButton />
 			<a class="btn btn-secondary" href="/docs/">Getting started</a>
@@ -18,7 +18,10 @@ sudo pacman -Syu sirius-ide-bin</code></pre>
 
 <style>
 	.box { text-align: center; padding: clamp(2.5rem, 6vw, 5rem) var(--gutter); border: 1px solid var(--border); border-radius: var(--radius-l); background: var(--surface); }
-	.box h2 { margin: 1rem auto 0; max-width: 22ch; }
+	.box h2 { margin: 1rem auto 0; }
+	.box h2 .line { display: block; }
+	/* The pacman line is for Linux visitors; Windows and macOS see the buttons alone. */
+	:global(html:not([data-os="linux"])) .arch { display: none; }
 	.box .lede { margin: 1.25rem auto 0; max-width: 50ch; }
 	.cta { margin-top: 2rem; display: flex; flex-wrap: wrap; justify-content: center; gap: 0.75rem; }
 	.arch { display: inline-block; margin: 2rem auto 0; text-align: left; padding: 0.9rem 1.1rem; border-radius: var(--radius-m); background: var(--bg); border: 1px solid var(--border); font-size: var(--text-xs); line-height: 1.6; color: var(--fg); overflow-x: auto; max-width: 100%; }

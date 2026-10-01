@@ -1,12 +1,12 @@
 ---
 /** Stand-in for the remote-server footage: a terminal running the exact steps the release pipeline runs on every host. */
 ---
-<svg viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" class="art" font-family="var(--font-mono)" font-size="14">
+<svg xml:space="preserve" viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" class="art" font-family="var(--font-mono)" font-size="14">
 	<rect width="800" height="500" fill="var(--surface)" />
 	<rect x="40" y="40" width="720" height="420" rx="10" fill="var(--surface-2)" stroke="var(--border-strong)" />
 	<rect x="40" y="40" width="720" height="32" rx="10" fill="var(--surface-3)" />
 	<text x="400" y="61" text-anchor="middle" font-family="var(--font-sans)" font-size="12" fill="var(--fg-muted)">deploy@edge-02 — sirius-server</text>
-	<g fill="var(--fg)">
+	<g fill="var(--border-strong)">
 		<text x="64" y="112"><tspan fill="var(--ok)">$</tspan> tar -xzf sirius-server-linux-x64.tar.gz --strip-components 1</text>
 		<text x="64" y="144"><tspan fill="var(--ok)">$</tspan> bin/helpers/check-requirements.sh</text>
 		<text x="64" y="176"><tspan fill="var(--ok)">$</tspan> bin/sirius-server --version</text>

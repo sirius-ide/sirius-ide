@@ -3,7 +3,7 @@
 // origin; then check the output against BRIEF.md §1 — nothing loaded from another origin, and
 // the landing page's JavaScript under 60 KB compressed.
 import { createHash } from 'node:crypto';
-import { readFile, writeFile, readdir, stat } from 'node:fs/promises';
+import { readFile, writeFile, readdir, stat, copyFile, access } from 'node:fs/promises';
 import { gzipSync } from 'node:zlib';
 import { join, relative, resolve } from 'node:path';
 
@@ -42,6 +42,21 @@ for (const file of html) {
 			if (!SITE_HOSTS.has(host)) { foreign.push(`${relative(DIST, file)}: ${url}`); }
 		}
 	}
+}
+
+// Expressive Code names its stylesheet by a hash of its configuration. Pages rendered through the
+// content loader's renderMarkdown (the repository documents) get a second configuration, so they
+// reference an ec.<hash>.css that was never emitted. The styles are the same; alias the file.
+const ecRefs = new Set();
+for (const file of html) {
+	for (const m of (await readFile(file, 'utf8')).matchAll(/\/_astro\/(ec\.[a-z0-9]+\.css)/g)) { ecRefs.add(m[1]); }
+}
+const ecFiles = (await readdir(join(DIST, '_astro'))).filter((f) => /^ec\.[a-z0-9]+\.css$/.test(f));
+for (const ref of ecRefs) {
+	if (ecFiles.includes(ref)) { continue; }
+	if (ecFiles.length === 0) { console.error(`postbuild: ${ref} is referenced but no Expressive Code stylesheet was emitted`); process.exitCode = 1; continue; }
+	await copyFile(join(DIST, '_astro', ecFiles[0]), join(DIST, '_astro', ref));
+	console.log(`postbuild: aliased ${ecFiles[0]} → ${ref} (Expressive Code's second configuration hash)`);
 }
 
 const csp = [
