@@ -697,61 +697,181 @@ Cloud sessions work on `claude/…` branches and stop; they never land or releas
 
 ## 13. If you are a new session, start here
 
-**Last handoff (2026-10-01, cloud, branch `claude/youthful-pascal-9wsrxd`): the website's design
-direction is up for the owner's OK** (`website/BRIEF.md` §7, step 2). Nothing landed, nothing
-deployed, no DNS. On the branch, over `f8cc08e`:
+**Last handoff (2026-10-01, cloud, branch `claude/youthful-pascal-9wsrxd`): the website is built
+to `website/BRIEF.md`, reviewed, and stopped before DNS and any deploy** (BRIEF §7, step 4).
+Nothing is deployed; `siriuside.com` still has no DNS record; the Cloudflare token was never in
+the VM. On the branch, over `620d227` (the design direction the owner approved):
 
-- `website/` — the Astro 7.3 + Starlight 0.42 project (`cd website && npm ci && npm run build` →
-  `dist/`; `npm run check` clean; Node 22, its own lockfile, never the editor's `npm ci`):
-  tokens for both schemes, the Base layout (OS and theme attributes set by an inline script before
-  first paint, so the served HTML names no OS; canonical, OpenGraph, manifest, icons), Nav,
-  Footer, the flat vector Logo, the OS-aware DownloadButton, the Hero (the Sky backdrop and the
-  HTML-drawn Sirius window with its once-on-load agent sequence in the product's own strings),
-  the "Bring your own model" section with the drawn model picker, a 404, a Starlight
-  stub at `/docs/`, `scripts/screenshots.mjs`, the two OFL fonts (Schibsted Grotesk, JetBrains
-  Mono; Latin woff2, 36 KB together) with their licences, and `src/data/release.json`, the
-  committed snapshot of v1.118.7's 17 assets the build falls back to.
-- `website/design/` — `DIRECTION.md` (type, palette and both schemes, the motion idea, the
-  section map, five decisions to confirm) and the renders the owner reviews:
-  `home-1440x900-{dark,light}.png`, `home-390x844-{dark,light}.png`, and
-  `home-1440x900-dark-mid.png`, the window 5.8 s into its sequence with the diff and the
-  Keep / Undo controls on screen.
-- `build/sirius/make-icons.py --web DIR` writes the favicon, touch and manifest icons, the
-  maskable icon and `og/default.png` (run into `website/public`); `set-identity.mjs` now rewrites
-  `website/src/site.config.ts` too; `.eslint-ignore` keeps `website/` out of the editor's lint.
-- `LICENSE.txt` §9 names the State of Delaware, United States of America. `SECURITY.md` is the
-  Sirius policy: GitHub private vulnerability reporting, scope, latest-release-only, attestation.
+- **Every page of BRIEF §4.** `/` — hero (the drawn Sirius window with its once-on-load agent
+  sequence, the Sky backdrop), the three reasons, eight feature sections (agent mode, Tab and
+  next-edit, providers with the drawn picker, rules, the integrated browser, git assist,
+  import, the remote server), privacy, platforms, the dated comparison table (seven editors,
+  every competitor cell sourced in `website/src/content/comparison.sources.md`, blanks never
+  guessed), FAQ with FAQPage JSON-LD, final CTA. `/download/` — OS and architecture resolved
+  before first paint (an inline script sets `data-os`; the served HTML names no OS), every
+  asset of the latest release from the GitHub Releases API with sizes and the sidecar
+  sha256s, pacman / apt / dnf / tarball / installer / server, verification, how updates reach
+  each install. `/docs/` — Starlight on the Sirius tokens with the site's header, twenty pages
+  (hub, install from INSTALL.md, getting started, providers and keys, local models, chat/edit/
+  agent, inline chat, Tab and next-edit, rules and context, image input, browser, git assist,
+  import, remote server, updates, privacy and keys, troubleshooting, FAQ, and a reference
+  whose settings, commands and keybinding tables are generated from
+  `extensions/sirius-ai/package.json` at build). `/changelog/` from GitHub Releases with an
+  RSS feed, release-engineering commits folded under their own line. `/roadmap/`, `/privacy/`,
+  `/license/`, `/security/` rendered from the repository files at build. A 404 (noindex).
+  Per-page OpenGraph PNGs rendered at build (satori + resvg), sitemap, robots, canonical
+  URLs, `site.webmanifest`, `security.txt`, `_redirects`, and `_headers` written by
+  `scripts/postbuild.mjs` with a hashed-script CSP, HSTS, nosniff, referrer and permissions
+  policies, COOP and immutable caching.
+- **Honest to the code.** The docs were written from a file-and-line research pass over the
+  extension (`sirius-ai` 2.0.0 in 1.118.7) and upstream; every page says what the product
+  does, and marks what is written but not exercised. The same pass corrected the landing copy:
+  key storage is the OS facility behind the editor's secret storage (Keychain, DPAPI,
+  libsecret/KWallet — not "Credential Manager"); the agent is offered six browser tools, not
+  ten; the commit-message and merge-conflict commands are the dependable route (the SCM
+  buttons depend on upstream's chat-setup state); every install, packages included, makes the
+  hourly update check (there is no package-type detection); the Windows installer updates on
+  restart; the remote-extension connect is unproven and the page says so.
+- **Design rules held:** no gradient function, glow or soft shadow anywhere (the one gradient
+  Expressive Code ships for its tab bar is overridden; the nav is opaque, no blur); no "AI" in
+  the site's own copy or metadata (the drawn product strings keep theirs; `/roadmap/` shows the
+  word five times because ROADMAP.md does — the owner's call, below); no company name outside
+  the licence text; dark and light follow the OS, with one theme control in the footer that
+  shares Starlight's storage key so a choice holds across the site.
+- **Tooling:** `npm test` = Playwright smoke (10 pages × 2 widths × 2 schemes: console, failed
+  requests, structure, horizontal overflow), a link checker with fragment validation (every
+  internal reference across the site) and axe (WCAG 2.2 AA, both schemes); `npm run lighthouse`
+  = Lighthouse CI with the brief's budgets as assertions (script ≤ 60 KB, fonts ≤ 40 KB, total
+  ≤ 400 KB, no third parties, LCP ≤ 1.5 s, CLS 0, performance ≥ 95, the other three 100;
+  Lighthouse 12 dropped the budget-file audit, so the sizes are `resource-summary` assertions); `npm run screenshots` for review
+  renders (palette PNGs, `PAGES=` for other pages); `scripts/make-fonts.py` builds the Geist
+  Latin subsets (20 + 15 KB: weights 400–800 / 400–700, only the OpenType features the CSS can
+  reach) from the upstream variable fonts, and static instances for the social images; `scripts/dev/` holds the overflow probe and the band
+  cropper used in review. `astro check` is clean.
+- **Repo:** `build/cloudflare/deploy-website.sh` (house pattern: exact names, idempotent,
+  `--dry-run`; steps `build | project | upload | domain | dns | redirects | verify | all`),
+  `.github/workflows/sirius-website.yml` (builds and tests on pushes to `sirius` that touch
+  `website/` or the rendered documents and on every published release; deploys only when the
+  Pages-only token exists), the "Dynamic URL Redirects: Edit" line and "The website" section in
+  `build/cloudflare/README.md`, `make-icons.py --web`, `set-identity.mjs` covering
+  `website/src/site.config.ts`, `.eslint-ignore`, LICENSE.txt §9 (Delaware), the Sirius
+  SECURITY.md.
 
-**The owner's answers so far (2026-10-01, mid-review), applied on the branch:** no gradients
-anywhere on the site (no gradient functions, glows or soft shadows — `tokens.css` carries the
-rule, depth is flat planes and 1 px rings, the logo and bullets are flat two-tone, the headline
-accent is a solid colour); no "AI" in the site's own copy — the headline and the marketing text; the
-positioning is *native, advanced, agentic* and the headline reads "The native, advanced,
-agentic code editor." — while the product's own strings in the drawn surfaces stay exactly as
-the product shows them (the picker keeps its "Select AI Model" title row; the owner confirmed
-this); no company in the website's footer or metadata (the licence keeps its copyright holder
-and renders verbatim at `/license/`). The repo's README still carries the old brand line; the
-owner decides whether it follows.
+**Verified in the VM (2026-10-01):** build, `astro check`, smoke, links and axe all clean on the
+final build; every page reviewed from renders at 1440×900 and 390×844 in both schemes (hero,
+sections, table, download, changelog, repo documents, 404, docs); two Opus review passes — a
+design critique against the brief and a performance / accessibility / SEO audit — with their
+first-hour findings applied (the honesty pass above, mono ligatures off so `--` and `=>` read
+as typed, the starfield cut out of the hero copy column, the bolt re-anchored so it never
+crosses text, the light-scheme mark, `--fg-dim` lifted to ≥ 4.5:1 in both schemes, in-text links
+underlined, the comparison † marks made links, the doc pages aligned to the container edge
+with sentence headlines, release-engineering commits folded in the changelog). Two findings of
+the audits are worth knowing for later work: the Starlight pages do not go through `Base.astro`,
+so `starlight.css` must import the tokens itself (it does now — without it every docs page in
+dark had transparent backgrounds); and the hero starfield is an inline SVG rather than a CSS
+mask because axe reads a masked `background-color` as the page background. The dimmest greys
+inside the drawn window and picker were lifted to 4.5:1 (line numbers, placeholders, the light
+file icons); the product's own values fail axe, and the mock is marked as an image for
+assistive technology either way. The audit's other findings were applied too: Astro's view-transition
+router is gone (it dropped the theme and OS attributes and the page scripts on client-side
+navigation and tripped the CSP; page-to-page transitions are the one CSS `@view-transition` rule
+now, and every script binds on load), the copy buttons announce, the OS chips expose
+`aria-pressed`, the docs menu carries the site's pages on a phone, the stale
+`/docs/getting-started` redirect is gone, Pagefind's entry file is never cached stale, Expressive
+Code's stylesheet is inlined, the 404 carries no `og:url`, descriptions fit 155 characters, the RSS
+feed has its self link. With the router gone and the fonts trimmed, every page holds the brief's budget as written —
+the docs pages included, which had sat at the 1.5 s line while they carried the router — and
+the Lighthouse configuration asserts exactly that (LCP ≤ 1.5 s, CLS 0, the four scores, the
+sizes). Not done from the
+audit: fewer tab stops in the comparison table (one source link per row), Escape and outside
+click closing the phone menu, a cached external stylesheet for the docs, hand-written fallback
+faces for Linux. Lighthouse CI,
+mobile emulation, on the final build:
 
-**Verified in the VM:** the build and `astro check`; the four renders plus a reduced-motion pass
-whose product window is pixel-identical to the settled animated one (reduced motion is the end
-state, as the brief requires); landing-page JavaScript is Astro's ClientRouter and prefetch, about
-16 KB before compression, and the page HTML is 8 KB gzipped; Astro's fonts API emits
-metric-matched fallbacks (`size-adjust` 103.8 % Arial, 99.98 % Courier New). **Written, not
-verified:** nothing is deployed, so no Lighthouse, axe or real-device numbers yet — those belong to
-the full build. One capture gotcha, not a site bug: Playwright's `fullPage` screenshot re-emulates
-the device at capture time and in Chromium that restarts the animations of elements inside the
-containers the phone layout hides (a plain resize does not; checked), so the script sizes the
-viewport to the page first and takes plain captures.
+| Page | Perf | A11y | Best practices | SEO | LCP s (median of 3) | CLS | JS KB | Fonts KB | Total KB |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `/` | 100 | 100 | 100 | 100 | 1.37 (worst 1.37) | 0 | 1 | 34 | 69 |
+| `/changelog/` | 100 | 100 | 100 | 100 | 1.21 (worst 1.21) | 0 | 1 | 34 | 48 |
+| `/docs/` | 100 | 100 | 100 | 100 | 1.36 (worst 1.37) | 0 | 31 | 34 | 89 |
+| `/docs/install/` | 100 | 100 | 100 | 100 | 1.43 (worst 1.44) | 0 | 33 | 34 | 97 |
+| `/download/` | 100 | 100 | 100 | 100 | 1.21 (worst 1.21) | 0 | 1 | 34 | 49 |
+| `/license/` | 100 | 100 | 100 | 100 | 1.21 (worst 1.21) | 0 | 1 | 34 | 46 |
+| `/privacy/` | 100 | 100 | 100 | 100 | 1.21 (worst 1.21) | 0 | 1 | 34 | 46 |
+| `/roadmap/` | 100 | 100 | 100 | 100 | 1.36 (worst 1.36) | 0 | 1 | 34 | 51 |
+| `/security/` | 100 | 100 | 100 | 100 | 1.13 (worst 1.22) | 0 | 3 | 34 | 51 |
 
-**The stop.** The owner reviews `website/design/` locally and answers in the cloud; the full build
-(BRIEF §7, step 3) starts from the answer and the five decisions in `DIRECTION.md`. Not built yet:
-every page beyond `/` (download, docs content, changelog, roadmap, privacy, licence, security),
-the three-reasons strip and the other seven feature sections, the comparison table and its
-sources file, the media-slots README, `_headers` / `_redirects`, the Lighthouse budget file, axe
-and the link checker, `build/cloudflare/deploy-website.sh`, `.github/workflows/sirius-website.yml`,
-the token-recipe line for "Dynamic URL Redirects: Edit". The exact deploy steps and the
-`product.json` lines come with the full build's handoff, as the brief says.
+**Written, not verified:** the deploy script and the workflow have never run against Cloudflare
+(`--dry-run` was the proof; the API host is blocked from the VM); nothing has been loaded from a
+real phone or a real network; the OG cards were only viewed as files; the live `/docs/` search
+(Pagefind) was not exercised. The docs mark the product behaviours that are themselves
+unverified (inline chat against Sirius models, Tab completion on llama.cpp, the SCM buttons,
+the remote connect).
+
+**For the owner, found while writing the docs — the code versus the documents (details with
+file and line in the session's research report; the docs already say the accurate thing):**
+PRIVACY.md says distribution packages make no update request — every build checks hourly
+(nothing in the packages or the Linux update service disables it; `update.mode` does);
+PRIVACY.md says "Credential Manager on Windows" — it is DPAPI through Electron `safeStorage`;
+an image pasted into the chat box never reaches the model through the Sirius participant
+(only `Uri`/`Location` references are forwarded) and every OpenAI-compatible model is registered
+without vision; LM Studio, llama.cpp/vLLM and custom endpoints cannot be given an API key;
+Tab completion's llama.cpp path calls `{baseUrl}/infill` with a base URL that already ends in
+`/v1`; the commit-message command uses the first model in provider order, not
+`sirius.ai.defaultModel`; the extension's three default keybindings shadow Problems
+(`Ctrl+Shift+M`), Reopen Closed Editor (`Ctrl+Shift+T`) and Open Chat (Agent)
+(`Ctrl+Shift+I`); the Gemini key travels in the URL query string; thinking summaries are
+requested but never rendered in the transcript; `sirius_search_web` opens Google in the
+user's browser and returns only the URL; README's "Inline AI", "read, edit, search, run" and
+"Signature look" overstate; the extension description promises "vision input"; ROADMAP.md
+opens by naming two competitors and calls the foundation "open", and marks the browser in
+progress while the site presents it as shipped. These want a product decision or a code
+change, not a website change; §10 is the place for the ones the owner keeps.
+
+**Not done from the design critique, in order of value:** rebuild the seven SVG feature
+stand-ins as HTML surfaces like the model picker (or land the footage — the stand-ins are
+placeholders for the media slots); halve the feature copy (≤ 60 words a section) and widen the
+demos; carry the bolt below the fold as a divider; make the changelog user-facing (one summary
+line per release — the release bodies are compare-links only today); a public intro for
+ROADMAP.md; jump links and an arm64 copy button on `/download/`.
+
+**Deploy, in order — the owner, from the owner's machine, with the full-control token in
+`~/.secrets/cloudflare-sirius.env` (never from a cloud session):**
+
+1. `build/cloudflare/deploy-website.sh build` — `npm ci`, `npm run build`, `npm test` in
+   `website/` (export `GITHUB_TOKEN` so the release fetch is not rate-limited; the committed
+   snapshot is the fallback).
+2. `build/cloudflare/deploy-website.sh project` — creates the Pages project `sirius-website`
+   (production branch `sirius`) if it does not exist.
+3. `build/cloudflare/deploy-website.sh upload` — uploads `website/dist`; live on
+   `sirius-website.pages.dev` only. Look at it there first: both schemes, a real phone, the
+   docs search.
+4. `build/cloudflare/deploy-website.sh domain` — attaches `siriuside.com` to the project.
+5. `build/cloudflare/deploy-website.sh dns` — apex `CNAME siriuside.com → sirius-website.pages.dev`
+   (proxied), `AAAA www 100::` (proxied placeholder for the redirect), and the same two for
+   `siriuside.dev` if that zone is on the account.
+6. `build/cloudflare/deploy-website.sh redirects` — zone Single Redirects: `www.siriuside.com/*`
+   and `siriuside.dev/*` → `https://siriuside.com/<path>` (301, query preserved). The token needs
+   **Zone → Dynamic URL Redirects: Edit** (in the recipe in `build/cloudflare/README.md`).
+7. `build/cloudflare/deploy-website.sh verify` — curls the pages, `_headers` (CSP, HSTS), the
+   redirects and `security.txt`. `--dry-run` on any step prints the API calls instead; `all`
+   runs 1–7.
+8. CI thereafter: a **second, Pages-only token** (Account → Cloudflare Pages: Edit, nothing
+   else) → repository secret `CLOUDFLARE_PAGES_TOKEN`; the account id → repository variable
+   `CLOUDFLARE_ACCOUNT_ID`. Without them the workflow builds, tests and stops green.
+9. Then, locally, for the next tag — `product.json`: `downloadUrl` → `https://siriuside.com/download/`,
+   `documentationUrl` (both occurrences) → `https://siriuside.com/docs/`, `licenseUrl` and
+   `serverLicenseUrl` → `https://siriuside.com/license/`, `privacyStatementUrl` →
+   `https://siriuside.com/privacy/`; `updateUrl` and `serverDownloadUrlTemplate` stay. Not on
+   the branch, as the brief says.
+10. After DNS, from outside: Lighthouse on the live URL from a real browser, the OpenGraph cards
+    in a validator, `https://www.siriuside.com/download/` → 301 → the apex, and
+    `curl -sI https://siriuside.com/ | grep -i content-security-policy`.
+
+**Also waiting on the owner:** the macOS tracking issue (`site.macosIssue` in
+`website/src/site.config.ts` still points at the issues list); footage for the six media
+slots (`website/src/media/README.md`); re-verification of the competitor cells before launch
+(the sources file dates each one); `npx astro telemetry disable` once on the owner's machine;
+whether ROADMAP.md's wording follows the site's rule on "AI"; the README brand line.
 
 **Previous handoff (2026-10-01, local): v1.118.7 is live, verified from the outside.** It is the
 first release with arm64 `.deb` and `.rpm`, and the first whose arm64 tarball and server hold
@@ -795,8 +915,9 @@ PRs #1–#4 are closed; #5 is moot and left for Dependabot.
 
 **Next, in order** (one cloud session per item, each on its own branch; the owner lands it
 locally by cherry-pick, §12, before the next item starts — so each builds on the merged state):
-(1) **cloud for the code, owner for the rest — in progress on `claude/youthful-pascal-9wsrxd`,
-stopped at the design direction for the owner's OK (the handoff above):** the website (hole 2),
+(1) **built on `claude/youthful-pascal-9wsrxd`, stopped before deploy (the handoff above) —
+owner next: land the branch, then footage, deploy, DNS, the outside checks and the `product.json`
+flip, in the order the handoff gives:** the website (hole 2),
 to the specification in `website/BRIEF.md` (2026-10-01): a flagship site — Astro + Starlight, the Sirius Star
 identity, hard Lighthouse budgets, honest content from the repo's own files — built in two
 stops: the design direction (screenshots under `website/design/`) for the owner's OK, then the
