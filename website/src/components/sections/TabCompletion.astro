@@ -1,0 +1,42 @@
+---
+import MediaSlot from '../MediaSlot.astro';
+import TabArt from '../art/TabArt.astro';
+import Logo from '../Logo.astro';
+---
+<section class="section feature" id="tab" aria-labelledby="tab-title">
+	<div class="container split">
+		<div class="copy head">
+			<p class="eyebrow">02 — Tab and next-edit</p>
+			<h2 id="tab-title">Completion that runs <span class="muted">on your machine.</span></h2>
+			<p class="lede">
+				Tab completion is a real fill-in-the-middle path against a local model you choose — Ollama or llama.cpp —
+				debounced, cached and cancellable. Next-edit prediction watches the change you just made and offers the
+				next one as a Tab-able diff. Neither sends a line of code to a cloud.
+			</p>
+		</div>
+		<div class="demo">
+			<MediaSlot name="tab-completion" label="Tab completion in Sirius: ghost text after the caret from a local model, accepted with Tab; then a predicted next edit offered inline."><TabArt /></MediaSlot>
+		</div>
+		<div class="copy more">
+			<ul class="points">
+				<li><Logo size={20} class="pt-icon" /><div><b>Native FIM, not a chat round-trip.</b> The model is asked to fill the middle of your file, which is what code models are trained for — fast enough to keep up with typing.</div></li>
+				<li><Logo size={20} class="pt-icon" /><div><b>Finds your model.</b> On <code>auto</code>, Sirius picks a running Ollama code model by itself; name a specific <code>ollama/&lt;model&gt;</code> or point it at a llama.cpp server if you prefer.</div></li>
+				<li><Logo size={20} class="pt-icon" /><div><b>Next-edit prediction is yours to switch on.</b> It is off by default and needs the same local FIM model; turn it on and each edit you make can suggest the one after it.</div></li>
+			</ul>
+		</div>
+	</div>
+</section>
+
+<style>
+	.split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); grid-template-areas: "head demo" "more demo"; column-gap: clamp(2rem, 6vw, 5.5rem); row-gap: 1.75rem; align-items: center; }
+	.head { grid-area: head; align-self: end; }
+	.more { grid-area: more; align-self: start; }
+	.demo { grid-area: demo; }
+	.copy h2 { margin-top: 1rem; }
+	.copy .lede { margin-top: 1.25rem; font-size: var(--text-m); }
+	.points { list-style: none; padding: 0; margin: 0; display: grid; gap: 1rem; }
+	.points li { display: grid; grid-template-columns: 20px 1fr; gap: 0.85rem; align-items: start; color: var(--fg-muted); font-size: var(--text-s); line-height: 1.55; }
+	.points b { color: var(--fg); }
+	.points :global(.pt-icon) { margin-top: 0.3em; }
+	@media (max-width: 900px) { .split { grid-template-columns: 1fr; grid-template-areas: "head" "demo" "more"; row-gap: 2.25rem; } }
+</style>

@@ -1,0 +1,590 @@
+{
+	"fetchedAt": "2026-10-01T14:38:47.467Z",
+	"owner": "sirius-ide",
+	"repo": "sirius-ide",
+	"releases": [
+		{
+			"tag": "v1.118.7",
+			"version": "1.118.7",
+			"name": "v1.118.7",
+			"prerelease": false,
+			"publishedAt": "2026-10-01T02:17:25Z",
+			"url": "https://github.com/sirius-ide/sirius-ide/releases/tag/v1.118.7",
+			"body": "**Full Changelog**: https://github.com/sirius-ide/sirius-ide/compare/v1.118.6...v1.118.7",
+			"assets": [
+				{
+					"name": "commit.txt",
+					"size": 41,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.7/commit.txt",
+					"sha256": null
+				},
+				{
+					"name": "sirius-1.118.7-1790820699.el8.x86_64.rpm",
+					"size": 163065427,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.7/sirius-1.118.7-1790820699.el8.x86_64.rpm",
+					"sha256": null
+				},
+				{
+					"name": "sirius-1.118.7-1790820782.el8.aarch64.rpm",
+					"size": 159463500,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.7/sirius-1.118.7-1790820782.el8.aarch64.rpm",
+					"sha256": null
+				},
+				{
+					"name": "sirius-ide-bin-1.118.7-1-x86_64.pkg.tar.zst",
+					"size": 152773039,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.7/sirius-ide-bin-1.118.7-1-x86_64.pkg.tar.zst",
+					"sha256": "c265c523556ffe7100b241f49f12c0dc242a2c94a0b234211f07574006858f9b"
+				},
+				{
+					"name": "sirius-linux-arm64.tar.gz",
+					"size": 158081056,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.7/sirius-linux-arm64.tar.gz",
+					"sha256": "74c700a2ea918981e958d68a950cde9eb13d4524e99e9845ad358a54b80560ab"
+				},
+				{
+					"name": "sirius-linux-x64.tar.gz",
+					"size": 161874734,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.7/sirius-linux-x64.tar.gz",
+					"sha256": "eafc2f7871decf188544fbe55c92b4782b62fa52ef2460be610ea6da87f0846d"
+				},
+				{
+					"name": "sirius-server-linux-arm64.tar.gz",
+					"size": 80523273,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.7/sirius-server-linux-arm64.tar.gz",
+					"sha256": "4b0dd143e1822f9395071fe531487b40509ad5fbb1fc5fe8a88e977f49b729b0"
+				},
+				{
+					"name": "sirius-server-linux-x64.tar.gz",
+					"size": 82789022,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.7/sirius-server-linux-x64.tar.gz",
+					"sha256": "9544632fd410da2cc70d7ab53a74d9eafceac4d4f8693b793bbe080437d75520"
+				},
+				{
+					"name": "sirius-win32-x64-setup.exe",
+					"size": 128489941,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.7/sirius-win32-x64-setup.exe",
+					"sha256": "2447c10d515f59e6e6b1f933c151bbcbb1d3ba431d106516a68677e0237088a8"
+				},
+				{
+					"name": "sirius_1.118.7-1790820613_amd64.deb",
+					"size": 113889828,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.7/sirius_1.118.7-1790820613_amd64.deb",
+					"sha256": null
+				},
+				{
+					"name": "sirius_1.118.7-1790820696_arm64.deb",
+					"size": 105617992,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.7/sirius_1.118.7-1790820696_arm64.deb",
+					"sha256": null
+				}
+			],
+			"commits": [
+				{
+					"sha": "603044c",
+					"subject": "1.118.7"
+				},
+				{
+					"sha": "680df6e",
+					"subject": "docs: the Arch publish hardening is on sirius, unreleased — the R2 404 proof is the last thing before the tag"
+				},
+				{
+					"sha": "62720ef",
+					"subject": "docs: rehearsal 36793636385 is green — the Arch publish hardening is ready to land"
+				},
+				{
+					"sha": "920b8fc",
+					"subject": "docs: the state after the review of the Arch publish hardening — rehearsal 36793636385 in progress"
+				},
+				{
+					"sha": "ced0349",
+					"subject": "release: the Arch publish script checks the four database objects, pins the CLI error format, and cleans up"
+				},
+				{
+					"sha": "99a7b9a",
+					"subject": "docs: the state after hardening the Arch publish script — rehearsal 36792162007 in progress"
+				},
+				{
+					"sha": "9f6f202",
+					"subject": "release: the Arch repository script never mistakes a failed fetch for a first publish"
+				},
+				{
+					"sha": "a797844",
+					"subject": "docs: how a task branch lands on sirius"
+				},
+				{
+					"sha": "44d3577",
+					"subject": "docs: the arm64 cross-build is on sirius, unreleased — and the Arch fix goes before the tag"
+				},
+				{
+					"sha": "3edd5db",
+					"subject": "docs: §13 counts the state-doc commit among the ones to cherry-pick"
+				},
+				{
+					"sha": "ce17948",
+					"subject": "docs: the state after the arm64 cross-build — rehearsed green on the branch, not yet on sirius"
+				},
+				{
+					"sha": "7e3c08c",
+					"subject": "build: the arm64 deb list as the first cross-build rehearsal measured it"
+				},
+				{
+					"sha": "b93d738",
+					"subject": "release: patch the V8 headers before the cross-compile, and the measured arm64 deb list"
+				},
+				{
+					"sha": "23af06e",
+					"subject": "release: VSCODE_ARCH for the whole job, and gates that see a wrong-architecture binary"
+				},
+				{
+					"sha": "2d98ba0",
+					"subject": "release: cross-build arm64 on the x64 runner — packages and a glibc-2.28 floor for arm64"
+				},
+				{
+					"sha": "0858791",
+					"subject": "docs: make the next session's start self-contained"
+				},
+				{
+					"sha": "566133a",
+					"subject": "docs: v1.118.6 is live — state, live-infra ledger and roadmap brought up to it"
+				},
+				{
+					"sha": "db3e2b6",
+					"subject": "update-server: match the update asset by its whole name, not its suffix"
+				}
+			]
+		},
+		{
+			"tag": "v1.118.6",
+			"version": "1.118.6",
+			"name": "v1.118.6",
+			"prerelease": false,
+			"publishedAt": "2026-09-30T20:52:19Z",
+			"url": "https://github.com/sirius-ide/sirius-ide/releases/tag/v1.118.6",
+			"body": "**Full Changelog**: https://github.com/sirius-ide/sirius-ide/compare/v1.118.5...v1.118.6",
+			"assets": [
+				{
+					"name": "commit.txt",
+					"size": 41,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.6/commit.txt",
+					"sha256": null
+				},
+				{
+					"name": "sirius-1.118.6-1790801189.el8.x86_64.rpm",
+					"size": 163065904,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.6/sirius-1.118.6-1790801189.el8.x86_64.rpm",
+					"sha256": null
+				},
+				{
+					"name": "sirius-ide-bin-1.118.6-1-x86_64.pkg.tar.zst",
+					"size": 152772439,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.6/sirius-ide-bin-1.118.6-1-x86_64.pkg.tar.zst",
+					"sha256": "0b9e4ebd737581d9692563b1391991af74aa0e8661047daa3697c5a5ac8e8835"
+				},
+				{
+					"name": "sirius-linux-arm64.tar.gz",
+					"size": 158142555,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.6/sirius-linux-arm64.tar.gz",
+					"sha256": "0ca78689bcb94419304eddf7e9a82253ab4352f6103be2d4d63f51d09b52633b"
+				},
+				{
+					"name": "sirius-linux-x64.tar.gz",
+					"size": 161874345,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.6/sirius-linux-x64.tar.gz",
+					"sha256": "16b6bd50ed709b63bcd1f1e427165c8f43e226591498a1ab60f36dda92711c24"
+				},
+				{
+					"name": "sirius-server-linux-arm64.tar.gz",
+					"size": 80685386,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.6/sirius-server-linux-arm64.tar.gz",
+					"sha256": "bf46a5ac944418d662ddf47bff55c75a00ea70e3a6dd467b6da12f72d9b31d9e"
+				},
+				{
+					"name": "sirius-server-linux-x64.tar.gz",
+					"size": 82781610,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.6/sirius-server-linux-x64.tar.gz",
+					"sha256": "f7ead0675762d733d9137e45d1016dea06bb6fd45b5d8aece05caa7fb5a85b61"
+				},
+				{
+					"name": "sirius-win32-x64-setup.exe",
+					"size": 128486584,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.6/sirius-win32-x64-setup.exe",
+					"sha256": "5d39adb24467e3c1d19981e99eb9acb3e2a257034872ce3aefbb089c553d985b"
+				},
+				{
+					"name": "sirius_1.118.6-1790801102_amd64.deb",
+					"size": 113891584,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.6/sirius_1.118.6-1790801102_amd64.deb",
+					"sha256": null
+				}
+			],
+			"commits": [
+				{
+					"sha": "b8a169d",
+					"subject": "1.118.6"
+				},
+				{
+					"sha": "3ddc15f",
+					"subject": "docs: the state after the release-train work, with the rehearsal numbers"
+				},
+				{
+					"sha": "0a0e4ab",
+					"subject": "release: the server, the install proof and the Arch repository join the train"
+				},
+				{
+					"sha": "cc7e33a",
+					"subject": "docs: audit the state docs against the code and fix what had drifted"
+				},
+				{
+					"sha": "f4688fa",
+					"subject": "build: the environment setup script, tracked beside the instructions that reference it"
+				},
+				{
+					"sha": "eea0e60",
+					"subject": "docs: a tracked entry point, so a new session starts with the project's instructions"
+				},
+				{
+					"sha": "3be0dda",
+					"subject": "resources: the new Sirius icon, generated from one tracked source"
+				},
+				{
+					"sha": "52d2794",
+					"subject": "build: an icon generator — every platform icon from one source image"
+				},
+				{
+					"sha": "d975bf5",
+					"subject": "docs: v1.118.5 is live — state, live-infra ledger and roadmap brought up to it"
+				}
+			]
+		},
+		{
+			"tag": "v1.118.5",
+			"version": "1.118.5",
+			"name": "v1.118.5",
+			"prerelease": false,
+			"publishedAt": "2026-09-27T18:44:06Z",
+			"url": "https://github.com/sirius-ide/sirius-ide/releases/tag/v1.118.5",
+			"body": "**Full Changelog**: https://github.com/sirius-ide/sirius-ide/compare/v1.118.4...v1.118.5",
+			"assets": [
+				{
+					"name": "commit.txt",
+					"size": 41,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.5/commit.txt",
+					"sha256": null
+				},
+				{
+					"name": "sirius-1.118.5-1790534218.el8.x86_64.rpm",
+					"size": 162674002,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.5/sirius-1.118.5-1790534218.el8.x86_64.rpm",
+					"sha256": null
+				},
+				{
+					"name": "sirius-linux-arm64.tar.gz",
+					"size": 157955328,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.5/sirius-linux-arm64.tar.gz",
+					"sha256": "ae17a577c62891a013dc8ab52eb9d2f498fc4d61822e96f38bf93e8e57b1e90a"
+				},
+				{
+					"name": "sirius-linux-x64.tar.gz",
+					"size": 161679418,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.5/sirius-linux-x64.tar.gz",
+					"sha256": "cf2f3fac3e98fa110b9ba27b2ca94ea8e155b32a8f5829d7ff4b7029c6d45f9c"
+				},
+				{
+					"name": "sirius-win32-x64-setup.exe",
+					"size": 128263752,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.5/sirius-win32-x64-setup.exe",
+					"sha256": "793b80b80b35b9bbbc57bb6de6b187085eafb8201d03c242b576873061ee9ecc"
+				},
+				{
+					"name": "sirius_1.118.5-1790534141_amd64.deb",
+					"size": 113434532,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.5/sirius_1.118.5-1790534141_amd64.deb",
+					"sha256": null
+				}
+			],
+			"commits": [
+				{
+					"sha": "27de2f4",
+					"subject": "1.118.5"
+				},
+				{
+					"sha": "ad4a711",
+					"subject": "docs: PROJECT-STATE after the packaging rehearsals and the tool-suite work"
+				},
+				{
+					"sha": "359febb",
+					"subject": "sirius-ai: prompted tools — agent mode for local models that have no tool API"
+				},
+				{
+					"sha": "3bba13e",
+					"subject": "ci: give npm ci the job token — @vscode/ripgrep's postinstall hits api.github.com"
+				},
+				{
+					"sha": "d28fd6a",
+					"subject": "sirius-ai: honour what product.json promises — completions switch, state command, output channel"
+				},
+				{
+					"sha": "7f225f3",
+					"subject": "build: the sysroot build emits no libgcc_s GCC_4.2.0 — the fifth tunnel-only rpm entry"
+				},
+				{
+					"sha": "234b50b",
+					"subject": "build: make the Linux deb and rpm actually build — and install"
+				},
+				{
+					"sha": "0455d9f",
+					"subject": "sirius-ai: images reach every model, tools scale to the model, the integrated browser opens by default"
+				},
+				{
+					"sha": "babab47",
+					"subject": "docs: record the project's full state so sessions stop rediscovering it"
+				},
+				{
+					"sha": "ec22aad",
+					"subject": "sirius-ai: project rules and ambient context — Phase 2 opens"
+				},
+				{
+					"sha": "e2cf73b",
+					"subject": "sirius-ai: next-edit prediction"
+				}
+			]
+		},
+		{
+			"tag": "v1.118.4",
+			"version": "1.118.4",
+			"name": "v1.118.4",
+			"prerelease": false,
+			"publishedAt": "2026-08-26T13:27:53Z",
+			"url": "https://github.com/sirius-ide/sirius-ide/releases/tag/v1.118.4",
+			"body": "**Full Changelog**: https://github.com/sirius-ide/sirius-ide/compare/v1.118.3...v1.118.4",
+			"assets": [
+				{
+					"name": "commit.txt",
+					"size": 41,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.4/commit.txt",
+					"sha256": null
+				},
+				{
+					"name": "sirius-linux-arm64.tar.gz",
+					"size": 157940960,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.4/sirius-linux-arm64.tar.gz",
+					"sha256": "85d827369772970a898bce323e509a56a35936e175bb585c21c54ddc23d3c66a"
+				},
+				{
+					"name": "sirius-linux-x64.tar.gz",
+					"size": 159630896,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.4/sirius-linux-x64.tar.gz",
+					"sha256": "af9d54b7e1bc96f0519c917b4b3dcc50d563178c3936cb4cd5052004ea7c8d46"
+				},
+				{
+					"name": "sirius-win32-x64-setup.exe",
+					"size": 128263434,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.4/sirius-win32-x64-setup.exe",
+					"sha256": "4bb0e7ceab38724ca1c13c708598d39d1481108b193709eee22fc54553cdc8e6"
+				}
+			],
+			"commits": [
+				{
+					"sha": "5a521a9",
+					"subject": "sirius-ai: import from VS Code, Cursor, Windsurf or VSCodium"
+				},
+				{
+					"sha": "bb08f3a",
+					"subject": "sirius-ai: refuse to load models that can freeze the machine"
+				}
+			]
+		},
+		{
+			"tag": "v1.118.3",
+			"version": "1.118.3",
+			"name": "v1.118.3",
+			"prerelease": false,
+			"publishedAt": "2026-08-25T23:48:21Z",
+			"url": "https://github.com/sirius-ide/sirius-ide/releases/tag/v1.118.3",
+			"body": "**Full Changelog**: https://github.com/sirius-ide/sirius-ide/compare/v1.118.2...v1.118.3",
+			"assets": [
+				{
+					"name": "commit.txt",
+					"size": 41,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.3/commit.txt",
+					"sha256": null
+				},
+				{
+					"name": "sirius-linux-arm64.tar.gz",
+					"size": 157940125,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.3/sirius-linux-arm64.tar.gz",
+					"sha256": "d6bff3c8ddf4d4c3db198d1d9792b1710dfc7dcb85e639e8d966e4a05b91ef5b"
+				},
+				{
+					"name": "sirius-linux-x64.tar.gz",
+					"size": 159627937,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.3/sirius-linux-x64.tar.gz",
+					"sha256": "a0b039ee7ab77760937d9526572201d26786efc2bf2a37d2fbaf5c06c08846e2"
+				},
+				{
+					"name": "sirius-win32-x64-setup.exe",
+					"size": 128259943,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.3/sirius-win32-x64-setup.exe",
+					"sha256": "fe118382368f1077abb6814e719ac55142a82188038d2d999f25e6548c73eca0"
+				}
+			],
+			"commits": [
+				{
+					"sha": "d4ad0d5",
+					"subject": "1.118.3"
+				},
+				{
+					"sha": "cf02d47",
+					"subject": "sirius-ai: make the agent act in the project, whatever the model's size"
+				}
+			]
+		},
+		{
+			"tag": "v1.118.2",
+			"version": "1.118.2",
+			"name": "v1.118.2",
+			"prerelease": false,
+			"publishedAt": "2026-08-25T23:15:23Z",
+			"url": "https://github.com/sirius-ide/sirius-ide/releases/tag/v1.118.2",
+			"body": "**Full Changelog**: https://github.com/sirius-ide/sirius-ide/compare/v1.118.1...v1.118.2",
+			"assets": [
+				{
+					"name": "commit.txt",
+					"size": 41,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.2/commit.txt",
+					"sha256": null
+				},
+				{
+					"name": "sirius-linux-arm64.tar.gz",
+					"size": 157942845,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.2/sirius-linux-arm64.tar.gz",
+					"sha256": "82479ea9f848135cbebaf5ea84c40789b7ac0bee919f0f34f5b6859cfce777ee"
+				},
+				{
+					"name": "sirius-linux-x64.tar.gz",
+					"size": 159618627,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.2/sirius-linux-x64.tar.gz",
+					"sha256": "46037d51b10a2f9ca83c0ca2159f7518e9d02fa7263ad1f3f271670ebfae39fe"
+				},
+				{
+					"name": "sirius-win32-x64-setup.exe",
+					"size": 128257634,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.2/sirius-win32-x64-setup.exe",
+					"sha256": "0a700a2ef6f05ef684b94c00718b4304d880cfff98f91139552da53a2d77486d"
+				}
+			],
+			"commits": [
+				{
+					"sha": "df79c48",
+					"subject": "sirius-ai: a default model always exists, and the registry warms at activation"
+				},
+				{
+					"sha": "e5b8daf",
+					"subject": "sirius-ai: the Sirius default chat agent"
+				},
+				{
+					"sha": "19acd49",
+					"subject": "sirius-ai: real Tab completion — native FIM, debounced, cached, cancellable"
+				},
+				{
+					"sha": "69d514f",
+					"subject": "update-server: read release metadata from R2, not the GitHub API"
+				}
+			]
+		},
+		{
+			"tag": "v1.118.1",
+			"version": "1.118.1",
+			"name": "v1.118.1",
+			"prerelease": false,
+			"publishedAt": "2026-08-25T16:49:04Z",
+			"url": "https://github.com/sirius-ide/sirius-ide/releases/tag/v1.118.1",
+			"body": "**Full Changelog**: https://github.com/sirius-ide/sirius-ide/compare/v1.118.0...v1.118.1",
+			"assets": [
+				{
+					"name": "commit.txt",
+					"size": 41,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.1/commit.txt",
+					"sha256": null
+				},
+				{
+					"name": "sirius-linux-arm64.tar.gz",
+					"size": 157937337,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.1/sirius-linux-arm64.tar.gz",
+					"sha256": "dd1c0f469770fcd24b11c82a37fd964563c43e59bb64319a757cf39e91ea1df1"
+				},
+				{
+					"name": "sirius-linux-x64.tar.gz",
+					"size": 159618918,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.1/sirius-linux-x64.tar.gz",
+					"sha256": "005f3a23b2916db330ca2e7e478641648c58fa23b9899c57d4eb1643b29b2d7d"
+				},
+				{
+					"name": "sirius-win32-x64-setup.exe",
+					"size": 128257867,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.1/sirius-win32-x64-setup.exe",
+					"sha256": "465a63c38782186421e204ca8d486a21a5f1d0af092967f9deea2629fed18d12"
+				}
+			],
+			"commits": [
+				{
+					"sha": "51cde48",
+					"subject": "1.118.1"
+				},
+				{
+					"sha": "f373ec3",
+					"subject": "sirius-ai: bring the SCM sparkle and merge-conflict actions to life"
+				},
+				{
+					"sha": "046847a",
+					"subject": "sirius-ai: retire the mutating tools — the workbench's own do it right"
+				},
+				{
+					"sha": "8f1c811",
+					"subject": "docs: Arch installs from the Sirius pacman repository"
+				},
+				{
+					"sha": "8c0b60a",
+					"subject": "docs: v1.118.0 shipped"
+				}
+			]
+		},
+		{
+			"tag": "v1.118.0",
+			"version": "1.118.0",
+			"name": "v1.118.0",
+			"prerelease": false,
+			"publishedAt": "2026-08-25T01:04:41Z",
+			"url": "https://github.com/sirius-ide/sirius-ide/releases/tag/v1.118.0",
+			"body": "**Full Changelog**: https://github.com/sirius-ide/sirius-ide/commits/v1.118.0",
+			"assets": [
+				{
+					"name": "commit.txt",
+					"size": 41,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.0/commit.txt",
+					"sha256": null
+				},
+				{
+					"name": "sirius-linux-arm64.tar.gz",
+					"size": 157938171,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.0/sirius-linux-arm64.tar.gz",
+					"sha256": "74f83582fac4dcdc7488b5fb6109308a1f0d0d07f1a0a6d649ff4d7e389d9668"
+				},
+				{
+					"name": "sirius-linux-x64.tar.gz",
+					"size": 159613677,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.0/sirius-linux-x64.tar.gz",
+					"sha256": "9b8107d911774a4bbbd48662d13e518f49728217d1e54786a536580c3a9818b8"
+				},
+				{
+					"name": "sirius-win32-x64-setup.exe",
+					"size": 128259186,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.0/sirius-win32-x64-setup.exe",
+					"sha256": "e3610403308cff8fe819cb8f0bad3dd8c878830bb02413d82bebc6790f52b6cc"
+				}
+			],
+			"commits": []
+		}
+	]
+}

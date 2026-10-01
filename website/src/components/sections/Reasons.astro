@@ -1,0 +1,34 @@
+---
+import Logo from '../Logo.astro';
+const reasons = [
+	{ title: 'Bring your own model', href: '#models', text: 'Twelve providers, hosted or on your own machine, behind the editor’s own chat, inline chat and agent mode. Keys live in your keyring.' },
+	{ title: 'Agentic by default', href: '#agent', text: 'The agent reads, searches, runs and edits across files. Every change comes back as a diff you keep or undo, with checkpoints behind it.' },
+	{ title: 'Collects nothing', href: '#privacy', text: 'No telemetry, no crash reports, no analytics, no account. Requests go straight from your machine to the provider you chose.' },
+];
+---
+<section class="reasons" aria-label="Three reasons to choose Sirius">
+	<div class="container grid">
+		{reasons.map((r) => (
+			<a class="reason" href={r.href}>
+				<Logo size={22} class="mark" />
+				<h2>{r.title}</h2>
+				<p>{r.text}</p>
+			</a>
+		))}
+	</div>
+</section>
+
+<style>
+	.reasons { padding-block: clamp(32px, 5vw, 64px) 0; }
+	.grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
+	.reason {
+		display: grid; grid-template-rows: auto auto 1fr; gap: 0.6rem; align-content: start;
+		padding: 1.4rem 1.4rem 1.5rem; border-radius: var(--radius-l); border: 1px solid var(--border);
+		background: var(--surface); color: var(--fg); text-decoration: none;
+		transition: border-color 0.18s, transform 0.18s cubic-bezier(0.2, 0.7, 0.2, 1);
+	}
+	.reason:hover { border-color: var(--accent); color: var(--fg); text-decoration: none; transform: translateY(-2px); }
+	.reason h2 { font-size: var(--text-l); letter-spacing: -0.015em; }
+	.reason p { color: var(--fg-muted); font-size: var(--text-s); line-height: 1.55; }
+	@media (max-width: 860px) { .grid { grid-template-columns: 1fr; } .reason { grid-template-columns: auto 1fr; grid-template-rows: auto auto; column-gap: 0.9rem; } .reason :global(.mark) { grid-row: 1 / span 2; margin-top: 0.15rem; } }
+</style>

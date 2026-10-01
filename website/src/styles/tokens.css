@@ -28,7 +28,7 @@
 	--gutter: clamp(16px, 4vw, 40px);
 	--section-y: clamp(72px, 10vw, 140px);
 
-	/* type scale (Schibsted Grotesk 400–900 · JetBrains Mono 100–800) */
+	/* type scale (Geist 100–900 · Geist Mono 100–900) */
 	--text-xs: 0.8125rem;
 	--text-s: 0.9375rem;
 	--text-m: 1.0625rem;

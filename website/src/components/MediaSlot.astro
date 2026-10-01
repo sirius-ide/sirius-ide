@@ -1,0 +1,50 @@
+---
+/**
+ * A documented footage slot (src/media/README.md). When `src/media/<name>.mp4` exists the
+ * slot renders it — poster, muted, looped, playsinline, lazy, and started only when the
+ * visitor has not asked for reduced motion or data saving. Until then it renders the
+ * stand-in passed as the default slot: a stylised, flat SVG, never a fake screenshot.
+ */
+interface Props { name: string; label: string; class?: string }
+const { name, label, class: className = '' } = Astro.props;
+const files = import.meta.glob<string>('/src/media/*.{mp4,webm,jpg,png}', { eager: true, query: '?url', import: 'default' });
+const find = (ext: string) => Object.entries(files).find(([p]) => p.endsWith(`/${name}.${ext}`))?.[1];
+const mp4 = find('mp4');
+const webm = find('webm');
+const poster = find('jpg') ?? find('png');
+---
+{mp4 || webm ? (
+	<figure class:list={['media', className]}>
+		<video class="media-video" poster={poster} muted loop playsinline preload="none" width="1600" height="1000" aria-label={label} data-media>
+			{webm && <source src={webm} type="video/webm" />}
+			{mp4 && <source src={mp4} type="video/mp4" />}
+		</video>
+	</figure>
+) : (
+	<figure class:list={['media', 'standin', className]} role="img" aria-label={label}>
+		<slot />
+	</figure>
+)}
+
+<style>
+	.media { margin: 0; width: 100%; border: 1px solid var(--ring); outline: 1px solid var(--ring-soft); outline-offset: 3px; border-radius: 14px; overflow: hidden; background: var(--surface); }
+	.media-video { display: block; width: 100%; height: auto; aspect-ratio: 16 / 10; }
+	.standin { aspect-ratio: 16 / 10; display: grid; }
+	.standin :global(svg) { width: 100%; height: 100%; display: block; }
+</style>
+
+<script>
+	// Play footage only when motion is welcome and data is not being saved; pause off-screen.
+	const motion = matchMedia('(prefers-reduced-motion: no-preference)');
+	const saving = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData === true;
+	const videos = document.querySelectorAll<HTMLVideoElement>('video[data-media]');
+	if (videos.length && motion.matches && !saving && 'IntersectionObserver' in window) {
+		const io = new IntersectionObserver((entries) => {
+			for (const e of entries) {
+				const v = e.target as HTMLVideoElement;
+				if (e.isIntersecting) { v.play().catch(() => {}); } else { v.pause(); }
+			}
+		}, { threshold: 0.25 });
+		videos.forEach((v) => io.observe(v));
+	}
+</script>
