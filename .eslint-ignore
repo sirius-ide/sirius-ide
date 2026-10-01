@@ -37,3 +37,4 @@
 **/typings/**
 **/.build/**
 !.vscode
+**/website/**

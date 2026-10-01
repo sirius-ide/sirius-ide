@@ -6,7 +6,7 @@
 
 /**
  * The GitHub owner and the update host appear in about thirty places across
- * product.json, both AUR packages, the update worker and the docs. Editing them
+ * product.json, both AUR packages, the update worker, the website's constants and the docs. Editing them
  * by hand reliably misses one, and a missed updateUrl is compiled into a release
  * before anyone notices.
  *
@@ -56,7 +56,8 @@ const targets = [
 	'build/sirius/publish-arch-repo.sh',
 	'build/sirius/install-test.sh',
 	'LICENSE.txt',
-	'extensions/sirius-ai/src/providers/openaiCompatible.ts'
+	'extensions/sirius-ai/src/providers/openaiCompatible.ts',
+	'website/src/site.config.ts'
 ].map(p => path.join(REPO_ROOT, p));
 
 for (const pkg of ['sirius-ide-bin', 'sirius-ide-git']) {

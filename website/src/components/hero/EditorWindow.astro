@@ -1,0 +1,305 @@
+---
+/**
+ * The product in the hero, drawn in HTML and CSS in the real Sirius Star Dark colours
+ * (extensions/theme-sirius-star/themes/sirius-star-dark.json): custom title bar with the
+ * command centre, activity bar, Explorer, tabs and breadcrumbs, the chat view in the
+ * secondary side bar, the status bar with the model item. The agent sequence plays once
+ * on load — a request, the agent's "Running … tool" progress lines, the edit arriving
+ * as a diff with the Keep / Undo hunk controls and the "N files changed" bar, then Keep —
+ * using only the strings the product shows (sirius-ai's siriusAgent.ts, modelRouter.ts,
+ * extension.ts and the workbench's chat-editing actions). The end state is the resting
+ * state, so reduced motion shows the finished exchange. Everything is decorative: the
+ * figure carries one description for assistive technology.
+ *
+ * Internal sizes are in em so one --ws value scales the whole window.
+ */
+import Icon from './Icon.astro';
+
+const tree = [
+	{ kind: 'd', lvl: 0, name: 'src', open: true },
+	{ kind: 'd', lvl: 1, name: 'routes', open: true },
+	{ kind: 'ts', lvl: 2, name: 'health.ts', mod: true },
+	{ kind: 'ts', lvl: 2, name: 'metrics.ts' },
+	{ kind: 'd', lvl: 1, name: 'lib', open: true },
+	{ kind: 'ts', lvl: 2, name: 'ratelimit.ts', mod: true },
+	{ kind: 'ts', lvl: 2, name: 'log.ts' },
+	{ kind: 'ts', lvl: 1, name: 'server.ts' },
+	{ kind: 'd', lvl: 0, name: 'test' },
+	{ kind: 'json', lvl: 0, name: 'package.json' },
+	{ kind: 'md', lvl: 0, name: 'README.md' },
+];
+const icons: Record<string, string> = { ts: 'TS', json: '{}', md: 'M↓' };
+---
+<figure class="win" role="img" aria-label="Sirius IDE with a project open. The chat view shows the request “Rate-limit the health route and log rejected requests.” Sirius reads the files, then the editor shows the change to health.ts as a diff with Keep and Undo controls; the user keeps the edits to two files.">
+	<div class="win-inner" aria-hidden="true">
+		<div class="tb">
+			<div class="tb-left">
+				<Icon name="star" class="tb-logo" />
+				<ul class="menubar"><li>File</li><li>Edit</li><li>Selection</li><li>View</li><li>Go</li><li>Run</li><li>Terminal</li><li>Help</li></ul>
+			</div>
+			<div class="cc"><Icon name="search" size={14} /> aurora</div>
+			<div class="tb-right">
+				<Icon name="layoutLeft" class="ico" /><Icon name="layoutBottom" class="ico" /><Icon name="layoutRight" class="ico on" />
+				<span class="wc"><Icon name="minimize" size={12} /></span><span class="wc"><Icon name="maximize" size={11} /></span><span class="wc"><Icon name="close" size={12} /></span>
+			</div>
+		</div>
+
+		<div class="body">
+			<div class="ab">
+				<div class="ab-group">
+					<span class="ab-item active"><Icon name="files" size={24} /></span>
+					<span class="ab-item"><Icon name="search" size={24} /></span>
+					<span class="ab-item"><Icon name="branch" size={24} /><i class="badge appear-late">2</i></span>
+					<span class="ab-item"><Icon name="debug" size={24} /></span>
+					<span class="ab-item"><Icon name="extensions" size={24} /></span>
+				</div>
+				<div class="ab-group">
+					<span class="ab-item"><Icon name="account" size={24} /></span>
+					<span class="ab-item"><Icon name="gear" size={24} /></span>
+				</div>
+			</div>
+
+			<div class="sb">
+				<div class="sb-title"><span>Explorer</span><Icon name="more" size={14} /></div>
+				<div class="sb-head"><Icon name="chevronDown" size={14} /> Aurora</div>
+				<ul class="tree">
+					{tree.map((n) => (
+						<li class:list={[n.kind, { mod: n.mod }]} style={`--lvl:${n.lvl}`}>
+							{n.kind === 'd' ? <Icon name={n.open ? 'chevronDown' : 'chevron'} size={14} class="tw" /> : <i class="fi">{icons[n.kind]}</i>}
+							<span class="name">{n.name}</span>
+							{n.mod && <span class="m appear-late">M</span>}
+						</li>
+					))}
+				</ul>
+				<div class="sb-head dim"><Icon name="chevron" size={14} /> Outline</div>
+				<div class="sb-head dim"><Icon name="chevron" size={14} /> Timeline</div>
+			</div>
+
+			<div class="ed">
+				<div class="tabs">
+					<div class="tab active mod"><i class="fi ts">TS</i><span class="name">health.ts</span><span class="x"><Icon name="close" size={12} /></span></div>
+					<div class="tab mod"><i class="fi ts">TS</i><span class="name">ratelimit.ts</span></div>
+					<div class="tab"><i class="fi ts">TS</i><span class="name">server.ts</span></div>
+					<div class="tabs-actions"><Icon name="split" size={15} /><Icon name="more" size={15} /></div>
+				</div>
+				<div class="crumbs">src <Icon name="chevron" size={12} /> routes <Icon name="chevron" size={12} /> <span class="here">health.ts</span> <Icon name="chevron" size={12} /> <span class="sym">ƒ</span> router.get() callback</div>
+				<div class="code">
+					<div class="hunk"><span class="hb"><Icon name="arrowUp" size={13} /></span><span class="hb"><Icon name="arrowDown" size={13} /></span><span class="hsep"></span><span class="hb txt">Keep</span><span class="hb txt">Undo</span></div>
+					<div class="row"><span class="ln">1</span><span class="src"><b class="k">import</b> <b class="p">{'{'}</b> <b class="t">Router</b> <b class="p">{'}'}</b> <b class="k">from</b> <b class="s">'./router'</b><b class="p">;</b></span></div>
+					<div class="row"><span class="ln">2</span><span class="src"><b class="k">import</b> <b class="p">{'{'}</b> <b class="v">log</b> <b class="p">{'}'}</b> <b class="k">from</b> <b class="s">'../lib/log'</b><b class="p">;</b></span></div>
+					<div class="row add" style="--i:0"><span class="ln">3</span><span class="src"><b class="k">import</b> <b class="p">{'{'}</b> <b class="t">TokenBucket</b> <b class="p">{'}'}</b> <b class="k">from</b> <b class="s">'../lib/ratelimit'</b><b class="p">;</b></span></div>
+					<div class="row"><span class="ln">4</span><span class="src"></span></div>
+					<div class="row"><span class="ln">5</span><span class="src"><b class="k">const</b> <b class="v">router</b> <b class="p">=</b> <b class="k">new</b> <b class="t">Router</b><b class="p">();</b></span></div>
+					<div class="row add" style="--i:1"><span class="ln">6</span><span class="src"><b class="k">const</b> <b class="v">bucket</b> <b class="p">=</b> <b class="k">new</b> <b class="t">TokenBucket</b><b class="p">({'{'}</b> <b class="v">capacity</b><b class="p">:</b> <b class="n">20</b><b class="p">,</b> <b class="v">refillPerSecond</b><b class="p">:</b> <b class="n">5</b> <b class="p">{'}'});</b></span></div>
+					<div class="row"><span class="ln">7</span><span class="src"></span></div>
+					<div class="row"><span class="ln">8</span><span class="src"><b class="v">router</b><b class="p">.</b><b class="f">get</b><b class="p">(</b><b class="s">'/health'</b><b class="p">, (</b><b class="v">req</b><b class="p">,</b> <b class="v">res</b><b class="p">)</b> <b class="k">=&gt;</b> <b class="p">{'{'}</b></span></div>
+					<div class="row add" style="--i:2"><span class="ln">9</span><span class="src">  <b class="k">if</b> <b class="p">(!</b><b class="v">bucket</b><b class="p">.</b><b class="f">take</b><b class="p">(</b><b class="v">req</b><b class="p">.</b><b class="v">ip</b><b class="p">)) {'{'}</b></span></div>
+					<div class="row add" style="--i:3"><span class="ln">10</span><span class="src">    <b class="v">log</b><b class="p">.</b><b class="f">warn</b><b class="p">(</b><b class="s">'health: rate limited'</b><b class="p">, {'{'}</b> <b class="v">ip</b><b class="p">:</b> <b class="v">req</b><b class="p">.</b><b class="v">ip</b> <b class="p">{'}'});</b></span></div>
+					<div class="row add" style="--i:4"><span class="ln">11</span><span class="src">    <b class="k">return</b> <b class="v">res</b><b class="p">.</b><b class="f">status</b><b class="p">(</b><b class="n">429</b><b class="p">).</b><b class="f">json</b><b class="p">({'{'}</b> <b class="v">ok</b><b class="p">:</b> <b class="n">false</b><b class="p">,</b> <b class="v">retryAfter</b><b class="p">:</b> <b class="n">1</b> <b class="p">{'}'});</b></span></div>
+					<div class="row add" style="--i:5"><span class="ln">12</span><span class="src">  <b class="p">{'}'}</b></span></div>
+					<div class="row cur"><span class="ln">13</span><span class="src">  <b class="v">res</b><b class="p">.</b><b class="f">json</b><b class="p">({'{'}</b> <b class="v">ok</b><b class="p">:</b> <b class="n">true</b><b class="p">,</b> <b class="v">uptime</b><b class="p">:</b> <b class="v">process</b><b class="p">.</b><b class="f">uptime</b><b class="p">() {'}'});</b></span></div>
+					<div class="row"><span class="ln">14</span><span class="src"><b class="p">{'}'});</b></span></div>
+					<div class="row"><span class="ln">15</span><span class="src"></span></div>
+					<div class="row"><span class="ln">16</span><span class="src"><b class="k">export default</b> <b class="v">router</b><b class="p">;</b></span></div>
+				</div>
+			</div>
+
+			<div class="chat">
+				<div class="chat-head"><span>Chat</span><span class="chat-actions"><Icon name="plus" size={15} /><Icon name="history" size={15} /><Icon name="more" size={15} /></span></div>
+				<div class="chat-log">
+					<div class="turn user">
+						<span class="av"><Icon name="person" size={13} /></span>
+						<div class="bubble">Rate‑limit the health route and log rejected requests.</div>
+					</div>
+					<div class="turn ai">
+						<div class="who step" style="--t:1.3s"><span class="av ai"><Icon name="star" size={12} /></span> Sirius</div>
+						<ul class="progress">
+							<li class="step" style="--t:1.3s"><span class="pi"><Icon name="spinner" class="spin" size={14} /><Icon name="check" class="done" size={14} /></span> Running search files…</li>
+							<li class="step" style="--t:2.0s"><span class="pi"><Icon name="spinner" class="spin" size={14} /><Icon name="check" class="done" size={14} /></span> Running read file…</li>
+							<li class="step" style="--t:2.7s"><span class="pi"><Icon name="spinner" class="spin" size={14} /><Icon name="check" class="done" size={14} /></span> Running read file…</li>
+						</ul>
+						<p class="prose step" style="--t:4.5s">Added a token bucket in front of <code>/health</code> — 20 requests, refilling 5 a second — and a <code>log.warn</code> for every rejected request.</p>
+						<ul class="pills step" style="--t:5.0s">
+							<li><i class="fi ts">TS</i> health.ts <b>+7</b></li>
+							<li><i class="fi ts">TS</i> ratelimit.ts <b>+14</b></li>
+						</ul>
+					</div>
+					<div class="changed"><span class="cnt">2 files changed</span><span class="kbtn keep">Keep All Edits</span><span class="kbtn undo">Undo All Edits</span></div>
+				</div>
+				<div class="input">
+					<div class="ph">Describe what to build</div>
+					<div class="input-bar">
+						<span class="pick mode"><Icon name="agent" size={14} /> Agent <Icon name="chevronDown" size={11} /></span>
+						<span class="pick"><span>qwen3:32b</span> <Icon name="chevronDown" size={11} /></span>
+						<span class="grow"></span>
+						<Icon name="attach" size={15} class="attach" />
+						<span class="send"><Icon name="send" size={14} /></span>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<div class="status">
+			<div class="st"><span class="remote"><Icon name="remote" size={14} /></span><span><Icon name="branch" size={13} /> main</span><span><Icon name="sync" size={13} /></span><span><Icon name="error" size={13} /> 0 <Icon name="warning" size={13} /> 0</span></div>
+			<div class="st right"><span>Ln 13, Col 3</span><span>Spaces: 2</span><span>UTF-8</span><span>LF</span><span>TypeScript</span><span class="model"><Icon name="star" size={13} /> qwen3:32b</span><span><Icon name="bell" size={13} /></span></div>
+		</div>
+	</div>
+</figure>
+
+<style>
+	.win {
+		--ws: 13px;
+		--w-bg: #06080d; --w-side: #0a0e14; --w-s2: #0d1117; --w-s3: #161b22; --w-fg: #e6edf3; --w-fg2: #c9d1d9;
+		--w-muted: #8b949e; --w-dim: #484f58; --w-ln: #30363d; --w-violet: #8b5cf6; --w-ice: #a8c7fa; --w-cyan: #67e8f9;
+		--w-magenta: #c084fc; --w-string: #a5d6ff; --w-type: #fbbf24; --w-green: #3fb950; --w-red: #f85149;
+		--w-border: rgba(139, 92, 246, 0.08); --w-border2: rgba(139, 92, 246, 0.19); --w-tint: rgba(63, 185, 80, 0.14);
+		margin: 0; font-size: var(--ws); line-height: 1.4; color: var(--w-fg); font-family: var(--font-sans);
+		background: var(--w-bg); border-radius: 14px; overflow: hidden; box-shadow: var(--shadow-window);
+		text-align: left; -webkit-user-select: none; user-select: none;
+	}
+	.win-inner { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: 2.7em 36em 1.7em; min-width: 0; }
+	.win svg { flex: none; }
+	.fi { font-family: var(--font-mono); font-style: normal; font-size: 0.7em; font-weight: 700; width: 2em; text-align: center; letter-spacing: -0.02em; }
+	.fi.ts, .ts .fi { color: #519aba; }
+	.json .fi { color: #cbcb41; }
+	.md .fi { color: #519aba; }
+
+	/* title bar */
+	.tb { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; padding: 0 0.7em; border-bottom: 1px solid var(--w-border); }
+	.tb-left { display: flex; align-items: center; gap: 0.7em; min-width: 0; }
+	.tb-logo { color: var(--w-ice); }
+	.menubar { display: flex; list-style: none; margin: 0; padding: 0; color: var(--w-muted); font-size: 0.95em; }
+	.menubar li { padding: 0.15em 0.55em; border-radius: 4px; white-space: nowrap; }
+	.cc { display: flex; align-items: center; justify-content: center; gap: 0.5em; width: 30em; max-width: 34vw; height: 1.8em; border: 1px solid var(--w-border2); background: var(--w-s2); border-radius: 6px; color: var(--w-muted); font-size: 0.95em; }
+	.tb-right { display: flex; justify-content: flex-end; align-items: center; gap: 0.35em; color: var(--w-muted); }
+	.tb-right .ico { padding: 0.25em; }
+	.tb-right .on { color: var(--w-fg); }
+	.wc { display: grid; place-items: center; width: 1.9em; height: 1.9em; margin-left: 0.2em; color: var(--w-fg2); }
+
+	/* body */
+	.body { display: flex; min-height: 0; min-width: 0; overflow: hidden; }
+	.ab { width: 3.7em; display: flex; flex-direction: column; justify-content: space-between; border-right: 1px solid rgba(13, 17, 23, 0.5); }
+	.ab-item { position: relative; width: 3.7em; height: 3.6em; display: grid; place-items: center; color: var(--w-dim); }
+	.ab-item.active { color: var(--w-fg); box-shadow: inset 2px 0 0 var(--w-violet); }
+	.badge { position: absolute; right: 0.45em; top: 0.5em; min-width: 1.35em; height: 1.35em; padding: 0 0.3em; border-radius: 999px; background: var(--w-violet); color: #fff; font-style: normal; font-size: 0.72em; font-weight: 600; display: grid; place-items: center; }
+
+	.sb { width: 17em; flex: none; background: var(--w-side); border-right: 1px solid var(--w-border); display: flex; flex-direction: column; font-size: 0.95em; min-width: 0; }
+	.sb-title { display: flex; justify-content: space-between; align-items: center; padding: 0.55em 1.2em 0.55em 1.3em; font-size: 0.82em; letter-spacing: 0.06em; text-transform: uppercase; color: var(--w-ice); }
+	.sb-head { display: flex; align-items: center; gap: 0.2em; padding: 0.2em 0.4em; font-size: 0.82em; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; color: var(--w-ice); background: rgba(13, 17, 23, 0.5); border-top: 1px solid var(--w-border); }
+	.sb-head.dim { margin-top: auto; }
+	.sb-head.dim + .sb-head.dim { margin-top: 0; }
+	.tree { list-style: none; margin: 0; padding: 0.15em 0; }
+	.tree li { display: flex; align-items: center; gap: 0.3em; height: 1.75em; padding-left: calc(0.5em + var(--lvl) * 1em); color: var(--w-fg2); white-space: nowrap; }
+	.tree .tw { color: var(--w-fg2); }
+	.tree .d .name { font-weight: 500; }
+	.tree li.mod .name { color: var(--w-ice); }
+	.tree .m { margin-left: auto; margin-right: 1em; color: var(--w-ice); font-size: 0.85em; }
+	.tree .ts { padding-left: calc(0.5em + var(--lvl) * 1em + 0.1em); }
+
+	.ed { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; }
+	.tabs { display: flex; height: 2.7em; border-bottom: 1px solid var(--w-border); overflow: hidden; }
+	.tab { display: flex; align-items: center; gap: 0.4em; padding: 0 0.9em; min-width: 9em; font-size: 0.95em; color: var(--w-muted); border-right: 1px solid rgba(13, 17, 23, 0.5); white-space: nowrap; }
+	.tab.active { background: var(--w-s2); color: var(--w-fg); box-shadow: inset 0 1px 0 var(--w-violet); }
+	.tab.mod .name { color: var(--w-ice); }
+	.tab .x { margin-left: auto; padding-left: 0.6em; color: var(--w-muted); display: inline-flex; }
+	.tabs-actions { margin-left: auto; display: flex; align-items: center; gap: 0.6em; padding: 0 0.9em; color: var(--w-muted); }
+	.crumbs { display: flex; align-items: center; gap: 0.3em; height: 1.75em; padding: 0 1em; font-size: 0.88em; color: var(--w-muted); white-space: nowrap; overflow: hidden; }
+	.crumbs .here { color: var(--w-ice); }
+	.crumbs .sym { color: var(--w-magenta); font-family: var(--font-mono); }
+
+	.code { position: relative; flex: 1; display: flex; flex-direction: column; padding-top: 0.35em; font-family: var(--font-mono); font-size: 0.92em; line-height: 1.55em; overflow: hidden; }
+	.row { position: relative; display: grid; grid-template-columns: 3.9em 1fr; }
+	.row.cur { background: rgba(13, 17, 23, 0.5); }
+	.ln { text-align: right; padding-right: 1.5em; color: var(--w-ln); }
+	.row.cur .ln { color: var(--w-ice); }
+	.src { white-space: pre; overflow: hidden; color: var(--w-fg); }
+	.src b { font-weight: 400; }
+	.k { color: var(--w-magenta); } .s { color: var(--w-string); } .f { color: var(--w-ice); } .t { color: var(--w-type); }
+	.n { color: var(--w-cyan); } .p { color: var(--w-muted); } .v { color: var(--w-fg); }
+	.row.add::before { content: ""; position: absolute; left: 3.2em; top: 0; bottom: 0; width: 0.25em; background: var(--w-green); }
+	.hunk { position: absolute; right: 1.1em; top: calc(0.35em + 1.55em * 2 - 0.3em); z-index: 2; display: flex; align-items: center; gap: 0.1em; padding: 0.15em 0.25em; border-radius: 5px; background: var(--w-s2); border: 1px solid var(--w-border2); box-shadow: 0 6px 18px rgba(0, 0, 0, 0.55); font-family: var(--font-sans); font-size: 0.95em; color: var(--w-fg); opacity: 0; }
+	.hb { display: inline-flex; align-items: center; justify-content: center; min-width: 1.6em; height: 1.6em; border-radius: 3px; padding: 0 0.35em; }
+	.hb.txt { font-weight: 500; }
+	.hsep { width: 1px; height: 1.2em; background: var(--w-border2); margin: 0 0.3em; }
+
+	/* chat */
+	.chat { width: 29em; flex: none; background: var(--w-side); border-left: 1px solid var(--w-border); display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+	.chat-head { height: 2.7em; flex: none; display: flex; align-items: center; justify-content: space-between; padding: 0 1em; font-size: 0.82em; letter-spacing: 0.06em; text-transform: uppercase; color: var(--w-ice); }
+	.chat-actions { display: inline-flex; gap: 0.9em; color: var(--w-muted); }
+	.chat-log { position: relative; flex: 1; min-height: 0; min-width: 0; padding: 0.5em 0.9em; display: flex; flex-direction: column; gap: 0.9em; font-size: 0.95em; overflow: hidden; }
+	.chat > * { min-width: 0; }
+	.bubble, .prose { min-width: 0; overflow-wrap: anywhere; }
+	.turn.user { display: flex; gap: 0.6em; align-items: flex-start; }
+	.av { width: 1.75em; height: 1.75em; border-radius: 50%; display: inline-grid; place-items: center; background: var(--w-s3); color: var(--w-muted); flex: none; }
+	.av.ai { background: var(--w-violet); color: #fff; }
+	.bubble { background: var(--w-s2); border: 1px solid var(--w-border2); border-radius: 6px; padding: 0.5em 0.75em; color: var(--w-fg); }
+	.turn.ai { display: flex; flex-direction: column; gap: 0.6em; }
+	.who { display: flex; align-items: center; gap: 0.55em; font-weight: 600; }
+	.progress { list-style: none; margin: 0; padding: 0; }
+	.progress li { display: flex; align-items: center; gap: 0.5em; height: 1.75em; color: var(--w-muted); }
+	.pi { position: relative; width: 1.1em; height: 1.1em; display: inline-grid; place-items: center; }
+	.pi svg { position: absolute; inset: 0; margin: auto; }
+	.pi .spin { opacity: 0; color: var(--w-ice); }
+	.pi .done { color: var(--w-muted); }
+	.prose { color: var(--w-fg); line-height: 1.5; }
+	.prose code { font-family: var(--font-mono); font-size: 0.9em; padding: 0.05em 0.3em; border-radius: 3px; background: var(--w-s2); border: 1px solid rgba(139, 92, 246, 0.14); }
+	.pills { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 0.4em; }
+	.pills li { display: inline-flex; align-items: center; gap: 0.35em; padding: 0.15em 0.55em 0.15em 0.4em; border-radius: 4px; background: var(--w-s2); border: 1px solid var(--w-border2); color: var(--w-ice); font-size: 0.92em; }
+	.pills b { color: var(--w-green); font-weight: 500; }
+	.changed { position: absolute; left: 0.9em; right: 0.9em; bottom: 0.4em; display: flex; align-items: center; gap: 0.45em; padding: 0.4em 0.55em; border: 1px solid var(--w-border2); border-radius: 6px; background: var(--w-s2); font-size: 0.9em; color: var(--w-muted); opacity: 0; }
+	.cnt { margin-right: auto; }
+	.kbtn { padding: 0.22em 0.65em; border-radius: 4px; font-weight: 500; white-space: nowrap; }
+	.kbtn.keep { background: var(--w-violet); color: #fff; }
+	.kbtn.undo { background: #21262d; color: var(--w-fg); }
+	.input { margin: 0 0.9em 0.9em; flex: none; border: 1px solid var(--w-border2); border-radius: 6px; background: var(--w-s2); padding: 0.6em 0.7em 0.5em; }
+	.ph { color: var(--w-dim); min-height: 2.4em; }
+	.input-bar { display: flex; align-items: center; gap: 0.45em; color: var(--w-muted); font-size: 0.9em; }
+	.pick { display: inline-flex; align-items: center; gap: 0.3em; padding: 0.15em 0.4em; border-radius: 4px; white-space: nowrap; min-width: 0; overflow: hidden; }
+	.pick > span { overflow: hidden; text-overflow: ellipsis; }
+	.input-bar > svg { flex: none; }
+	.send { flex: none; }
+	.pick.mode { color: var(--w-fg); }
+	.grow { flex: 1; }
+	.send { width: 1.9em; height: 1.9em; border-radius: 4px; background: var(--w-violet); color: #fff; display: inline-grid; place-items: center; }
+
+	/* status bar */
+	.status { display: flex; align-items: center; justify-content: space-between; border-top: 1px solid var(--w-border); color: var(--w-muted); font-size: 0.85em; padding-right: 0.4em; overflow: hidden; }
+	.st { display: flex; align-items: center; height: 100%; min-width: 0; }
+	.st > span { display: inline-flex; align-items: center; gap: 0.35em; padding: 0 0.6em; height: 100%; white-space: nowrap; }
+	.remote { background: var(--w-violet); color: #fff; padding: 0 0.75em !important; }
+	.model { color: var(--w-fg); }
+
+	/* responsive: one em scale, then a narrower window on phones */
+	@media (max-width: 1180px) { .win { --ws: 11.5px; } }
+	@media (max-width: 960px) { .sb { width: 15em; } .chat { width: 26em; } }
+	@media (max-width: 760px) {
+		.win { --ws: 10.5px; border-radius: 10px; }
+		.win-inner { grid-template-rows: 2.7em 40em 1.7em; }
+		.ab, .sb, .menubar, .tb-right .ico, .crumbs, .tab:nth-child(3), .tabs-actions, .st.right > span:not(.model), .input-bar > .attach { display: none; }
+		.cc { width: 11em; }
+		.chat { width: 50%; }
+		.tab { min-width: 0; }
+	}
+
+	/* the sequence — transform and opacity only; the base styles above are the end state */
+	@media (prefers-reduced-motion: no-preference) {
+		.turn.user { animation: w-rise 0.45s cubic-bezier(0.2, 0.7, 0.2, 1) 0.5s both; }
+		.step { animation: w-rise 0.4s cubic-bezier(0.2, 0.7, 0.2, 1) var(--t) both; }
+		.pi .spin { animation: w-spin 0.75s linear var(--t) both; }
+		.pi .done { animation: w-show 0.01s linear calc(var(--t) + 0.75s) both; }
+		.row.add { --t0: calc(3.2s + var(--i) * 0.12s); animation: w-diff calc(7.7s - var(--t0)) linear var(--t0) both; }
+		.hunk { animation: w-showhide 4.3s linear 3.4s both; }
+		.changed { animation: w-showhide 2.5s linear 5.3s both; }
+		.appear-late { animation: w-show 0.3s ease-out 7.8s both; }
+	}
+	@keyframes w-rise { from { opacity: 0; transform: translate3d(0, 6px, 0); } to { opacity: 1; transform: translate3d(0, 0, 0); } }
+	@keyframes w-show { from { opacity: 0; } to { opacity: 1; } }
+	@keyframes w-spin { 0% { opacity: 1; transform: rotate(0deg); } 92% { opacity: 1; transform: rotate(540deg); } 100% { opacity: 0; transform: rotate(540deg); } }
+	@keyframes w-diff {
+		0% { opacity: 0; transform: translate3d(-6px, 0, 0); background: var(--w-tint); }
+		6% { opacity: 1; transform: none; background: var(--w-tint); }
+		88% { background: var(--w-tint); }
+		100% { background: transparent; }
+	}
+	@keyframes w-showhide { 0% { opacity: 0; transform: translate3d(0, 4px, 0); } 7% { opacity: 1; transform: none; } 92% { opacity: 1; } 100% { opacity: 0; } }
+</style>

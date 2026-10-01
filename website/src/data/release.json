@@ -1,0 +1,95 @@
+{
+  "tag": "v1.118.7",
+  "version": "1.118.7",
+  "name": "v1.118.7",
+  "publishedAt": "2026-10-01T02:17:25Z",
+  "url": "https://github.com/sirius-ide/sirius-ide/releases/tag/v1.118.7",
+  "fetchedAt": "2026-10-01T04:30:56.951Z",
+  "assets": [
+    {
+      "name": "commit.txt",
+      "size": 41,
+      "downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.7/commit.txt"
+    },
+    {
+      "name": "sirius-1.118.7-1790820699.el8.x86_64.rpm",
+      "size": 163065427,
+      "downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.7/sirius-1.118.7-1790820699.el8.x86_64.rpm"
+    },
+    {
+      "name": "sirius-1.118.7-1790820782.el8.aarch64.rpm",
+      "size": 159463500,
+      "downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.7/sirius-1.118.7-1790820782.el8.aarch64.rpm"
+    },
+    {
+      "name": "sirius-ide-bin-1.118.7-1-x86_64.pkg.tar.zst",
+      "size": 152773039,
+      "downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.7/sirius-ide-bin-1.118.7-1-x86_64.pkg.tar.zst"
+    },
+    {
+      "name": "sirius-ide-bin-1.118.7-1-x86_64.pkg.tar.zst.sha256",
+      "size": 110,
+      "downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.7/sirius-ide-bin-1.118.7-1-x86_64.pkg.tar.zst.sha256"
+    },
+    {
+      "name": "sirius-linux-arm64.tar.gz",
+      "size": 158081056,
+      "downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.7/sirius-linux-arm64.tar.gz"
+    },
+    {
+      "name": "sirius-linux-arm64.tar.gz.sha256",
+      "size": 92,
+      "downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.7/sirius-linux-arm64.tar.gz.sha256"
+    },
+    {
+      "name": "sirius-linux-x64.tar.gz",
+      "size": 161874734,
+      "downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.7/sirius-linux-x64.tar.gz"
+    },
+    {
+      "name": "sirius-linux-x64.tar.gz.sha256",
+      "size": 90,
+      "downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.7/sirius-linux-x64.tar.gz.sha256"
+    },
+    {
+      "name": "sirius-server-linux-arm64.tar.gz",
+      "size": 80523273,
+      "downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.7/sirius-server-linux-arm64.tar.gz"
+    },
+    {
+      "name": "sirius-server-linux-arm64.tar.gz.sha256",
+      "size": 99,
+      "downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.7/sirius-server-linux-arm64.tar.gz.sha256"
+    },
+    {
+      "name": "sirius-server-linux-x64.tar.gz",
+      "size": 82789022,
+      "downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.7/sirius-server-linux-x64.tar.gz"
+    },
+    {
+      "name": "sirius-server-linux-x64.tar.gz.sha256",
+      "size": 97,
+      "downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.7/sirius-server-linux-x64.tar.gz.sha256"
+    },
+    {
+      "name": "sirius-win32-x64-setup.exe",
+      "size": 128489941,
+      "downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.7/sirius-win32-x64-setup.exe"
+    },
+    {
+      "name": "sirius-win32-x64-setup.exe.sha256",
+      "size": 93,
+      "downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.7/sirius-win32-x64-setup.exe.sha256"
+    },
+    {
+      "name": "sirius_1.118.7-1790820613_amd64.deb",
+      "size": 113889828,
+      "downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.7/sirius_1.118.7-1790820613_amd64.deb"
+    },
+    {
+      "name": "sirius_1.118.7-1790820696_arm64.deb",
+      "size": 105617992,
+      "downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.7/sirius_1.118.7-1790820696_arm64.deb"
+    }
+  ]
+}

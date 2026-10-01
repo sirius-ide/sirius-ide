@@ -1,0 +1,92 @@
+---
+import Logo from './Logo.astro';
+import { site } from '../site.config';
+const links: Array<[string, string]> = [
+	['Download', '/download/'],
+	['Docs', '/docs/'],
+	['Changelog', '/changelog/'],
+	['Roadmap', '/roadmap/'],
+];
+const path = Astro.url.pathname;
+const current = (href: string) => (href !== '/' && path.startsWith(href) ? 'page' : undefined);
+---
+<header class="nav">
+	<div class="container nav-inner">
+		<a class="brand" href="/" aria-label="Sirius IDE — home">
+			<Logo size={26} />
+			<span class="wordmark">Sirius<span class="ide"> IDE</span></span>
+		</a>
+		<nav class="links" aria-label="Primary">
+			<ul>
+				{links.map(([label, href]) => (
+					<li><a href={href} aria-current={current(href)}>{label}</a></li>
+				))}
+			</ul>
+		</nav>
+		<div class="actions">
+			<a class="gh" href={site.github} rel="noopener" aria-label="Sirius IDE on GitHub">
+				<svg aria-hidden="true" viewBox="0 0 16 16" width="20" height="20" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+			</a>
+			<a class="btn btn-primary btn-sm cta" href="/download/">Download</a>
+			<details class="menu">
+				<summary aria-label="Menu"><span class="burger" aria-hidden="true"></span></summary>
+				<ul class="menu-list">
+					{links.map(([label, href]) => (
+						<li><a href={href} aria-current={current(href)}>{label}</a></li>
+					))}
+					<li><a href={site.github} rel="noopener">GitHub</a></li>
+				</ul>
+			</details>
+		</div>
+	</div>
+</header>
+
+<style>
+	.nav {
+		position: sticky; top: 0; z-index: 50;
+		background: var(--nav-bg);
+		border-bottom: 1px solid var(--border);
+	}
+	@supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
+		.nav { -webkit-backdrop-filter: saturate(140%) blur(14px); backdrop-filter: saturate(140%) blur(14px); }
+	}
+	.nav-inner { display: flex; align-items: center; gap: 2rem; height: 64px; }
+	.brand { display: inline-flex; align-items: center; gap: 0.6rem; color: var(--fg); font-weight: 700; letter-spacing: -0.02em; font-size: 1.05rem; }
+	.brand:hover { text-decoration: none; color: var(--fg); }
+	.wordmark .ide { font-weight: 500; color: var(--fg-muted); }
+	.links { margin-left: 0.5rem; }
+	.links ul, .menu-list { list-style: none; padding: 0; margin: 0; display: flex; gap: 0.25rem; }
+	.links a {
+		display: inline-block; padding: 0.45rem 0.75rem; border-radius: 8px;
+		color: var(--fg-muted); font-size: var(--text-s); font-weight: 500;
+	}
+	.links a:hover, .links a[aria-current="page"] { color: var(--fg); text-decoration: none; background: var(--surface-2); }
+	.actions { margin-left: auto; display: flex; align-items: center; gap: 0.75rem; }
+	.gh { display: inline-flex; padding: 6px; border-radius: 8px; color: var(--fg-muted); }
+	.gh:hover { color: var(--fg); background: var(--surface-2); }
+	.menu { display: none; position: relative; }
+	.menu summary { list-style: none; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 8px; cursor: pointer; }
+	.menu summary::-webkit-details-marker { display: none; }
+	.menu summary:hover { background: var(--surface-2); }
+	.burger, .burger::before, .burger::after {
+		display: block; width: 18px; height: 2px; border-radius: 2px; background: var(--fg); content: ""; position: relative;
+	}
+	.burger::before { position: absolute; top: -6px; }
+	.burger::after { position: absolute; top: 6px; }
+	.menu-list {
+		position: absolute; right: 0; top: calc(100% + 8px); min-width: 200px;
+		flex-direction: column; gap: 0.125rem; padding: 0.5rem;
+		background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+		box-shadow: 0 20px 50px -20px rgba(0, 0, 0, 0.5);
+	}
+	.menu-list a { display: block; padding: 0.6rem 0.75rem; border-radius: 8px; color: var(--fg); font-weight: 500; }
+	.menu-list a:hover { background: var(--surface-2); text-decoration: none; }
+	@media (max-width: 860px) {
+		.links { display: none; }
+		.menu { display: block; }
+		.nav-inner { gap: 1rem; height: 60px; }
+	}
+	@media (max-width: 420px) {
+		.cta { display: none; }
+	}
+</style>

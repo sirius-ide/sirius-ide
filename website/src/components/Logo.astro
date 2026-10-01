@@ -1,0 +1,30 @@
+---
+/**
+ * The mark as a vector: the five-point star split down the middle — silver on the left,
+ * azure on the right — cut by the bolt. Drawn from the same geometry as
+ * resources/sirius/icon-small.png so it stays crisp at any size and in both schemes.
+ */
+interface Props { size?: number; class?: string; title?: string }
+const { size = 28, class: className = '', title } = Astro.props;
+const id = `sl${Math.random().toString(36).slice(2, 8)}`;
+const star = '32.00,4.00 38.94,22.46 58.63,23.35 43.22,35.63 48.46,54.65 32.00,43.80 15.54,54.65 20.78,35.63 5.37,23.35 25.06,22.46';
+---
+<svg class={className} width={size} height={size} viewBox="0 0 64 64" role={title ? 'img' : undefined} aria-hidden={title ? undefined : 'true'} aria-label={title}>
+	<defs>
+		<linearGradient id={`${id}-l`} x1="0" y1="0" x2="0" y2="1">
+			<stop offset="0" stop-color="#ffffff" />
+			<stop offset="1" stop-color="#c3d0de" />
+		</linearGradient>
+		<linearGradient id={`${id}-r`} x1="0" y1="0" x2="0.4" y2="1">
+			<stop offset="0" stop-color="#9ff0ff" />
+			<stop offset="0.45" stop-color="#0094f3" />
+			<stop offset="1" stop-color="#006189" />
+		</linearGradient>
+		<clipPath id={`${id}-cl`}><rect x="0" y="0" width="32" height="64" /></clipPath>
+		<clipPath id={`${id}-cr`}><rect x="32" y="0" width="32" height="64" /></clipPath>
+	</defs>
+	<polygon points={star} fill={`url(#${id}-l)`} clip-path={`url(#${id}-cl)`} />
+	<polygon points={star} fill={`url(#${id}-r)`} clip-path={`url(#${id}-cr)`} />
+	<polyline points="49,5 31.5,30 36.5,30 15,59" fill="none" stroke="#02060e" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" opacity="0.9" />
+	<polyline points="49,5 31.5,30 36.5,30 15,59" fill="none" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+</svg>

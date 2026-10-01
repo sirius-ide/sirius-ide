@@ -1,0 +1,19 @@
+/* Starlight (/docs/) on the Sirius tokens — refined in the full build. */
+:root {
+	--sl-font: var(--font-sans, 'Schibsted Grotesk', system-ui, sans-serif);
+	--sl-font-mono: var(--font-mono, 'JetBrains Mono', ui-monospace, monospace);
+	--sl-color-accent-low: #2b1b5e;
+	--sl-color-accent: #8b5cf6;
+	--sl-color-accent-high: #c4b5fd;
+	--sl-color-black: #06080d;
+	--sl-color-gray-6: #0a0e14;
+	--sl-color-gray-5: #0d1117;
+}
+:root[data-theme='light'] {
+	--sl-color-accent-low: #ede9fe;
+	--sl-color-accent: #6d28d9;
+	--sl-color-accent-high: #4c1d95;
+	--sl-color-white: #0b1220;
+	--sl-color-gray-7: #f5f7fb;
+	--sl-color-gray-6: #eef2f8;
+}

@@ -1,0 +1,72 @@
+---
+/**
+ * The "Select AI Model" quick pick, drawn in HTML in the product's colours. Every string
+ * is the real one from extensions/sirius-ai (modelRouter.ts, secretStore.ts and the
+ * provider catalogues at 1.118.7): the title, the placeholder, the per-provider
+ * separators, the 🧠/👁️ badges, the active-model star and the "— detected" group for a
+ * running Ollama.
+ */
+import Icon from '../hero/Icon.astro';
+type Row =
+	| { sep: string }
+	| { label: string; id: string; detail?: string; badges?: string; active?: boolean; focus?: boolean };
+const rows: Row[] = [
+	{ sep: 'Anthropic Claude' },
+	{ label: 'Claude Opus 5', id: 'claude-opus-5', badges: '🧠👁️', detail: 'Best all-round coding and agentic model — thinking on by default', focus: true },
+	{ label: 'Claude Sonnet 5', id: 'claude-sonnet-5', badges: '🧠👁️', detail: 'Strong balance of speed, cost and intelligence — a good daily driver' },
+	{ sep: 'Google Gemini' },
+	{ label: 'Gemini 3.1 Pro', id: 'gemini-3.1-pro', badges: '🧠👁️' },
+	{ label: 'Gemini 3.5 Flash', id: 'gemini-3.5-flash', badges: '🧠👁️' },
+	{ sep: 'Ollama (local) — detected' },
+	{ label: 'qwen3:32b', id: 'qwen3:32b', active: true },
+	{ label: 'gemma3:27b', id: 'gemma3:27b' },
+];
+---
+<figure class="qp" role="img" aria-label="The Select AI Model picker in Sirius: hosted models from Anthropic and Google listed above local models detected from a running Ollama; the local model qwen3:32b is active and Claude Opus 5 is highlighted.">
+	<div class="qp-inner" aria-hidden="true">
+		<div class="qp-title">✨ Select AI Model</div>
+		<div class="qp-input"><span class="ph">Choose a model from any provider... (🧠=Thinking 👁️=Vision)</span></div>
+		<ul class="qp-list">
+			{rows.map((r) =>
+				'sep' in r ? (
+					<li class="sep"><span>{r.sep}</span></li>
+				) : (
+					<li class:list={['row', { focus: r.focus }]}>
+						<div class="l1">
+							{r.active && <Icon name="star" class="active" size={13} />}
+							<span class="label">{r.label} {r.badges && <span class="badges">{r.badges}</span>}</span>
+							<span class="desc">{r.id}</span>
+						</div>
+						{r.detail && <div class="detail">{r.detail}</div>}
+					</li>
+				),
+			)}
+		</ul>
+	</div>
+</figure>
+
+<style>
+	.qp {
+		--q-bg: #0d1117; --q-border: rgba(139, 92, 246, 0.19); --q-title: #0a0e14; --q-fg: #e6edf3;
+		--q-muted: #8b949e; --q-dim: #484f58; --q-focus: rgba(139, 92, 246, 0.19); --q-ice: #a8c7fa; --q-violet: #8b5cf6;
+		margin: 0; width: 100%; max-width: 580px; font-size: 13px; color: var(--q-fg); font-family: var(--font-sans);
+		border-radius: 10px; background: var(--q-bg); border: 1px solid var(--q-border);
+		box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4), 0 30px 80px -30px rgba(0, 148, 243, 0.35), 0 24px 60px -30px rgba(139, 92, 246, 0.5);
+		overflow: hidden;
+	}
+	.qp-title { background: var(--q-title); color: var(--q-fg); text-align: center; padding: 0.45em; font-size: 0.95em; border-bottom: 1px solid var(--q-border); }
+	.qp-input { margin: 0.55em 0.6em 0.3em; height: 2em; border: 1px solid var(--q-violet); border-radius: 3px; background: #0d1117; display: flex; align-items: center; padding: 0 0.6em; }
+	.ph { color: var(--q-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+	.qp-list { list-style: none; margin: 0; padding: 0.2em 0.35em 0.5em; }
+	.sep { padding: 0.5em 0.6em 0.2em; color: var(--q-ice); font-size: 0.85em; font-weight: 600; border-top: 1px solid rgba(139, 92, 246, 0.12); margin-top: 0.3em; }
+	.sep:first-child { border-top: 0; margin-top: 0; }
+	.row { padding: 0.35em 0.6em; border-radius: 4px; }
+	.row.focus { background: var(--q-focus); outline: 1px solid rgba(139, 92, 246, 0.5); }
+	.l1 { display: flex; align-items: center; gap: 0.5em; min-height: 1.6em; }
+	.active { color: var(--q-violet); flex: none; }
+	.label { white-space: nowrap; }
+	.badges { font-size: 0.85em; letter-spacing: 0.05em; margin-left: 0.15em; }
+	.desc { color: var(--q-muted); font-size: 0.9em; font-family: var(--font-mono); margin-left: 0.2em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+	.detail { color: var(--q-muted); font-size: 0.86em; padding-left: 0.1em; margin-top: 0.1em; }
+	@media (max-width: 480px) { .qp { font-size: 12px; } .desc { display: none; } }
+</style>

@@ -1,0 +1,83 @@
+---
+/**
+ * The hero backdrop: deep space, brilliant star, a bolt of speed — in CSS only.
+ * Two aurora glows (violet from the upper left, azure from the flare's corner at the
+ * upper right), a sparse starfield drawn once as a masked pattern, and the bolt: one
+ * diagonal light that strikes once on load and settles into a faint line. Everything
+ * animated is transform or opacity; reduced motion gets the settled state.
+ */
+---
+<div class="aurora" aria-hidden="true">
+	<div class="glow glow-violet"></div>
+	<div class="glow glow-azure"></div>
+	<div class="stars"></div>
+	<div class="bolt"></div>
+	<div class="flare"></div>
+	<div class="horizon"></div>
+</div>
+
+<style>
+	.aurora { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; }
+	.glow { position: absolute; border-radius: 50%; filter: blur(60px); will-change: transform; }
+	.glow-violet {
+		width: 60vw; height: 60vw; max-width: 900px; max-height: 900px;
+		left: -18vw; top: -28vw;
+		background: radial-gradient(closest-side, var(--glow-violet), transparent 72%);
+	}
+	.glow-azure {
+		width: 70vw; height: 70vw; max-width: 1100px; max-height: 1100px;
+		right: -22vw; top: -34vw;
+		background: radial-gradient(closest-side, var(--glow-azure), transparent 70%);
+	}
+	.stars {
+		position: absolute; inset: 0;
+		background-color: var(--star);
+		-webkit-mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='260' height='260'><circle cx='23' cy='41' r='1.1'/><circle cx='141' cy='19' r='0.8'/><circle cx='201' cy='97' r='1.3'/><circle cx='77' cy='133' r='0.7'/><circle cx='243' cy='171' r='0.9'/><circle cx='113' cy='221' r='1.1'/><circle cx='31' cy='201' r='0.6'/><circle cx='171' cy='251' r='0.8'/></svg>");
+		mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='260' height='260'><circle cx='23' cy='41' r='1.1'/><circle cx='141' cy='19' r='0.8'/><circle cx='201' cy='97' r='1.3'/><circle cx='77' cy='133' r='0.7'/><circle cx='243' cy='171' r='0.9'/><circle cx='113' cy='221' r='1.1'/><circle cx='31' cy='201' r='0.6'/><circle cx='171' cy='251' r='0.8'/></svg>");
+		-webkit-mask-size: 260px 260px; mask-size: 260px 260px;
+		opacity: 0.9;
+	}
+	.bolt {
+		position: absolute; top: 17.5%; right: 3%; width: 74%; height: 2px;
+		transform-origin: right center;
+		transform: rotate(-33deg) scaleX(1);
+		background: linear-gradient(90deg, transparent 0%, var(--bolt) 42%, var(--brand-cyan) 55%, transparent 100%);
+		opacity: 0.32;
+		box-shadow: 0 0 22px 1px var(--glow-cyan);
+	}
+	.flare {
+		position: absolute; top: calc(17.5% - 4px); right: calc(3% - 4px); width: 8px; height: 8px; border-radius: 50%;
+		background: #fff; opacity: 0.95;
+		box-shadow: 0 0 18px 6px var(--glow-cyan), 0 0 90px 40px var(--glow-azure);
+	}
+	.flare::before, .flare::after {
+		content: ""; position: absolute; left: 50%; top: 50%; opacity: 0.6;
+		background: linear-gradient(90deg, transparent, var(--bolt), transparent);
+	}
+	.flare::before { width: 180px; height: 1px; transform: translate(-50%, -50%); }
+	.flare::after { width: 1px; height: 90px; transform: translate(-50%, -50%); background: linear-gradient(180deg, transparent, var(--bolt), transparent); }
+	.horizon {
+		position: absolute; left: 0; right: 0; bottom: 0; height: 40%;
+		background: linear-gradient(180deg, transparent, var(--bg));
+	}
+	@media (prefers-reduced-motion: no-preference) {
+		.bolt { animation: strike 1.1s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+		.flare { animation: flare 1.4s ease-out both; }
+		.glow-azure { animation: drift 22s ease-in-out infinite alternate; }
+		.glow-violet { animation: drift 28s ease-in-out infinite alternate-reverse; }
+	}
+	@keyframes strike {
+		0% { transform: rotate(-33deg) scaleX(0); opacity: 0; }
+		35% { opacity: 1; }
+		100% { transform: rotate(-33deg) scaleX(1); opacity: 0.32; }
+	}
+	@keyframes flare {
+		0% { opacity: 0; transform: scale(0.4); }
+		40% { opacity: 1; transform: scale(1.5); }
+		100% { opacity: 0.9; transform: scale(1); }
+	}
+	@keyframes drift {
+		from { transform: translate3d(0, 0, 0) scale(1); }
+		to { transform: translate3d(-3%, 4%, 0) scale(1.08); }
+	}
+</style>
