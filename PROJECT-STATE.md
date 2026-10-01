@@ -734,10 +734,17 @@ PRs #1–#4 are closed; #5 is moot and left for Dependabot.
 
 **Next, in order** (one cloud session per item, each on its own branch; the owner lands it
 locally by cherry-pick, §12, before the next item starts — so each builds on the merged state):
-(1) **cloud for the code, owner for the rest:** the website (hole 2). Propose the stack,
-pages and structure first and wait for the owner's OK; build it ready for Cloudflare Pages;
-stop before DNS or any deploy (they need the owner's token) and write the exact deploy steps
-here;
+(1) **cloud for the code, owner for the rest:** the website (hole 2), to the specification
+in `website/BRIEF.md` (2026-10-01): a flagship site — Astro + Starlight, the Sirius Star
+identity, hard Lighthouse budgets, honest content from the repo's own files — built in two
+stops: the design direction (screenshots under `website/design/`) for the owner's OK, then the
+full build with screenshot review and two Opus passes. Stop before DNS or any deploy (they
+need the owner's token) and write the exact deploy steps here. **Local, alongside it:** real
+product footage for the media slots the brief defines (the built app + a local model, via the
+`launch` skill), then deploy, DNS, outside checks and the `product.json` URL flip. The same
+branch fixes LICENSE.txt §9 (Delaware, USA — the placeholder shipped in every release through
+v1.118.7) and replaces Microsoft's SECURITY.md; GitHub private vulnerability reporting is
+already enabled on the repo (2026-10-01);
 (2) **cloud, small:** `create_file` inside the chat-editing stream (hole 8), so creating a
 file gets the same diff, checkpoint and accept/reject as an edit;
 (3) **cloud, propose first:** the onboarding walkthrough written for Sirius (hole 9) — the
