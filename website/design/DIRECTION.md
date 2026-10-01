@@ -1,10 +1,10 @@
 # siriuside.com — the design direction
 
-For the owner's OK before the full build (BRIEF.md §7, step 2). What is here is real: the
-landing hero and the first feature section, built in Astro under `website/`, rendered by
-`npm run screenshots` at 1440×900 and 390×844 in dark and light. The PNGs beside this file
-are those renders; `home-1440x900-dark-mid.png` is the product window 5.8 s into its
-sequence, with the diff and its controls on screen.
+Approved by the owner on 2026-10-01 with six answers (recorded at the end); the full build
+runs on it. What is here is real: the landing hero and the first feature section, built in
+Astro under `website/`, rendered by `npm run screenshots` at 1440×900 and 390×844 in dark
+and light. The PNGs beside this file are those renders; `home-1440x900-dark-mid.png` is the
+product window 5.8 s into its sequence.
 
 ## House rules from the owner (2026-10-01), applied
 
@@ -21,28 +21,28 @@ sequence, with the diff and its controls on screen.
 ## The idea, in one line
 
 *Deep space, brilliant star, a bolt of speed* — the mark at full size. The page is the
-sky the mark sits in: a flat near-black field and a sparse starfield. The headline is the
-split star — the line in silver, the word *agentic* in solid cyan. The bolt strikes once on
+sky the mark sits in: a flat near-black field and a sparse starfield. The headline — *The
+advanced agentic code editor.* — is the split star: the line in silver, the word *agentic*
+in solid cyan. The bolt strikes once on
 load from a lens flare in the top-right corner — a point, a crosshair, a hairline ring — and
 settles into one crisp diagonal line behind the product. The product, the editor drawn in
 HTML in its own theme, is the brilliant thing in the middle of the page.
 
 ## Type
 
-- **Schibsted Grotesk** (OFL; Bakken & Bæck, Henrik Kongsvoll; variable 400–900) for
-  display and text. Its terminals are cut at an angle — the bolt again — so it reads as
-  speed and precision without borrowing Vercel's Geist or the Inter that Linear and Trae
-  use. It holds a 68 px headline at weight 800 with −0.035 em tracking and is still a
-  comfortable 17 px body face. One 20 KB Latin woff2 carries every weight.
-  Considered and set aside: Geist (too much Vercel), Instrument Sans (no weight above
-  700, lighter personality), Manrope (rounder and friendlier than the mark), Inter (the
-  competitors' default).
-- **JetBrains Mono** (OFL; variable 100–800) for code and UI chrome — eyebrows, labels,
-  the version tag, the drawn editor. It is the face developers already read code in.
-  15 KB Latin woff2.
+- **Geist** (OFL; variable 100–900) for display and text and **Geist Mono** (OFL; variable
+  100–900) for code and UI chrome — eyebrows, labels, the version tag, the drawn editor.
+  The owner asked for the engineering-ideal pair, and this is it: one family designed as a
+  system for developer products, so the sans and the mono share proportions, x-height and
+  rhythm; proven hinting at UI sizes, which the docs will lean on; a full weight range in one
+  variable file each; and Latin subsets of 16 KB and 15 KB. Geist's technical, even texture
+  suits "advanced agentic" better than a face with more personality would.
+  Considered and set aside: Schibsted Grotesk (the first proposal — sharper character, less
+  proven small-size legibility), Inter (the competitors' default), Instrument Sans (no weight
+  above 700), Manrope (rounder than the mark).
 - Both are self-hosted through Astro's fonts API, which also writes metric-matched
-  fallbacks (`size-adjust` 103.8 % against Arial, 99.98 % against Courier New) so text does
-  not shift when the web fonts arrive. Preloaded, `font-display: swap`, 36 KB in total.
+  fallbacks against Arial and Courier New so text does not shift when the web fonts arrive.
+  Preloaded, `font-display: swap`, 31 KB in total.
 
 ## Palette and the two schemes
 
@@ -58,9 +58,12 @@ accent word in the headline is solid cyan `#67e8f9`.
 surfaces, navy-black `#0b1220` text, `#4a5568` muted text, violet `#6d28d9`, azure
 `#0369a1` for links and for the accent word, cyan `#0e7490`, status `#1a7f37` / `#9a6700` /
 `#cf222e`. Every text and background pair clears 4.5:1; the values and the numbers behind
-them are in `src/styles/tokens.css`. The product window stays dark on the light page:
-Sirius ships one theme, so the product is shown as it is, framed on light the way a dark app
-is on any light site.
+them are in `src/styles/tokens.css`. **The product window follows the scheme** (owner's
+answer 2): in the light scheme it wears the editor's built-in Default Light Modern theme,
+which Sirius ships, read from `extensions/theme-defaults/themes/light_modern.json` — white
+editor, `#f8f8f8` chrome, `#005fb8` accents, Light+ syntax colours. The Sirius Star palette
+exists only as a dark theme; a *Sirius Star Light* theme would be a small product addition
+that the light window could then wear.
 
 **Depth without shadows.** The product window and the drawn picker sit in a 1 px ring in
 the scheme's ring colour with a second hairline ring 3 px out — the indigo-and-cyan rim of
@@ -75,11 +78,11 @@ anything.
    request; Sirius's "Running search files…" and "Running read file…" lines with
    spinner-to-check; the edit arriving in the editor as a diff — green tint, gutter bars,
    the Keep / Undo hunk control; the response and its file pills; "2 files changed · Keep
-   All Edits · Undo All Edits"; then, at 7.7 s, the edit is kept: tints fade, the controls
-   go, the Explorer shows M and Source Control shows 2. Transform and opacity only, plus
-   one flat background-colour fade on six rows. **The end state is the resting state**, and
-   it is exactly what `prefers-reduced-motion` renders (checked pixel for pixel in the
-   review).
+   All Edits · Undo All Edits" — and it rests there, the moment before the user keeps the
+   edit (owner's answer 3): the diff and its controls are the resting frame, which is what
+   most visitors, reduced-motion users and link previews see. Transform and opacity only.
+   **The end state is the resting state**, and it is exactly what `prefers-reduced-motion`
+   renders (checked pixel for pixel in the review).
 3. **Everywhere else:** the primary button's hover is the bolt again — a solid diagonal bar
    of light sweeping across, transform only; scroll reveals for sections in the full build
    (IntersectionObserver); view transitions between pages (Astro's ClientRouter is on).
@@ -123,14 +126,16 @@ script; `make-icons.py --web` for the favicons, manifest icons and default socia
 two fonts with their licences. Landing-page JavaScript is Astro's ClientRouter and prefetch,
 about 16 KB before compression; the page HTML is 8 KB compressed. `astro check` passes.
 
-## Decisions I want your eye on
+## The six decisions, as the owner answered them (2026-10-01)
 
-1. The stage hero (product under centred copy) rather than a split hero.
-2. The product window stays dark on the light site.
-3. The sequence ends in the calm "kept" state rather than the dramatic "diff pending" one;
-   compare `home-1440x900-dark-mid.png` with the settled renders.
-4. Schibsted Grotesk and JetBrains Mono.
-5. A local model (`qwen3:32b`) shown as the model at work in the hero, with Claude Opus 5
-   as the highlighted row in the picker.
-6. The headline wording "The native, advanced, agentic code editor." — your three words, in
-   that order, with *agentic* as the accent.
+1. **Stage hero** — approved.
+2. **The product window follows the scheme** — light with light, dark with dark; done with
+   the editor's shipped light theme (see Palette).
+3. **The sequence rests on the pending diff** — my recommendation, taken: the resting frame
+   shows the diff with Keep / Undo and the "2 files changed" bar.
+4. **Geist + Geist Mono** — my recommendation for the engineering-ideal pair, taken (see
+   Type).
+5. **A local model at work in the hero, Claude Opus 5 highlighted in the picker** — approved,
+   with licence to do more where it helps.
+6. **Headline: "The advanced agentic code editor."** — the owner's wording, with *agentic*
+   as the accent.

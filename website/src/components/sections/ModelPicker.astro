@@ -56,7 +56,7 @@ const rows: Row[] = [
 		overflow: hidden;
 	}
 	.qp-title { background: var(--q-title); color: var(--q-fg); text-align: center; padding: 0.45em; font-size: 0.95em; border-bottom: 1px solid var(--q-border); }
-	.qp-input { margin: 0.55em 0.6em 0.3em; height: 2em; border: 1px solid var(--q-violet); border-radius: 3px; background: #0d1117; display: flex; align-items: center; padding: 0 0.6em; }
+	.qp-input { margin: 0.55em 0.6em 0.3em; height: 2em; border: 1px solid var(--q-violet); border-radius: 3px; background: var(--q-bg); display: flex; align-items: center; padding: 0 0.6em; }
 	.ph { color: var(--q-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 	.qp-list { list-style: none; margin: 0; padding: 0.2em 0.35em 0.5em; }
 	.sep { padding: 0.5em 0.6em 0.2em; color: var(--q-ice); font-size: 0.85em; font-weight: 600; border-top: 1px solid rgba(139, 92, 246, 0.12); margin-top: 0.3em; }
@@ -69,5 +69,22 @@ const rows: Row[] = [
 	.badges { font-size: 0.85em; letter-spacing: 0.05em; margin-left: 0.15em; }
 	.desc { color: var(--q-muted); font-size: 0.9em; font-family: var(--font-mono); margin-left: 0.2em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 	.detail { color: var(--q-muted); font-size: 0.86em; padding-left: 0.1em; margin-top: 0.1em; }
+	/* light scheme: the quick input in Default Light Modern */
+	@media (prefers-color-scheme: light) {
+		:global(html:not([data-theme="dark"])) .qp {
+			--q-bg: #f8f8f8; --q-border: #cecece; --q-title: #f8f8f8; --q-fg: #3b3b3b; --q-muted: #616161; --q-dim: #767676;
+			--q-focus: #e8e8e8; --q-ice: #005fb8; --q-violet: #005fb8;
+		}
+		:global(html:not([data-theme="dark"])) .qp-input { background: #ffffff; }
+		:global(html:not([data-theme="dark"])) .sep { color: #8b949e; border-top-color: #e5e5e5; }
+		:global(html:not([data-theme="dark"])) .row.focus { outline-color: #005fb8; }
+	}
+	:global(html[data-theme="light"]) .qp {
+		--q-bg: #f8f8f8; --q-border: #cecece; --q-title: #f8f8f8; --q-fg: #3b3b3b; --q-muted: #616161; --q-dim: #767676;
+		--q-focus: #e8e8e8; --q-ice: #005fb8; --q-violet: #005fb8;
+	}
+	:global(html[data-theme="light"]) .qp-input { background: #ffffff; }
+	:global(html[data-theme="light"]) .sep { color: #8b949e; border-top-color: #e5e5e5; }
+	:global(html[data-theme="light"]) .row.focus { outline-color: #005fb8; }
 	@media (max-width: 480px) { .qp { font-size: 12px; } .desc { display: none; } }
 </style>

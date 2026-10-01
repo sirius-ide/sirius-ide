@@ -13,6 +13,6 @@ npm run check       # astro check
 npm run screenshots # design review PNGs at 1440×900 and 390×844, dark and light → design/
 ```
 
-Fonts (`src/fonts/`): Schibsted Grotesk and JetBrains Mono, Latin subsets, both under
-the SIL Open Font License — the licences sit beside the files. Icons in `public/` come
+Fonts (`src/fonts/`): Geist and Geist Mono, Latin subsets, both under the SIL Open Font
+License — the licences sit beside the files. Icons in `public/` come
 from `build/sirius/make-icons.py … --web website/public`; never hand-edit them.

@@ -1,0 +1,55 @@
+---
+/** Stand-in for the agent-mode footage slot: a flat drawing of a request, tool rows, and a diff with its controls. */
+---
+<svg viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" class="art">
+	<rect x="0" y="0" width="800" height="500" fill="var(--surface)" />
+	<!-- chat column -->
+	<rect x="40" y="40" width="300" height="420" rx="10" fill="none" stroke="var(--border-strong)" />
+	<rect x="60" y="64" width="260" height="46" rx="8" fill="var(--surface-2)" stroke="var(--border)" />
+	<rect x="74" y="80" width="160" height="6" rx="3" fill="var(--fg-muted)" />
+	<rect x="74" y="94" width="110" height="6" rx="3" fill="var(--fg-dim)" />
+	<circle cx="72" cy="140" r="9" fill="var(--accent)" />
+	<rect x="90" y="136" width="48" height="8" rx="4" fill="var(--fg)" />
+	<g fill="none" stroke="var(--ok)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+		<path d="m64 172 4 4 8-8" /><path d="m64 196 4 4 8-8" /><path d="m64 220 4 4 8-8" />
+	</g>
+	<rect x="84" y="169" width="130" height="6" rx="3" fill="var(--fg-muted)" />
+	<rect x="84" y="193" width="112" height="6" rx="3" fill="var(--fg-muted)" />
+	<rect x="84" y="217" width="124" height="6" rx="3" fill="var(--fg-muted)" />
+	<rect x="60" y="248" width="250" height="6" rx="3" fill="var(--fg)" />
+	<rect x="60" y="262" width="210" height="6" rx="3" fill="var(--fg)" />
+	<rect x="60" y="276" width="170" height="6" rx="3" fill="var(--fg)" />
+	<rect x="60" y="300" width="96" height="22" rx="5" fill="var(--surface-2)" stroke="var(--border)" />
+	<rect x="164" y="300" width="112" height="22" rx="5" fill="var(--surface-2)" stroke="var(--border)" />
+	<rect x="60" y="396" width="260" height="42" rx="8" fill="var(--surface-2)" stroke="var(--border)" />
+	<rect x="74" y="412" width="76" height="8" rx="4" fill="var(--fg-dim)" />
+	<rect x="236" y="404" width="72" height="24" rx="5" fill="var(--accent-strong)" />
+	<!-- editor column -->
+	<rect x="372" y="40" width="388" height="420" rx="10" fill="none" stroke="var(--border-strong)" />
+	<rect x="372" y="40" width="388" height="34" rx="10" fill="var(--surface-2)" />
+	<rect x="392" y="52" width="70" height="10" rx="3" fill="var(--fg)" />
+	<rect x="476" y="52" width="60" height="10" rx="3" fill="var(--fg-dim)" />
+	<g>
+		<rect x="392" y="100" width="170" height="8" rx="4" fill="var(--fg-dim)" />
+		<rect x="392" y="124" width="220" height="8" rx="4" fill="var(--fg-dim)" />
+		<rect x="384" y="146" width="368" height="24" rx="4" fill="var(--ok)" opacity="0.14" />
+		<rect x="384" y="146" width="3" height="24" fill="var(--ok)" />
+		<rect x="392" y="154" width="250" height="8" rx="4" fill="var(--fg)" />
+		<rect x="384" y="172" width="368" height="24" rx="4" fill="var(--ok)" opacity="0.14" />
+		<rect x="384" y="172" width="3" height="24" fill="var(--ok)" />
+		<rect x="392" y="180" width="300" height="8" rx="4" fill="var(--fg)" />
+		<rect x="384" y="198" width="368" height="24" rx="4" fill="var(--ok)" opacity="0.14" />
+		<rect x="384" y="198" width="3" height="24" fill="var(--ok)" />
+		<rect x="392" y="206" width="210" height="8" rx="4" fill="var(--fg)" />
+		<rect x="392" y="240" width="190" height="8" rx="4" fill="var(--fg-dim)" />
+		<rect x="392" y="264" width="140" height="8" rx="4" fill="var(--fg-dim)" />
+	</g>
+	<!-- hunk controls -->
+	<rect x="620" y="110" width="124" height="28" rx="6" fill="var(--surface-2)" stroke="var(--border-strong)" />
+	<rect x="632" y="121" width="30" height="7" rx="3" fill="var(--fg)" />
+	<rect x="676" y="121" width="30" height="7" rx="3" fill="var(--fg-muted)" />
+	<!-- status -->
+	<rect x="372" y="430" width="388" height="30" rx="0" fill="var(--surface-2)" />
+	<rect x="372" y="430" width="34" height="30" fill="var(--accent-strong)" />
+</svg>
+<style>.art { background: var(--surface); }</style>

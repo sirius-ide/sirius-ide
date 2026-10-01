@@ -19,25 +19,25 @@ export default defineConfig({
 	fonts: [
 		{
 			provider: fontProviders.local(),
-			name: 'Schibsted Grotesk',
+			name: 'Geist',
 			cssVariable: '--font-sans',
 			fallbacks: ['Arial', 'Liberation Sans', 'Helvetica Neue', 'sans-serif'],
 			optimizedFallbacks: true,
 			options: {
 				variants: [
-					{ src: ['./src/fonts/SchibstedGrotesk-latin.woff2'], weight: '400 900', style: 'normal', display: 'swap', unicodeRange: LATIN },
+					{ src: ['./src/fonts/Geist-latin.woff2'], weight: '100 900', style: 'normal', display: 'swap', unicodeRange: LATIN },
 				],
 			},
 		},
 		{
 			provider: fontProviders.local(),
-			name: 'JetBrains Mono',
+			name: 'Geist Mono',
 			cssVariable: '--font-mono',
 			fallbacks: ['Liberation Mono', 'Courier New', 'monospace'],
 			optimizedFallbacks: true,
 			options: {
 				variants: [
-					{ src: ['./src/fonts/JetBrainsMono-latin.woff2'], weight: '100 800', style: 'normal', display: 'swap', unicodeRange: LATIN },
+					{ src: ['./src/fonts/GeistMono-latin.woff2'], weight: '100 900', style: 'normal', display: 'swap', unicodeRange: LATIN },
 				],
 			},
 		},
