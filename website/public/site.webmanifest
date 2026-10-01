@@ -1,7 +1,7 @@
 {
   "name": "Sirius IDE",
   "short_name": "Sirius",
-  "description": "The agentic, advanced agentic code editor.",
+  "description": "The advanced agentic code editor.",
   "start_url": "/",
   "display": "browser",
   "background_color": "#06080d",

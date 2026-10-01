@@ -24,7 +24,7 @@ const tools = ['open_browser_page', 'navigate_page', 'click_element', 'type_in_p
 				<li><Logo size={20} class="pt-icon" /><div><b>Real Playwright underneath.</b> The integrated browser is driven by Playwright in-process — the same engine your end-to-end tests use — with no separate Chrome to install.</div></li>
 				<li><Logo size={20} class="pt-icon" /><div><b>Offered where it fits.</b> The browser family sits in the agent's extended tool tier, so a small local model is not handed sixteen schemas it cannot hold.</div></li>
 			</ul>
-			<p class="chips" aria-label="Browser tools">{tools.map((t) => <code class="chip">{t}</code>)}</p>
+			<ul class="chips" aria-label="The six browser tools">{tools.map((t) => <li><code class="chip">{t}</code></li>)}</ul>
 		</div>
 	</div>
 </section>
@@ -40,7 +40,7 @@ const tools = ['open_browser_page', 'navigate_page', 'click_element', 'type_in_p
 	.points li { display: grid; grid-template-columns: 20px 1fr; gap: 0.85rem; align-items: start; color: var(--fg-muted); font-size: var(--text-s); line-height: 1.55; }
 	.points b { color: var(--fg); }
 	.points :global(.pt-icon) { margin-top: 0.3em; }
-	.chips { margin-top: 1.5rem; display: flex; flex-wrap: wrap; gap: 0.4rem; }
+	.chips { margin-top: 1.5rem; display: flex; flex-wrap: wrap; gap: 0.4rem; list-style: none; padding: 0; }
 	.chip { font-size: var(--text-xs); padding: 0.25em 0.6em; border-radius: 999px; background: var(--surface); border: 1px solid var(--border-strong); color: var(--fg-muted); }
 	@media (max-width: 900px) { .split { grid-template-columns: minmax(0, 1fr); grid-template-areas: "head" "demo" "more"; row-gap: 2.25rem; } }
 </style>

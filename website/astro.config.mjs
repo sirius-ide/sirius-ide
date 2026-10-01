@@ -49,6 +49,7 @@ export default defineConfig({
 			title: 'Sirius IDE',
 			description: 'Documentation for Sirius IDE — the advanced agentic code editor.',
 			disable404Route: true,
+			titleDelimiter: '—',
 			favicon: '/favicon.ico',
 			customCss: ['./src/styles/starlight.css'],
 			// Code blocks on the site's planes: a hairline frame, no shadow (house rule), the accent on the active tab.
@@ -78,6 +79,7 @@ export default defineConfig({
 				Head: './src/components/StarlightHead.astro',
 				Header: './src/components/StarlightHeader.astro',
 				SiteTitle: './src/components/StarlightSiteTitle.astro',
+				MobileMenuFooter: './src/components/StarlightMobileMenuFooter.astro',
 			},
 			social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/sirius-ide/sirius-ide' }],
 			sidebar: [
@@ -90,6 +92,8 @@ export default defineConfig({
 			],
 			head: [
 				{ tag: 'meta', attrs: { property: 'og:image', content: 'https://siriuside.com/og/docs.png' } },
+				{ tag: 'meta', attrs: { property: 'og:image:width', content: '1200' } },
+				{ tag: 'meta', attrs: { property: 'og:image:height', content: '630' } },
 				{ tag: 'meta', attrs: { name: 'twitter:card', content: 'summary_large_image' } },
 			],
 		}),

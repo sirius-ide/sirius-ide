@@ -7,7 +7,7 @@ export const site = {
 	shortName: 'Sirius',
 	tagline: 'The advanced agentic code editor.',
 	description:
-		'Sirius IDE is the advanced agentic code editor built on Code - OSS. Bring your own model — twelve providers or local models — with no telemetry, no account and no relay.',
+		'The advanced agentic code editor, built on Code - OSS. Bring your own model — twelve providers or local — with no telemetry, no account and no relay.',
 	domain: 'siriuside.com',
 	url: 'https://siriuside.com',
 	githubOwner: 'sirius-ide',

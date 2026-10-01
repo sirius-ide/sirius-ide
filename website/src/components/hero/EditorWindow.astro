@@ -155,7 +155,7 @@ const icons: Record<string, string> = { ts: 'TS', json: '{}', md: 'M↓' };
 	.win {
 		--ws: 13px;
 		--w-bg: #06080d; --w-side: #0a0e14; --w-s2: #0d1117; --w-s3: #161b22; --w-fg: #e6edf3; --w-fg2: #c9d1d9;
-		--w-muted: #8b949e; --w-dim: #7d8590; --w-ln: #6e7681; --w-violet: #8b5cf6; --w-ice: #a8c7fa; --w-cyan: #67e8f9;
+		--w-muted: #8b949e; --w-dim: #7d8590; --w-ln: #7d8590; --w-violet: #8b5cf6; --w-ice: #a8c7fa; --w-cyan: #67e8f9;
 		--w-magenta: #c084fc; --w-string: #a5d6ff; --w-type: #fbbf24; --w-green: #3fb950; --w-red: #f85149;
 		--w-func: #a8c7fa; --w-kw2: #c084fc; --w-var: #e6edf3; --w-punct: #8b949e; --w-accent: #8b5cf6; --w-on-accent: #ffffff;
 		--w-border: rgba(139, 92, 246, 0.08); --w-border2: rgba(139, 92, 246, 0.19); --w-tint: rgba(63, 185, 80, 0.14);
@@ -258,7 +258,7 @@ const icons: Record<string, string> = { ts: 'TS', json: '{}', md: 'M↓' };
 	.changed { position: absolute; left: 0.9em; right: 0.9em; bottom: 0.4em; display: flex; align-items: center; gap: 0.45em; padding: 0.4em 0.55em; border: 1px solid var(--w-border2); border-radius: 6px; background: var(--w-s2); font-size: 0.9em; color: var(--w-muted); }
 	.cnt { margin-right: auto; }
 	.kbtn { padding: 0.22em 0.65em; border-radius: 4px; font-weight: 500; white-space: nowrap; }
-	.kbtn.keep { background: var(--w-accent); color: var(--w-on-accent); }
+	.kbtn.keep { background: var(--w-accent-strong, #7c3aed); color: var(--w-on-accent); }
 	.kbtn.undo { background: var(--w-s3); color: var(--w-fg); }
 	.input { margin: 0 0.9em 0.9em; flex: none; border: 1px solid var(--w-border2); border-radius: 6px; background: var(--w-s2); padding: 0.6em 0.7em 0.5em; }
 	.ph { color: var(--w-dim); min-height: 2.4em; }
@@ -283,7 +283,7 @@ const icons: Record<string, string> = { ts: 'TS', json: '{}', md: 'M↓' };
 		:global(html:not([data-theme="dark"])) .win {
 			--w-bg: #ffffff; --w-side: #f8f8f8; --w-s2: #f8f8f8; --w-s3: #e5e5e5; --w-fg: #3b3b3b; --w-fg2: #3b3b3b;
 			--w-muted: #616161; --w-dim: #6b6b6b; --w-ln: #5f6b7c; --w-ice: #005fb8; --w-cyan: #09734b; --w-icon-ts: #1b5f94; --w-icon-json: #7a6c00;
-			--w-magenta: #af00db; --w-string: #a31515; --w-type: #267f99; --w-green: #2ea043; --w-red: #cf222e;
+			--w-magenta: #af00db; --w-string: #a31515; --w-type: #1f6e86; --w-green: #1a7f37; --w-red: #cf222e;
 			--w-func: #795e26; --w-kw2: #0000ff; --w-var: #001080; --w-punct: #3b3b3b; --w-accent: #005fb8; --w-on-accent: #ffffff;
 			--w-border: #e5e5e5; --w-border2: #cecece; --w-tint: rgba(155, 185, 85, 0.25);
 			--w-head: #f8f8f8; --w-sep: #e5e5e5; --w-cur: #f3f3f3; --w-title: #3b3b3b;
@@ -292,7 +292,7 @@ const icons: Record<string, string> = { ts: 'TS', json: '{}', md: 'M↓' };
 	:global(html[data-theme="light"]) .win {
 		--w-bg: #ffffff; --w-side: #f8f8f8; --w-s2: #f8f8f8; --w-s3: #e5e5e5; --w-fg: #3b3b3b; --w-fg2: #3b3b3b;
 		--w-muted: #616161; --w-dim: #6b6b6b; --w-ln: #5f6b7c; --w-ice: #005fb8; --w-cyan: #09734b; --w-icon-ts: #1b5f94; --w-icon-json: #7a6c00;
-		--w-magenta: #af00db; --w-string: #a31515; --w-type: #267f99; --w-green: #2ea043; --w-red: #cf222e;
+		--w-magenta: #af00db; --w-string: #a31515; --w-type: #1f6e86; --w-green: #1a7f37; --w-red: #cf222e;
 		--w-func: #795e26; --w-kw2: #0000ff; --w-var: #001080; --w-punct: #3b3b3b; --w-accent: #005fb8; --w-on-accent: #ffffff;
 		--w-border: #e5e5e5; --w-border2: #cecece; --w-tint: rgba(155, 185, 85, 0.25);
 		--w-head: #f8f8f8; --w-sep: #e5e5e5; --w-cur: #f3f3f3; --w-title: #3b3b3b;

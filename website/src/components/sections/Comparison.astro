@@ -26,7 +26,7 @@ const date = new Intl.DateTimeFormat('en', { dateStyle: 'long', timeZone: 'UTC' 
 							<th scope="row" class="rowhead">{r.label}</th>
 							{r.cells.map((cell, i) => (
 								<td class:list={{ us: i === 0, good: cell.good, blank: cell.text === '—' }}>
-									{cell.text === '—' ? <span aria-label="no source recorded">—</span> : cell.text}
+									{cell.text === '—' ? <span>—<span class="visually-hidden"> (no source recorded)</span></span> : cell.text}
 									{cell.source && <a class="src" href={`${sourcesUrl}#${cell.source}`} aria-label={`Source: ${cell.source}`} rel="noopener">†</a>}
 								</td>
 							))}

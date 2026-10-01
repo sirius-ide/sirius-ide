@@ -64,10 +64,15 @@ def unicodes() -> list[int]:
     return out
 
 
-def subset(font: TTFont, flavor: str | None) -> TTFont:
+# The text face keeps kerning, standard ligatures, contextual forms, marks, tabular figures and case
+# forms; the mono face drops liga/calt because the CSS turns ligatures off everywhere.
+FEATURES = {'Geist': ['kern', 'liga', 'calt', 'ccmp', 'locl', 'mark', 'mkmk', 'tnum', 'case'], 'GeistMono': ['kern', 'ccmp', 'locl', 'mark', 'mkmk', 'tnum', 'case']}
+
+
+def subset(font: TTFont, flavor: str | None, features: list[str]) -> TTFont:
     opts = Options()
     opts.flavor = flavor
-    opts.layout_features = ['*']           # keep kern, liga, tnum, ss01…: the site uses several
+    opts.layout_features = features        # only what the site's CSS can reach; the rest is dead weight
     opts.name_IDs = ['*']
     opts.notdef_outline = True
     opts.hinting = False
@@ -92,7 +97,7 @@ def check(path: Path) -> None:
 def main() -> None:
     for name, dest in WEB.items():
         font = TTFont(fetch(name))
-        subset(font, None)                    # subset first: the subsetter chokes on a partially instanced font
+        subset(font, None, FEATURES[name])    # subset first: the subsetter chokes on a partially instanced font
         font = instantiateVariableFont(font, {'wght': AXIS[name]}, inplace=False)
         font.flavor = 'woff2'
         dest.parent.mkdir(parents=True, exist_ok=True)
@@ -101,7 +106,7 @@ def main() -> None:
     for name, weight, dest in STATIC:
         font = TTFont(fetch(name))
         font = instantiateVariableFont(font, {'wght': weight}, inplace=False, updateFontNames=True)
-        subset(font, None)
+        subset(font, None, FEATURES[name])
         font.flavor = None                    # plain sfnt: the source was woff2 and the flavor sticks
         dest.parent.mkdir(parents=True, exist_ok=True)
         font.save(dest)

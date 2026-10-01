@@ -138,3 +138,6 @@ kbd {
 }
 @keyframes reveal { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
 
+/* Page-to-page transitions without a router: the browser cross-fades documents of the same origin. */
+@media (prefers-reduced-motion: no-preference) { @view-transition { navigation: auto; } }
+

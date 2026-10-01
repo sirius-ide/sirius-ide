@@ -20,6 +20,7 @@ export function GET(context: APIContext) {
 				content: `${list}<p>Assets: ${assets}.</p><p><a href="${r.url}">Release on GitHub</a></p>`,
 			};
 		}),
-		customData: '<language>en</language>',
+		xmlns: { atom: 'http://www.w3.org/2005/Atom' },
+		customData: `<language>en</language><atom:link href="${site.url}/rss.xml" rel="self" type="application/rss+xml"/>`,
 	});
 }

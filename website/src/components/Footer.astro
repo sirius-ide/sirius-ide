@@ -58,7 +58,7 @@ const groups: Array<{ title: string; links: Array<[string, string]> }> = [
 			apply(select.value);
 		});
 	}
-	document.addEventListener('astro:page-load', init);
+	init();
 </script>
 
 <style>

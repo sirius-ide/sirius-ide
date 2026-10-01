@@ -9,6 +9,5 @@
 /changelog.xml      /rss.xml              301
 /feed               /rss.xml              301
 /feed.xml           /rss.xml              301
-/docs/getting-started /docs/              301
 /licence            /license/             301
 /security.txt       /.well-known/security.txt 301
