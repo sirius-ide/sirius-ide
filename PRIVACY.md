@@ -38,9 +38,10 @@ one of those and no prompt, file or fragment of code reaches any third party.
 
 ## Your API keys
 
-Keys are stored in your operating system's keyring — libsecret on Linux, the
-Keychain on macOS, the Credential Manager on Windows — through the editor's
-secret storage.
+Keys are kept in the editor's secret storage, encrypted with your operating
+system's own facility — DPAPI on Windows, the Keychain on macOS, libsecret or
+KWallet on Linux. On a Linux desktop with no keyring available, the editor says
+so and asks before falling back to weaker encryption.
 
 Keys are never written to `settings.json`, never synchronised, and never sent
 anywhere except to the provider they belong to. Earlier builds did store them in
@@ -60,13 +61,21 @@ privacy practices. Nothing in this document constrains what an extension does.
 
 ## Update checks
 
-If you build or install Sirius with an update channel configured, it periodically
-asks the update server whether a newer build exists. That request carries the
-platform, channel and current build commit — enough to answer the question, and
-no identifier for you or your machine.
+Every Sirius install checks for updates — 30 seconds after it starts, then
+hourly — by asking `update.siriuside.com` whether a newer build exists. The
+request names the platform, the release channel and the build commit you run,
+which is enough to answer the question, and carries the headers any request
+carries, including a User-Agent that names the editor and the operating system.
+It contains no identifier for you or your machine. The update server is a
+Cloudflare Worker that writes no logs; Cloudflare's own handling of the request
+is covered by its privacy policy.
 
-Installing from a distribution package (for example the AUR) means updates come
-from your package manager, and Sirius makes no update request at all.
+Installs from a distribution package — the `.deb`, the `.rpm`, the `[sirius]`
+pacman repository — make the same check, even though your package manager is
+what installs the update.
+
+To turn the check off, set `"update.mode": "none"` in your settings, or
+`"manual"` to check only when you ask.
 
 ## Changes
 
