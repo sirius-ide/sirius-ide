@@ -154,7 +154,7 @@ const icons: Record<string, string> = { ts: 'TS', json: '{}', md: 'M↓' };
 		--w-magenta: #c084fc; --w-string: #a5d6ff; --w-type: #fbbf24; --w-green: #3fb950; --w-red: #f85149;
 		--w-border: rgba(139, 92, 246, 0.08); --w-border2: rgba(139, 92, 246, 0.19); --w-tint: rgba(63, 185, 80, 0.14);
 		margin: 0; font-size: var(--ws); line-height: 1.4; color: var(--w-fg); font-family: var(--font-sans);
-		background: var(--w-bg); border-radius: 14px; overflow: hidden; box-shadow: var(--shadow-window);
+		background: var(--w-bg); border-radius: 14px; overflow: hidden; border: 1px solid var(--ring); outline: 1px solid var(--ring-soft); outline-offset: 3px;
 		text-align: left; -webkit-user-select: none; user-select: none;
 	}
 	.win-inner { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: 2.7em 36em 1.7em; min-width: 0; }
@@ -179,8 +179,8 @@ const icons: Record<string, string> = { ts: 'TS', json: '{}', md: 'M↓' };
 	/* body */
 	.body { display: flex; min-height: 0; min-width: 0; overflow: hidden; }
 	.ab { width: 3.7em; display: flex; flex-direction: column; justify-content: space-between; border-right: 1px solid rgba(13, 17, 23, 0.5); }
-	.ab-item { position: relative; width: 3.7em; height: 3.6em; display: grid; place-items: center; color: var(--w-dim); }
-	.ab-item.active { color: var(--w-fg); box-shadow: inset 2px 0 0 var(--w-violet); }
+	.ab-item { position: relative; width: 3.7em; height: 3.6em; display: grid; place-items: center; color: var(--w-dim); border-left: 2px solid transparent; }
+	.ab-item.active { color: var(--w-fg); border-left-color: var(--w-violet); }
 	.badge { position: absolute; right: 0.45em; top: 0.5em; min-width: 1.35em; height: 1.35em; padding: 0 0.3em; border-radius: 999px; background: var(--w-violet); color: #fff; font-style: normal; font-size: 0.72em; font-weight: 600; display: grid; place-items: center; }
 
 	.sb { width: 17em; flex: none; background: var(--w-side); border-right: 1px solid var(--w-border); display: flex; flex-direction: column; font-size: 0.95em; min-width: 0; }
@@ -198,8 +198,8 @@ const icons: Record<string, string> = { ts: 'TS', json: '{}', md: 'M↓' };
 
 	.ed { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; }
 	.tabs { display: flex; height: 2.7em; border-bottom: 1px solid var(--w-border); overflow: hidden; }
-	.tab { display: flex; align-items: center; gap: 0.4em; padding: 0 0.9em; min-width: 9em; font-size: 0.95em; color: var(--w-muted); border-right: 1px solid rgba(13, 17, 23, 0.5); white-space: nowrap; }
-	.tab.active { background: var(--w-s2); color: var(--w-fg); box-shadow: inset 0 1px 0 var(--w-violet); }
+	.tab { display: flex; align-items: center; gap: 0.4em; padding: 0 0.9em; min-width: 9em; font-size: 0.95em; color: var(--w-muted); border-right: 1px solid rgba(13, 17, 23, 0.5); border-top: 1px solid transparent; white-space: nowrap; }
+	.tab.active { background: var(--w-s2); color: var(--w-fg); border-top-color: var(--w-violet); }
 	.tab.mod .name { color: var(--w-ice); }
 	.tab .x { margin-left: auto; padding-left: 0.6em; color: var(--w-muted); display: inline-flex; }
 	.tabs-actions { margin-left: auto; display: flex; align-items: center; gap: 0.6em; padding: 0 0.9em; color: var(--w-muted); }
@@ -217,7 +217,7 @@ const icons: Record<string, string> = { ts: 'TS', json: '{}', md: 'M↓' };
 	.k { color: var(--w-magenta); } .s { color: var(--w-string); } .f { color: var(--w-ice); } .t { color: var(--w-type); }
 	.n { color: var(--w-cyan); } .p { color: var(--w-muted); } .v { color: var(--w-fg); }
 	.row.add::before { content: ""; position: absolute; left: 3.2em; top: 0; bottom: 0; width: 0.25em; background: var(--w-green); }
-	.hunk { position: absolute; right: 1.1em; top: calc(0.35em + 1.55em * 2 - 0.3em); z-index: 2; display: flex; align-items: center; gap: 0.1em; padding: 0.15em 0.25em; border-radius: 5px; background: var(--w-s2); border: 1px solid var(--w-border2); box-shadow: 0 6px 18px rgba(0, 0, 0, 0.55); font-family: var(--font-sans); font-size: 0.95em; color: var(--w-fg); opacity: 0; }
+	.hunk { position: absolute; right: 1.1em; top: calc(0.35em + 1.55em * 2 - 0.3em); z-index: 2; display: flex; align-items: center; gap: 0.1em; padding: 0.15em 0.25em; border-radius: 5px; background: var(--w-s2); border: 1px solid var(--w-border2); font-family: var(--font-sans); font-size: 0.95em; color: var(--w-fg); opacity: 0; }
 	.hb { display: inline-flex; align-items: center; justify-content: center; min-width: 1.6em; height: 1.6em; border-radius: 3px; padding: 0 0.35em; }
 	.hb.txt { font-weight: 500; }
 	.hsep { width: 1px; height: 1.2em; background: var(--w-border2); margin: 0 0.3em; }

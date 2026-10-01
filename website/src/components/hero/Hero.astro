@@ -1,22 +1,22 @@
 ---
-import Aurora from './Aurora.astro';
+import Sky from './Sky.astro';
 import EditorWindow from './EditorWindow.astro';
 import DownloadButton from '../DownloadButton.astro';
 import { release } from '../../data/release';
 ---
 <section class="hero" aria-labelledby="hero-title">
-	<Aurora />
+	<Sky />
 	<div class="container copy">
 		<p class="eyebrow">
 			<a class="release" href="/changelog/">{release.tag}</a>
 			<span class="plat plat-long"><span class="sep" aria-hidden="true">·</span> Linux x64 and arm64 <span class="sep" aria-hidden="true">·</span> Windows x64</span>
 			<span class="plat plat-short"><span class="sep" aria-hidden="true">·</span> Linux <span class="sep" aria-hidden="true">·</span> Windows</span>
 		</p>
-		<h1 id="hero-title">The agentic, <span class="shine">AI‑native</span> code editor.</h1>
+		<h1 id="hero-title">The native, advanced, <span class="shine">agentic</span> code editor.</h1>
 		<p class="lede">
-			Everything VS Code does, plus chat, inline edits and an agent that works across your files —
-			running against the models you choose. Twelve providers, or local models that never leave
-			your machine. No telemetry, no account, no relay.
+			Everything VS Code does, plus chat, inline edits and agent mode working across your files —
+			against the models you choose. Twelve providers, or local models that never leave your
+			machine. No telemetry, no account, no relay.
 		</p>
 		<div class="cta">
 			<DownloadButton />
@@ -48,10 +48,7 @@ import { release } from '../../data/release';
 	h1 { margin-inline: auto; max-width: 22ch; }
 	.plat-short { display: none; }
 	@media (max-width: 520px) { .plat-long { display: none; } .plat-short { display: inline; } }
-	.shine {
-		background: linear-gradient(100deg, var(--shine-1) 0%, var(--shine-2) 45%, var(--shine-3) 100%);
-		-webkit-background-clip: text; background-clip: text; color: transparent;
-	}
+	.shine { color: var(--shine); }
 	.lede { margin: 1.5rem auto 0; max-width: 62ch; }
 	.cta { margin-top: 2.25rem; display: flex; flex-wrap: wrap; justify-content: center; gap: 0.75rem; }
 	.fine { margin-top: 1.1rem; color: var(--fg-muted); font-size: var(--text-s); }

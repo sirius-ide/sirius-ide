@@ -6,13 +6,26 @@ landing hero and the first feature section, built in Astro under `website/`, ren
 are those renders; `home-1440x900-dark-mid.png` is the product window 5.8 s into its
 sequence, with the diff and its controls on screen.
 
+## House rules from the owner (2026-10-01), applied
+
+1. **No gradients anywhere.** No gradient functions, no glows, no soft shadows. Depth comes
+   from flat planes and 1 px rings; light is a crisp line, not a bloom. `src/styles/tokens.css`
+   carries the rule.
+2. **No "AI" in the site's own text.** The positioning is *native, advanced, agentic*. The
+   product's own strings inside the drawn surfaces stay what the product shows; where one of
+   them says "AI" (the model command's title row) the illustration leaves that row out.
+3. **No mention of the company.** The footer, the metadata and SECURITY.md name no company.
+   The licence text, which must name its copyright holder, is a legal document and is
+   rendered verbatim on `/license/` in the full build.
+
 ## The idea, in one line
 
 *Deep space, brilliant star, a bolt of speed* — the mark at full size. The page is the
-sky the mark sits in. The headline is the split star: silver "The agentic," and an
-azure-to-cyan "AI-native". The bolt strikes once on load from a lens flare in the top
-right corner and settles into a faint ray behind the product. The product — the editor
-drawn in HTML, in its own theme — is the brilliant thing in the middle of the page.
+sky the mark sits in: a flat near-black field and a sparse starfield. The headline is the
+split star — the line in silver, the word *agentic* in solid cyan. The bolt strikes once on
+load from a lens flare in the top-right corner — a point, a crosshair, a hairline ring — and
+settles into one crisp diagonal line behind the product. The product, the editor drawn in
+HTML in its own theme, is the brilliant thing in the middle of the page.
 
 ## Type
 
@@ -38,36 +51,40 @@ drawn in HTML, in its own theme — is the brilliant thing in the middle of the 
 violet `#8b5cf6`, ice `#a8c7fa`, cyan `#67e8f9`, magenta `#c084fc`, the status greens,
 ambers and reds. The one deliberate departure: the site's filled buttons rest on the
 theme's button *hover* violet, `#7c3aed`, because white on `#8b5cf6` is 4.2:1 and the
-brief asks for 4.5:1; `#8b5cf6` keeps borders, badges, focus rings and large type.
+brief asks for 4.5:1; `#8b5cf6` keeps borders, badges, focus rings and large type. The
+accent word in the headline is solid cyan `#67e8f9`.
 
 **Light is designed, not inverted:** a cool white `#f5f7fb` page, `#ffffff` and `#eef2f8`
 surfaces, navy-black `#0b1220` text, `#4a5568` muted text, violet `#6d28d9`, azure
-`#0369a1` for links, cyan `#0e7490`, status `#1a7f37` / `#9a6700` / `#cf222e`. Every text
-and background pair clears 4.5:1; the values and the numbers behind them are in
-`src/styles/tokens.css`. The product window stays dark on the light page: Sirius ships one
-theme, so the product is shown as it is, framed on light the way a dark app is on any
-light site. The headline gradient changes with the scheme — ice → cyan → azure on dark,
-blue → sky → violet on light — because the pale dark stops would fail on white.
+`#0369a1` for links and for the accent word, cyan `#0e7490`, status `#1a7f37` / `#9a6700` /
+`#cf222e`. Every text and background pair clears 4.5:1; the values and the numbers behind
+them are in `src/styles/tokens.css`. The product window stays dark on the light page:
+Sirius ships one theme, so the product is shown as it is, framed on light the way a dark app
+is on any light site.
+
+**Depth without shadows.** The product window and the drawn picker sit in a 1 px ring in
+the scheme's ring colour with a second hairline ring 3 px out — the indigo-and-cyan rim of
+the mark, flat. Cards and menus use 1 px borders. Nothing is blurred and nothing fades into
+anything.
 
 ## Motion — one idea, carried through
 
 1. **Load.** The flare lights, the bolt strikes from it (1.1 s, `scaleX` and opacity) and
-   settles into a faint ray behind the window; the copy rises in a 0.7 s stagger.
+   settles into a crisp line behind the window; the copy rises in a 0.7 s stagger.
 2. **The product sequence**, once, over eight seconds, in the product's own strings: the
    request; Sirius's "Running search files…" and "Running read file…" lines with
    spinner-to-check; the edit arriving in the editor as a diff — green tint, gutter bars,
    the Keep / Undo hunk control; the response and its file pills; "2 files changed · Keep
    All Edits · Undo All Edits"; then, at 7.7 s, the edit is kept: tints fade, the controls
    go, the Explorer shows M and Source Control shows 2. Transform and opacity only, plus
-   one background fade on six rows. **The end state is the resting state**, and it is
-   exactly what `prefers-reduced-motion` renders (checked pixel for pixel in the review).
-3. **Everywhere else:** the primary button's hover is the bolt again — a diagonal light
-   sweeping across, transform only; scroll reveals for sections in the full build
+   one flat background-colour fade on six rows. **The end state is the resting state**, and
+   it is exactly what `prefers-reduced-motion` renders (checked pixel for pixel in the
+   review).
+3. **Everywhere else:** the primary button's hover is the bolt again — a solid diagonal bar
+   of light sweeping across, transform only; scroll reveals for sections in the full build
    (IntersectionObserver); view transitions between pages (Astro's ClientRouter is on).
 
-Nothing loops except two very slow aurora drifts (22 s and 28 s, transform only), and
-reduced motion stops those too. No canvas yet; the starfield is a masked SVG pattern that
-costs one paint.
+Nothing loops. No canvas; the starfield is two masked SVG dot patterns that cost one paint.
 
 ## Layout system
 
@@ -77,10 +94,10 @@ costs one paint.
   and the chat is readable. The headline sits on two lines from 900 px up, so about 200 px
   of the window shows above the fold at 1440×900.
 - **Feature sections alternate the split** (copy | demo, then demo | copy). Each has a
-  mono eyebrow "0N — …", a two-tone H2, a lede, three points marked with the split-star
-  glyph, and a demo: an HTML-drawn product surface now (here, the Select AI Model picker
-  with its real strings), the owner's footage later (slots to be documented in
-  `src/media/README.md` in the full build).
+  mono eyebrow "0N — …", a two-tone H2, a lede, three points marked with the flat split-star
+  mark, and a demo: an HTML-drawn product surface now (here, the model picker with its real
+  strings), the owner's footage later (slots to be documented in `src/media/README.md` in the
+  full build).
 - **Phones:** one column; the window drops the activity bar and Explorer and shows editor
   and chat side by side at 10.5 px; a demo sits between a section's heading and its detail,
   so the heading always comes first.
@@ -99,11 +116,11 @@ footer. The other pages follow the BRIEF §4 inventory.
 
 Astro 7.3 with Starlight 0.42, static output, `npm ci && npm run build` → `dist/`. Tokens
 and base styles; the Base layout (OS and theme attributes set before first paint, the
-served HTML names no OS; canonical, OpenGraph, manifest and icons); Nav, Footer, the vector
-Logo, the OS-aware DownloadButton; the Hero (Aurora + EditorWindow); the Providers section
-with the ModelPicker; a 404 page; a Starlight stub at `/docs/`; the screenshot script;
-`make-icons.py --web` for the favicons, manifest icons and default social image; the two
-fonts with their licences. Landing-page JavaScript is Astro's ClientRouter and prefetch,
+served HTML names no OS; canonical, OpenGraph, manifest and icons); Nav, Footer, the flat
+vector Logo, the OS-aware DownloadButton; the Hero (Sky + EditorWindow); the Providers
+section with the ModelPicker; a 404 page; a Starlight stub at `/docs/`; the screenshot
+script; `make-icons.py --web` for the favicons, manifest icons and default social image; the
+two fonts with their licences. Landing-page JavaScript is Astro's ClientRouter and prefetch,
 about 16 KB before compression; the page HTML is 8 KB compressed. `astro check` passes.
 
 ## Decisions I want your eye on
@@ -115,3 +132,5 @@ about 16 KB before compression; the page HTML is 8 KB compressed. `astro check` 
 4. Schibsted Grotesk and JetBrains Mono.
 5. A local model (`qwen3:32b`) shown as the model at work in the hero, with Claude Opus 5
    as the highlighted row in the picker.
+6. The headline wording "The native, advanced, agentic code editor." — your three words, in
+   that order, with *agentic* as the accent.

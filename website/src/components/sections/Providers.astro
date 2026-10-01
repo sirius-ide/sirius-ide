@@ -1,5 +1,6 @@
 ---
 import ModelPicker from './ModelPicker.astro';
+import Logo from '../Logo.astro';
 const hosted = ['Anthropic Claude', 'Google Gemini', 'OpenAI', 'OpenRouter', 'Groq', 'DeepSeek', 'Mistral', 'xAI Grok'];
 const local = ['Ollama', 'LM Studio', 'llama.cpp', 'vLLM', 'Any OpenAI-compatible endpoint'];
 ---
@@ -19,15 +20,15 @@ const local = ['Ollama', 'LM Studio', 'llama.cpp', 'vLLM', 'Any OpenAI-compatibl
 		<div class="copy more">
 			<ul class="points">
 				<li>
-					<span class="pt-icon" aria-hidden="true"></span>
+					<Logo size={20} class="pt-icon" />
 					<div><b>One keystroke to switch.</b> <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>M</kbd> lists every model your providers offer, and the status bar always shows which one is answering.</div>
 				</li>
 				<li>
-					<span class="pt-icon" aria-hidden="true"></span>
+					<Logo size={20} class="pt-icon" />
 					<div><b>Keys stay in the keyring.</b> libsecret, Keychain or Credential Manager — never <code>settings.json</code>, never synchronised, never sent anywhere but the provider they belong to.</div>
 				</li>
 				<li>
-					<span class="pt-icon" aria-hidden="true"></span>
+					<Logo size={20} class="pt-icon" />
 					<div><b>No account, no relay.</b> Requests go straight from your machine to the provider you chose. With a local model, nothing leaves it at all.</div>
 				</li>
 			</ul>
@@ -53,13 +54,7 @@ const local = ['Ollama', 'LM Studio', 'llama.cpp', 'vLLM', 'Any OpenAI-compatibl
 	.points { list-style: none; padding: 0; margin: 0; display: grid; gap: 1rem; }
 	.points li { display: grid; grid-template-columns: 20px 1fr; gap: 0.85rem; align-items: start; color: var(--fg-muted); font-size: var(--text-s); line-height: 1.55; }
 	.points b { color: var(--fg); }
-	.pt-icon {
-		margin-top: 0.35em; width: 20px; height: 20px; border-radius: 50%;
-		background:
-			linear-gradient(90deg, var(--brand-silver) 0 50%, var(--brand-azure) 50% 100%);
-		-webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><path d='m8 1 2 4.6 5 .5-3.8 3.4 1.1 4.9L8 11.9l-4.3 2.5 1.1-4.9L1 6.1l5-.5Z'/></svg>") center / contain no-repeat;
-		mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><path d='m8 1 2 4.6 5 .5-3.8 3.4 1.1 4.9L8 11.9l-4.3 2.5 1.1-4.9L1 6.1l5-.5Z'/></svg>") center / contain no-repeat;
-	}
+	.points :global(.pt-icon) { margin-top: 0.3em; }
 	.chips { margin-top: 1.75rem; display: grid; gap: 0.6rem; }
 	.chips p { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; }
 	.chips-label { font-family: var(--font-mono); font-size: var(--text-xs); letter-spacing: 0.08em; text-transform: uppercase; color: var(--fg-dim); margin-right: 0.25rem; min-width: 4.5ch; }

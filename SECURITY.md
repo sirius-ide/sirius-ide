@@ -1,8 +1,7 @@
 # Security
 
-Sirius IDE is maintained by Clicksora, L.L.C. If you find a vulnerability in Sirius —
-the editor, the `sirius-ai` extension, the update server, the release pipeline or this
-repository — please report it privately.
+If you find a vulnerability in Sirius — the editor, the `sirius-ai` extension, the update
+server, the release pipeline or this repository — please report it privately.
 
 **Please do not report security vulnerabilities through public GitHub issues,
 discussions or pull requests.**

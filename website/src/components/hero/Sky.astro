@@ -1,0 +1,70 @@
+---
+/**
+ * The hero backdrop: deep space, a brilliant star, a bolt of speed — flat, no gradients.
+ * A sparse starfield drawn once as two masked dot patterns, the lens flare as a point with
+ * crisp crosshair lines and a hairline ring, and the bolt: one solid diagonal line that
+ * strikes once on load (scaleX + opacity) and settles. Reduced motion gets the settled state.
+ */
+---
+<div class="sky" aria-hidden="true">
+	<div class="stars"></div>
+	<div class="stars bright"></div>
+	<div class="bolt"></div>
+	<div class="flare"></div>
+	<div class="ring"></div>
+</div>
+
+<style>
+	.sky { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; }
+	.stars {
+		position: absolute; inset: 0;
+		background-color: var(--star);
+		-webkit-mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='260' height='260'><circle cx='23' cy='41' r='1.1'/><circle cx='141' cy='19' r='0.8'/><circle cx='201' cy='97' r='1.3'/><circle cx='77' cy='133' r='0.7'/><circle cx='243' cy='171' r='0.9'/><circle cx='113' cy='221' r='1.1'/><circle cx='31' cy='201' r='0.6'/><circle cx='171' cy='251' r='0.8'/></svg>");
+		mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='260' height='260'><circle cx='23' cy='41' r='1.1'/><circle cx='141' cy='19' r='0.8'/><circle cx='201' cy='97' r='1.3'/><circle cx='77' cy='133' r='0.7'/><circle cx='243' cy='171' r='0.9'/><circle cx='113' cy='221' r='1.1'/><circle cx='31' cy='201' r='0.6'/><circle cx='171' cy='251' r='0.8'/></svg>");
+		-webkit-mask-size: 260px 260px; mask-size: 260px 260px;
+	}
+	.stars.bright {
+		background-color: var(--star-bright);
+		-webkit-mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='520' height='520'><circle cx='96' cy='73' r='1.6'/><circle cx='402' cy='151' r='1.4'/><circle cx='231' cy='331' r='1.8'/><circle cx='477' cy='447' r='1.3'/></svg>");
+		mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='520' height='520'><circle cx='96' cy='73' r='1.6'/><circle cx='402' cy='151' r='1.4'/><circle cx='231' cy='331' r='1.8'/><circle cx='477' cy='447' r='1.3'/></svg>");
+		-webkit-mask-size: 520px 520px; mask-size: 520px 520px;
+	}
+	.bolt {
+		position: absolute; top: 17.5%; right: 3%; width: 74%; height: 1px;
+		transform-origin: right center; transform: rotate(-33deg) scaleX(1);
+		background: var(--bolt);
+	}
+	.flare {
+		position: absolute; top: calc(17.5% - 3px); right: calc(3% - 3px); width: 6px; height: 6px; border-radius: 50%;
+		background: var(--shine);
+	}
+	.flare::before, .flare::after { content: ""; position: absolute; left: 50%; top: 50%; background: var(--bolt); }
+	.flare::before { width: 160px; height: 1px; transform: translate(-50%, -50%); }
+	.flare::after { width: 1px; height: 80px; transform: translate(-50%, -50%); }
+	.ring {
+		position: absolute; top: calc(17.5% - 14px); right: calc(3% - 14px); width: 28px; height: 28px; border-radius: 50%;
+		border: 1px solid var(--bolt);
+	}
+	/* phones: the headline spans the whole width, so the bolt becomes a short stroke in the corner */
+	@media (max-width: 760px) {
+		.bolt { top: 5%; right: 4%; width: 22%; }
+		.flare { top: calc(5% - 3px); right: calc(4% - 3px); }
+		.flare::before { width: 64px; }
+		.flare::after { height: 36px; }
+		.ring { top: calc(5% - 11px); right: calc(4% - 11px); width: 22px; height: 22px; }
+	}
+	@media (prefers-reduced-motion: no-preference) {
+		.bolt { animation: strike 1.1s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+		.flare { animation: flare 1.2s ease-out both; }
+	}
+	@keyframes strike {
+		0% { transform: rotate(-33deg) scaleX(0); opacity: 0; }
+		40% { opacity: 1; }
+		100% { transform: rotate(-33deg) scaleX(1); opacity: 1; }
+	}
+	@keyframes flare {
+		0% { opacity: 0; transform: scale(0.4); }
+		50% { opacity: 1; transform: scale(1.6); }
+		100% { opacity: 1; transform: scale(1); }
+	}
+</style>

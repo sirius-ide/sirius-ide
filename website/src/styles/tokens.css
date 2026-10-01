@@ -3,6 +3,9 @@
  * Dark is the default and the hero experience; light is designed, not inverted.
  * Values trace to extensions/theme-sirius-star/themes/sirius-star-dark.json (dark) and to
  * website/design/DIRECTION.md (light), and every text/background pair clears WCAG AA 4.5:1.
+ *
+ * House rule (owner, 2026-10-01): no gradients anywhere — no gradient functions, no glows, no
+ * soft shadows. Depth comes from flat planes and 1px rings.
  */
 :root {
 	color-scheme: dark light;
@@ -56,19 +59,12 @@
 	--ok: #3fb950;
 	--warn: #fbbf24;
 	--err: #f85149;
-	--glow-violet: rgba(139, 92, 246, 0.36);
-	--glow-azure: rgba(0, 148, 243, 0.30);
-	--glow-cyan: rgba(103, 232, 249, 0.22);
 	--star: rgba(230, 237, 243, 0.55);
-	--bolt: rgba(255, 255, 255, 0.85);
-	--shine-1: #a8c7fa;
-	--shine-2: #67e8f9;
-	--shine-3: #0094f3;
-	--shadow-window:
-		0 0 0 1px rgba(139, 92, 246, 0.22),
-		0 40px 120px -40px rgba(0, 148, 243, 0.35),
-		0 30px 80px -30px rgba(139, 92, 246, 0.45),
-		0 2px 8px rgba(0, 0, 0, 0.6);
+	--star-bright: rgba(230, 237, 243, 0.9);
+	--bolt: rgba(230, 237, 243, 0.5);
+	--shine: #67e8f9;
+	--ring: rgba(139, 92, 246, 0.45);
+	--ring-soft: rgba(139, 92, 246, 0.2);
 	--focus: #8b5cf6;
 	--selection: rgba(139, 92, 246, 0.35);
 	--nav-bg: rgba(6, 8, 13, 0.72);
@@ -97,19 +93,12 @@
 		--ok: #1a7f37;
 		--warn: #9a6700;
 		--err: #cf222e;
-		--glow-violet: rgba(139, 92, 246, 0.28);
-		--glow-azure: rgba(0, 148, 243, 0.26);
-		--glow-cyan: rgba(103, 232, 249, 0.34);
 		--star: rgba(11, 18, 32, 0.22);
-		--bolt: rgba(0, 148, 243, 0.75);
-		--shine-1: #1d4ed8;
-		--shine-2: #0284c7;
-		--shine-3: #6d28d9;
-		--shadow-window:
-			0 0 0 1px rgba(11, 18, 32, 0.08),
-			0 40px 120px -40px rgba(0, 148, 243, 0.30),
-			0 30px 80px -30px rgba(109, 40, 217, 0.30),
-			0 2px 8px rgba(11, 18, 32, 0.12);
+		--star-bright: rgba(11, 18, 32, 0.45);
+		--bolt: rgba(3, 105, 161, 0.55);
+		--shine: #0369a1;
+		--ring: rgba(11, 18, 32, 0.16);
+		--ring-soft: rgba(11, 18, 32, 0.08);
 		--focus: #6d28d9;
 		--selection: rgba(109, 40, 217, 0.22);
 		--nav-bg: rgba(245, 247, 251, 0.78);
@@ -138,19 +127,12 @@
 	--ok: #1a7f37;
 	--warn: #9a6700;
 	--err: #cf222e;
-	--glow-violet: rgba(139, 92, 246, 0.28);
-	--glow-azure: rgba(0, 148, 243, 0.26);
-	--glow-cyan: rgba(103, 232, 249, 0.34);
 	--star: rgba(11, 18, 32, 0.22);
-	--bolt: rgba(0, 148, 243, 0.75);
-	--shine-1: #1d4ed8;
-	--shine-2: #0284c7;
-	--shine-3: #6d28d9;
-	--shadow-window:
-		0 0 0 1px rgba(11, 18, 32, 0.08),
-		0 40px 120px -40px rgba(0, 148, 243, 0.30),
-		0 30px 80px -30px rgba(109, 40, 217, 0.30),
-		0 2px 8px rgba(11, 18, 32, 0.12);
+	--star-bright: rgba(11, 18, 32, 0.45);
+	--bolt: rgba(3, 105, 161, 0.55);
+	--shine: #0369a1;
+	--ring: rgba(11, 18, 32, 0.16);
+	--ring-soft: rgba(11, 18, 32, 0.08);
 	--focus: #6d28d9;
 	--selection: rgba(109, 40, 217, 0.22);
 	--nav-bg: rgba(245, 247, 251, 0.78);

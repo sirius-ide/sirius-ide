@@ -5,10 +5,9 @@
 export const site = {
 	name: 'Sirius IDE',
 	shortName: 'Sirius',
-	tagline: 'The agentic, AI-native code editor.',
+	tagline: 'The native, advanced, agentic code editor.',
 	description:
-		'Sirius IDE is an agentic, AI-native code editor built on Code - OSS. Bring your own model — twelve providers or local models — with no telemetry, no account and no relay.',
-	company: 'Clicksora, L.L.C.',
+		'Sirius IDE is the native, advanced, agentic code editor built on Code - OSS. Bring your own model — twelve providers or local models — with no telemetry, no account and no relay.',
 	domain: 'siriuside.com',
 	url: 'https://siriuside.com',
 	githubOwner: 'sirius-ide',
