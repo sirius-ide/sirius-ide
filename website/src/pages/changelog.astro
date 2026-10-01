@@ -1,0 +1,74 @@
+---
+import Base from '../layouts/Base.astro';
+import { releases, releaseDate, formatSize, cdnUrl, fetchedAt } from '../data/release';
+import { site } from '../site.config';
+
+const isDocs = (s: string) => /^(docs|state|roadmap)(\(|:)/i.test(s) || /^\d+\.\d+\.\d+$/.test(s);
+const compareOnly = (body: string) => /^\s*\*\*Full Changelog\*\*:\s*\S+\s*$/.test(body.trim());
+const escape = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] ?? c);
+const built = new Intl.DateTimeFormat('en', { dateStyle: 'long', timeZone: 'UTC' }).format(new Date(fetchedAt));
+---
+<Base title="Changelog" description={`Every Sirius IDE release, newest first — ${releases[0]?.tag} and ${releases.length - 1} before it — with what changed and the assets, generated from GitHub Releases.`}>
+	<link slot="head" rel="alternate" type="application/rss+xml" title="Sirius IDE releases" href="/rss.xml" />
+	<section class="section">
+		<div class="container head">
+			<p class="eyebrow">Changelog · {releases.length} releases · <a href="/rss.xml">RSS feed</a></p>
+			<h1>What shipped, <span class="muted">release by release.</span></h1>
+			<p class="lede">Generated from GitHub Releases when the site is built (last on {built}), so it follows every published release. "What changed" is the list of commits between one tag and the next, with documentation-only commits folded away.</p>
+		</div>
+		<div class="container list">
+			{releases.map((r, i) => {
+				const changes = r.commits.filter((c) => !isDocs(c.subject));
+				const folded = r.commits.length - changes.length;
+				const assets = r.assets.filter((a) => a.name !== 'commit.txt');
+				return (
+					<article class="release" id={r.tag}>
+						<header>
+							<h2><a href={`#${r.tag}`}>{r.tag}</a>{i === 0 && !r.prerelease && <span class="tag">latest</span>}{r.prerelease && <span class="tag pre">pre-release</span>}</h2>
+							<p class="meta"><time datetime={r.publishedAt}>{releaseDate(r)}</time> · <a href={r.url} rel="noopener">on GitHub</a></p>
+						</header>
+						{r.body && !compareOnly(r.body) && <pre class="notes">{r.body}</pre>}
+						{changes.length > 0 ? (
+							<details class="changes" open={i === 0}>
+								<summary>{changes.length} {changes.length === 1 ? 'change' : 'changes'}{folded > 0 && <span class="folded"> · {folded} documentation {folded === 1 ? 'commit' : 'commits'} folded</span>}</summary>
+								<ul>{changes.map((c) => <li><code>{c.sha}</code> <span set:html={escape(c.subject)} /></li>)}</ul>
+							</details>
+						) : (
+							<p class="none">{i === releases.length - 1 ? 'The first release.' : 'Only documentation changed.'}</p>
+						)}
+						<details class="assets">
+							<summary>{assets.length} assets</summary>
+							<ul>{assets.map((a) => <li><a href={cdnUrl(r, a, site.downloadHost)}>{a.name}</a> <span class="size">{formatSize(a.size)}</span>{a.sha256 && <code class="sha">{a.sha256}</code>}</li>)}</ul>
+						</details>
+					</article>
+				);
+			})}
+		</div>
+	</section>
+</Base>
+
+<style>
+	.head { max-width: 820px; }
+	.head h1 { margin-top: 0.75rem; }
+	.head .lede { margin-top: 1rem; }
+	.list { margin-top: 2.5rem; display: grid; gap: 1rem; max-width: 820px; }
+	.release { padding: 1.5rem; border: 1px solid var(--border); border-radius: var(--radius-l); background: var(--surface); scroll-margin-top: 84px; }
+	.release header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0.5rem 1rem; }
+	.release h2 { font-size: var(--text-xl); display: inline-flex; align-items: center; gap: 0.6rem; }
+	.release h2 a { color: var(--fg); }
+	.tag { font-family: var(--font-mono); font-size: 0.6em; letter-spacing: 0.08em; text-transform: uppercase; padding: 0.25em 0.6em; border-radius: 999px; background: var(--accent-strong); color: var(--on-accent); font-weight: 500; }
+	.tag.pre { background: var(--surface-3); color: var(--fg-muted); }
+	.meta { color: var(--fg-dim); font-size: var(--text-s); }
+	.notes { margin-top: 1rem; white-space: pre-wrap; font-family: var(--font-sans); font-size: var(--text-s); color: var(--fg-muted); }
+	details { margin-top: 1rem; }
+	summary { cursor: pointer; font-weight: 600; color: var(--fg); font-size: var(--text-s); }
+	summary:hover { color: var(--accent-text); }
+	.folded { color: var(--fg-dim); font-weight: 400; }
+	details ul { list-style: none; margin: 0.75rem 0 0; padding: 0; display: grid; gap: 0.45rem; font-size: var(--text-s); color: var(--fg-muted); }
+	details li { display: flex; flex-wrap: wrap; gap: 0.3rem 0.6rem; align-items: baseline; }
+	details code { font-size: 0.8em; }
+	.assets a { font-family: var(--font-mono); font-size: var(--text-xs); }
+	.size { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--fg-dim); }
+	.sha { flex-basis: 100%; color: var(--fg-dim); font-size: 0.7rem; background: none; border: 0; padding: 0; word-break: break-all; }
+	.none { margin-top: 1rem; color: var(--fg-dim); font-size: var(--text-s); }
+</style>

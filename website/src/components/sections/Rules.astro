@@ -1,0 +1,43 @@
+---
+import MediaSlot from '../MediaSlot.astro';
+import RulesArt from '../art/RulesArt.astro';
+import Logo from '../Logo.astro';
+---
+<section class="section feature" id="rules" aria-labelledby="rules-title">
+	<div class="container split">
+		<div class="copy head">
+			<p class="eyebrow">04 — Project rules and context</p>
+			<h2 id="rules-title">Your project's rules, <span class="muted">in every request.</span></h2>
+			<p class="lede">
+				Put how your project works in <code>.siriusrules</code>, <code>.sirius/rules.md</code> or <code>AGENTS.md</code>
+				— the build commands, the conventions, what never to touch — and Sirius reads it before it answers. The file in
+				front of you travels with each request as context, so you ask about the code you are looking at without
+				pasting it.
+			</p>
+		</div>
+		<div class="demo">
+			<MediaSlot name="project-rules" label="A .siriusrules file open in Sirius, the three rule files it reads, and the chat input carrying the current file as context."><RulesArt /></MediaSlot>
+		</div>
+		<div class="copy more">
+			<ul class="points">
+				<li><Logo size={20} class="pt-icon" /><div><b>Three files, one of them shared.</b> <code>.siriusrules</code> and <code>.sirius/rules.md</code> are Sirius's own; <code>AGENTS.md</code> is the convention other agents read too, so one file can steer them all.</div></li>
+				<li><Logo size={20} class="pt-icon" /><div><b>Ambient context, no ceremony.</b> The active editor — file, selection, position — is supplied automatically, with the editor's own context controls to add or remove more.</div></li>
+				<li><Logo size={20} class="pt-icon" /><div><b>Rules never block.</b> A missing or unreadable rules file never stops a request; the agent simply works without it.</div></li>
+			</ul>
+		</div>
+	</div>
+</section>
+
+<style>
+	.split { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); grid-template-areas: "demo head" "demo more"; column-gap: clamp(2rem, 6vw, 5.5rem); row-gap: 1.75rem; align-items: center; }
+	.head { grid-area: head; align-self: end; }
+	.more { grid-area: more; align-self: start; }
+	.demo { grid-area: demo; }
+	.copy h2 { margin-top: 1rem; }
+	.copy .lede { margin-top: 1.25rem; font-size: var(--text-m); }
+	.points { list-style: none; padding: 0; margin: 0; display: grid; gap: 1rem; }
+	.points li { display: grid; grid-template-columns: 20px 1fr; gap: 0.85rem; align-items: start; color: var(--fg-muted); font-size: var(--text-s); line-height: 1.55; }
+	.points b { color: var(--fg); }
+	.points :global(.pt-icon) { margin-top: 0.3em; }
+	@media (max-width: 900px) { .split { grid-template-columns: minmax(0, 1fr); grid-template-areas: "head" "demo" "more"; row-gap: 2.25rem; } }
+</style>

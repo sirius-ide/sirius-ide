@@ -1,0 +1,17 @@
+---
+title: Commands
+description: The commands Sirius adds to the Command Palette, read from the shipped manifest at build time.
+sidebar:
+  order: 2
+---
+import CommandsTable from '../../../../components/docs/CommandsTable.astro';
+
+Open the Command Palette with <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd>
+(<kbd>⌘</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd> on macOS) and type *Sirius*. The identifiers
+are what you bind in `keybindings.json`.
+
+<CommandsTable />
+
+The selection commands — explain, fix, write tests, refactor — also appear in the editor's
+right-click menu when text is selected. The git commands run from the Source Control view
+as well: the sparkle on the commit box and the merge-conflict action call them.

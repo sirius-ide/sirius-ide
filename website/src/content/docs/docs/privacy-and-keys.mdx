@@ -1,0 +1,46 @@
+---
+title: Privacy and where keys live
+description: What leaves your machine, what never does, and where Sirius keeps the API keys you give it.
+sidebar:
+  order: 15
+---
+
+The binding statement is [PRIVACY.md](/privacy/) in the repository, rendered on this site
+unchanged. This page is the short version with the practical details.
+
+## What leaves your machine
+
+- **Requests to the provider you chose.** When you send a message, the prompt, the context
+  you attached and the files the agent reads go to that provider's API — Anthropic, Google,
+  OpenAI, OpenRouter, Groq, DeepSeek, Mistral or xAI — directly from your machine, under
+  that provider's terms. Sirius runs no relay or proxy in between.
+- **Nothing, with a local model.** With Ollama, LM Studio, llama.cpp or vLLM the request
+  goes to the local endpoint you configured and no prompt, file or fragment of code reaches
+  a third party.
+- **The update check**, on tarball and Windows installs only: platform, channel and build
+  commit — see [Updates](/docs/updates/).
+- **Extensions** you install from Open VSX are third-party software with their own
+  behaviour; nothing in Sirius's statement constrains them.
+
+There is no telemetry, no crash reporting, no analytics and no account. There is no
+setting to find because there is no code that reports anything.
+
+## Where keys live
+
+Provider keys are set with **Sirius: Set API Key** and stored in the editor's secret
+storage, which is backed by the operating system's keyring — not in `settings.json`, not
+in Settings Sync, and never sent anywhere but the provider they belong to. On Linux that
+needs a Secret Service provider (GNOME Keyring or KWallet) to be available; on a headless
+or minimal system, see [Troubleshooting](/docs/troubleshooting/).
+
+The old `sirius.ai.<provider>.apiKey` settings are deprecated: a key in one of them still
+works for now, but a key in a settings file is a key on disk in plain text, so move it with
+**Sirius: Set API Key** and delete the setting.
+
+To remove a key, run **Sirius: Set API Key**, pick the provider and clear the value.
+
+## This website
+
+The site holds to the same rule: no third-party scripts, no cookies, no analytics. It is
+static files behind a strict content-security policy; the only requests it makes are for
+its own assets.

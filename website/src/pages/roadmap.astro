@@ -1,0 +1,18 @@
+---
+import { getEntry } from 'astro:content';
+import Doc from '../layouts/Doc.astro';
+import { rewriteRepoLinks } from '../content.config';
+const entry = await getEntry('repoDocs', 'roadmap');
+if (!entry?.rendered) { throw new Error('ROADMAP.md did not render'); }
+// Shipped / in progress / planned are marked ✅ 🔨 ⬜ at the start of list items in the file.
+const states: Array<[RegExp, string]> = [[/<li>\s*✅\s*/g, '<li class="done">'], [/<li>\s*🔨\s*/g, '<li class="wip">'], [/<li>\s*⬜\s*/g, '<li class="todo">']];
+let html = rewriteRepoLinks(entry.rendered.html).replace(/^\s*<h1[^>]*>.*?<\/h1>/s, '');
+for (const [re, to] of states) { html = html.replace(re, to); }
+const headings = (entry.rendered.metadata?.headings ?? []) as Array<{ depth: number; slug: string; text: string }>;
+---
+<Doc title="Roadmap" eyebrow="Roadmap" sourceFile="ROADMAP.md" headings={headings}
+	description="What Sirius IDE has shipped and what is planned, phase by phase, rendered from the repository's ROADMAP.md."
+	intro="What has shipped, what is in progress, and what is planned. Nothing marked planned is on the download page.">
+	<p class="legend" aria-label="Legend"><span class="done">shipped</span><span class="wip">in progress</span><span class="todo">planned</span></p>
+	<Fragment set:html={html} />
+</Doc>

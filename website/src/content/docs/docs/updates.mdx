@@ -1,0 +1,46 @@
+---
+title: Updates
+description: How each kind of Sirius installation learns about and receives a new release.
+sidebar:
+  order: 14
+---
+
+Every release is published once, by the release pipeline, to GitHub Releases and to the
+download CDN. How it reaches you depends on how you installed.
+
+| How you installed | How it updates |
+| --- | --- |
+| Arch, the `[sirius]` pacman repository | `sudo pacman -Syu` — the release publishes each tag to the repository in the same run that publishes the GitHub release |
+| `.deb` or `.rpm` | Install the newer package from the [download page](/download/); no apt or dnf repository is added to your system |
+| Linux tarball | The editor checks for a newer build, notifies you, and opens the download page; you unpack the new tarball over the old directory |
+| Windows installer | In place: the editor downloads and installs the new version itself |
+| Remote server tarballs | Match the server to the editor — the release ships both from the same commit |
+
+## What the update check sends
+
+Builds with an update channel configured (the tarball and the Windows installer) ask
+`update.siriuside.com` periodically whether a newer build exists. That request carries
+the platform, the channel and the current build commit — enough to answer the question
+and no identifier for you or your machine. Package installs (pacman, `.deb`, `.rpm`)
+make no update request at all; your package manager is the channel. This is the same
+statement the [privacy statement](/privacy/) makes, rendered from the repository.
+
+To turn the check off on a tarball or Windows install, set `update.mode` to `none` in
+Settings; **Help → Check for Updates** still works on demand.
+
+## Verifying what you downloaded
+
+Every asset on a release has a `.sha256` sidecar and a GitHub build attestation that ties
+the bytes to the workflow run and commit that produced them:
+
+```sh
+sha256sum -c sirius-linux-x64.tar.gz.sha256
+gh attestation verify sirius-linux-x64.tar.gz --owner sirius-ide
+```
+
+The [download page](/download/#verify) prints the current checksums beside each asset.
+
+## Release notes
+
+The [changelog](/changelog/) is generated from GitHub Releases on every build of this site
+and has an [RSS feed](/rss.xml). Each entry lists the commits between one tag and the next.

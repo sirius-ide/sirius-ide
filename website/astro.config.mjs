@@ -42,15 +42,26 @@ export default defineConfig({
 			},
 		},
 	],
+	// The docs import extensions/sirius-ai/package.json from the repository root (outside website/).
+	vite: { server: { fs: { allow: ['..'] } } },
 	integrations: [
 		starlight({
 			title: 'Sirius IDE',
-			description: 'Documentation for Sirius IDE — the agentic, AI-native code editor.',
+			description: 'Documentation for Sirius IDE — the advanced agentic code editor.',
 			disable404Route: true,
 			favicon: '/favicon.ico',
 			customCss: ['./src/styles/starlight.css'],
+			components: {
+				Head: './src/components/StarlightHead.astro',
+				Header: './src/components/StarlightHeader.astro',
+				SiteTitle: './src/components/StarlightSiteTitle.astro',
+			},
 			social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/sirius-ide/sirius-ide' }],
 			sidebar: [{ label: 'Start here', items: [{ slug: 'docs' }] }],
+			head: [
+				{ tag: 'meta', attrs: { property: 'og:image', content: 'https://siriuside.com/og/docs.png' } },
+				{ tag: 'meta', attrs: { name: 'twitter:card', content: 'summary_large_image' } },
+			],
 		}),
 		sitemap(),
 	],

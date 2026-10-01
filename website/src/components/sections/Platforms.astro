@@ -1,0 +1,57 @@
+---
+import { release } from '../../data/release';
+import { site } from '../../site.config';
+---
+<section class="section platforms" id="platforms" aria-labelledby="platforms-title">
+	<div class="container">
+		<div class="section-head">
+			<p class="eyebrow">Platforms · {release.tag}</p>
+			<h2 id="platforms-title">Linux and Windows today. <span class="muted">macOS when it can be signed.</span></h2>
+			<p class="lede">Every build comes from the release pipeline, is attested, and is installed and run on clean machines before it is published.</p>
+		</div>
+		<div class="grid">
+			<article class="card">
+				<h3>Linux</h3>
+				<p class="arch">x64 · arm64</p>
+				<ul>
+					<li>Tarball</li>
+					<li><code>.deb</code> for Debian and Ubuntu</li>
+					<li><code>.rpm</code> for Fedora and RHEL</li>
+					<li>The <code>[sirius]</code> pacman repository for Arch (x86_64)</li>
+					<li>The remote server, x64 and arm64</li>
+				</ul>
+				<p class="note">The editor notifies you of updates; packages update through your package manager.</p>
+			</article>
+			<article class="card">
+				<h3>Windows</h3>
+				<p class="arch">x64</p>
+				<ul>
+					<li>Installer, per user or per machine</li>
+					<li>Updates in place, automatically</li>
+				</ul>
+				<p class="note warn">The installer is not code-signed yet, so SmartScreen warns on first run: choose <em>More info</em>, then <em>Run anyway</em>. Signing is on the roadmap.</p>
+			</article>
+			<article class="card soon">
+				<h3>macOS</h3>
+				<p class="arch">not yet</p>
+				<p class="note">The packaging exists, but a macOS release needs an Apple Developer certificate for signing and notarisation; without it Gatekeeper refuses the app.</p>
+				<a class="btn btn-secondary btn-sm" href={site.macosIssue} rel="noopener">Get notified on GitHub</a>
+			</article>
+		</div>
+		<p class="all"><a class="btn btn-primary" href="/download/">All downloads and checksums</a></p>
+	</div>
+</section>
+
+<style>
+	.section-head .lede { margin-top: 1rem; }
+	.grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; margin-top: 2.5rem; }
+	.card { padding: 1.5rem; border: 1px solid var(--border); border-radius: var(--radius-l); background: var(--surface); display: grid; gap: 0.75rem; align-content: start; }
+	.card h3 { font-size: var(--text-l); }
+	.arch { font-family: var(--font-mono); font-size: var(--text-xs); letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent-text); margin-top: -0.4rem; }
+	.card ul { margin: 0; padding-left: 1.1rem; color: var(--fg-muted); font-size: var(--text-s); display: grid; gap: 0.35rem; }
+	.note { color: var(--fg-muted); font-size: var(--text-s); line-height: 1.55; }
+	.warn { padding: 0.75rem 0.9rem; border-radius: var(--radius-s); background: var(--surface-2); border: 1px solid var(--border); }
+	.soon .arch { color: var(--fg-dim); }
+	.all { margin-top: 2rem; }
+	@media (max-width: 860px) { .grid { grid-template-columns: minmax(0, 1fr); }
+</style>

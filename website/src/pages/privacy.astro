@@ -1,0 +1,14 @@
+---
+import { getEntry } from 'astro:content';
+import Doc from '../layouts/Doc.astro';
+import { rewriteRepoLinks } from '../content.config';
+const entry = await getEntry('repoDocs', 'privacy');
+if (!entry?.rendered) { throw new Error('PRIVACY.md did not render'); }
+const html = rewriteRepoLinks(entry.rendered.html).replace(/^\s*<h1[^>]*>.*?<\/h1>/s, '');
+const headings = (entry.rendered.metadata?.headings ?? []) as Array<{ depth: number; slug: string; text: string }>;
+---
+<Doc title="Privacy" eyebrow="Privacy statement" sourceFile="PRIVACY.md" headings={headings}
+	description="Sirius IDE collects nothing: no telemetry, no crash reporting, no analytics, no account, and no relay between you and your model provider."
+	intro="Sirius collects nothing. This is the statement the editor ships with, word for word.">
+	<Fragment set:html={html} />
+</Doc>

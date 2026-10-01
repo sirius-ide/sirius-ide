@@ -1,0 +1,28 @@
+---
+import DownloadButton from '../DownloadButton.astro';
+import { release } from '../../data/release';
+---
+<section class="section final" aria-labelledby="final-title">
+	<div class="container box">
+		<p class="eyebrow">{release.tag} · Linux and Windows</p>
+		<h2 id="final-title">Install Sirius. Bring a model. <span class="muted">Start working.</span></h2>
+		<p class="lede">Under a minute to install; a provider key or a running Ollama to make it think.</p>
+		<div class="cta">
+			<DownloadButton />
+			<a class="btn btn-secondary" href="/docs/">Getting started</a>
+		</div>
+		<pre class="arch" aria-label="Arch Linux install"><code><span class="c"># Arch Linux — the [sirius] pacman repository</span>
+sudo pacman -Syu sirius-ide-bin</code></pre>
+	</div>
+</section>
+
+<style>
+	.box { text-align: center; padding: clamp(2.5rem, 6vw, 5rem) var(--gutter); border: 1px solid var(--border); border-radius: var(--radius-l); background: var(--surface); }
+	.box h2 { margin: 1rem auto 0; max-width: 22ch; }
+	.box .lede { margin: 1.25rem auto 0; max-width: 50ch; }
+	.cta { margin-top: 2rem; display: flex; flex-wrap: wrap; justify-content: center; gap: 0.75rem; }
+	.arch { display: inline-block; margin: 2rem auto 0; text-align: left; padding: 0.9rem 1.1rem; border-radius: var(--radius-m); background: var(--bg); border: 1px solid var(--border); font-size: var(--text-xs); line-height: 1.6; color: var(--fg); overflow-x: auto; max-width: 100%; }
+	.arch code { background: none; border: 0; padding: 0; font-size: inherit; }
+	.c { color: var(--fg-dim); }
+	@media (max-width: 640px) { .cta { flex-direction: column; } .cta :global(.btn) { width: 100%; } }
+</style>

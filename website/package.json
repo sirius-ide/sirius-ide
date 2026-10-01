@@ -11,18 +11,29 @@
     "prebuild": "node scripts/fetch-release-data.mjs",
     "dev": "astro dev",
     "build": "astro build",
+    "postbuild": "node scripts/postbuild.mjs",
     "preview": "astro preview",
     "check": "astro check",
-    "screenshots": "node scripts/screenshots.mjs"
+    "screenshots": "node scripts/screenshots.mjs",
+    "test": "node scripts/smoke.mjs && node scripts/links.mjs && node scripts/axe.mjs",
+    "test:smoke": "node scripts/smoke.mjs",
+    "test:links": "node scripts/links.mjs",
+    "test:axe": "node scripts/axe.mjs",
+    "lighthouse": "lhci autorun --config=lighthouserc.cjs"
   },
   "dependencies": {
+    "@astrojs/rss": "^4.0.19",
     "@astrojs/sitemap": "^3.7.4",
     "@astrojs/starlight": "^0.42.4",
+    "@resvg/resvg-js": "^2.6.2",
     "astro": "^7.3.5",
+    "satori": "^0.33.5",
     "sharp": "^0.35.5"
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.10",
+    "@axe-core/playwright": "^4.13.0",
+    "@lhci/cli": "^0.15.1",
     "@playwright/test": "~1.56.1",
     "typescript": "^5.9.3"
   }

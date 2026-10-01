@@ -1,0 +1,16 @@
+---
+import { keybindings } from './ext';
+const keys = (combo: string) => combo.split(' ').map((chord) => chord.split('+'));
+---
+<table>
+	<thead><tr><th>Action</th><th>Linux and Windows</th><th>macOS</th></tr></thead>
+	<tbody>
+		{keybindings.map((k) => (
+			<tr>
+				<td>{k.title}</td>
+				<td>{keys(k.key).map((chord, i) => <span class="chord">{i > 0 && ' '}{chord.map((key, j) => <>{j > 0 && '+'}<kbd>{key.length === 1 ? key.toUpperCase() : key[0].toUpperCase() + key.slice(1)}</kbd></>)}</span>)}</td>
+				<td>{k.mac ? keys(k.mac).map((chord, i) => <span class="chord">{i > 0 && ' '}{chord.map((key, j) => <>{j > 0 && '+'}<kbd>{key === 'cmd' ? '⌘' : key.length === 1 ? key.toUpperCase() : key[0].toUpperCase() + key.slice(1)}</kbd></>)}</span>) : '—'}</td>
+			</tr>
+		))}
+	</tbody>
+</table>

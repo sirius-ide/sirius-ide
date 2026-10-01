@@ -1,0 +1,82 @@
+---
+title: FAQ
+description: Short answers to the questions people ask before and after installing Sirius.
+sidebar:
+  order: 17
+---
+
+### Is Sirius free?
+
+Yes. Sirius is free to download and use on any number of devices you own, for personal or
+commercial development. There are no plans and no tiers: you bring your own model keys and
+pay the provider directly, or run local models and pay nothing. The
+[licence](/license/) is the binding text.
+
+### Which models can I use?
+
+Anthropic Claude, Google Gemini, OpenAI, OpenRouter, Groq, DeepSeek, Mistral and xAI
+through their APIs; Ollama, LM Studio, llama.cpp and vLLM locally; and any other
+OpenAI-compatible endpoint. Pick a model with <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>M</kbd>
+or from the picker in the chat. See [Providers and keys](/docs/providers/) and
+[Local models](/docs/local-models/).
+
+### Does my code leave my machine?
+
+Only in the request you send, and only to the provider you chose: the prompt, the context
+you attached or the editor included, and files a tool read. Sirius runs no relay. With a
+local model, nothing leaves the machine at all. There is no telemetry, no crash reporting
+and no account. See [Privacy and where keys live](/docs/privacy-and-keys/).
+
+### Is this Visual Studio Code?
+
+No. Sirius is a derivative work of Code - OSS, the MIT-licensed open-source foundation of
+VS Code; it is not VS Code and is neither produced nor endorsed by Microsoft. It does not
+use Microsoft's branding, telemetry or Marketplace: extensions come from
+[Open VSX](https://open-vsx.org), because Microsoft's marketplace terms bar other products
+from using theirs.
+
+### Can I bring my extensions and settings?
+
+Yes. **Sirius: Import from VS Code, Cursor, or Windsurf** brings your settings,
+keybindings, snippets and extensions over from Visual Studio Code, Cursor, Windsurf (now
+Devin Desktop) or VSCodium, and reports what it imported. See
+[Importing from another editor](/docs/import/).
+
+### Where are my API keys stored?
+
+In the editor's secret storage, which is backed by your operating system's keyring — never
+in `settings.json`, never synchronised, never sent anywhere but the provider they belong
+to. See [Privacy and where keys live](/docs/privacy-and-keys/).
+
+### How does it update?
+
+The tarball and the Windows installer check the update server and update themselves
+(Windows in place; on Linux the editor notifies you and opens the download page). The
+`.deb`, `.rpm` and Arch packages update through your package manager; the pacman repository
+is updated by the release itself. See [Updates](/docs/updates/).
+
+### Why does Windows warn me on first run?
+
+The Windows installer is not code-signed yet, so SmartScreen shows its warning. Choose
+*More info*, then *Run anyway*. Every release asset is attested with GitHub build
+provenance and carries a sha256 sidecar you can verify. Signing is on the
+[roadmap](/roadmap/).
+
+### Is there a macOS build?
+
+Not yet. The packaging exists, but a macOS release needs an Apple Developer certificate for
+signing and notarisation; without it Gatekeeper refuses the app. Follow the
+[GitHub issue](https://github.com/sirius-ide/sirius-ide/issues) to hear when it ships.
+
+### Is Sirius open source?
+
+No. Sirius ships under its own proprietary [licence](/license/), and its source is
+published on GitHub. Code - OSS and every third-party component keep their own licences,
+reproduced in `ThirdPartyNotices.txt`.
+
+### Where do I report a bug or a security problem?
+
+Bugs and feature requests go to [GitHub issues](https://github.com/sirius-ide/sirius-ide/issues).
+Security problems go through
+[GitHub's private vulnerability reporting](https://github.com/sirius-ide/sirius-ide/security/advisories/new),
+never a public issue — see the [security policy](/security/).

@@ -1,0 +1,32 @@
+---
+/** Copies the text of the sibling <code> (or the given text) to the clipboard. Progressive: without JavaScript the button is absent. */
+interface Props { text?: string; label?: string }
+const { text, label = 'Copy' } = Astro.props;
+---
+<button type="button" class="copy" data-copy={text} aria-label={label} hidden>
+	<svg aria-hidden="true" viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5" /><path d="M10.5 5.5v-2a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2" /></svg>
+	<span class="t">{label}</span>
+</button>
+
+<style>
+	.copy { display: inline-flex; align-items: center; gap: 0.35em; padding: 0.3em 0.6em; border-radius: 6px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--fg-muted); font-size: var(--text-xs); font-weight: 500; cursor: pointer; }
+	.copy:hover { color: var(--fg); border-color: var(--fg-dim); }
+	.copy.done { color: var(--ok); border-color: var(--ok); }
+</style>
+
+<script>
+	for (const btn of document.querySelectorAll<HTMLButtonElement>('button.copy[hidden]')) {
+		if (!navigator.clipboard) { continue; }
+		btn.hidden = false;
+		btn.addEventListener('click', async () => {
+			const text = btn.dataset.copy ?? btn.parentElement?.querySelector('code')?.textContent ?? '';
+			try {
+				await navigator.clipboard.writeText(text.trim());
+				btn.classList.add('done');
+				const t = btn.querySelector('.t'); const old = t?.textContent ?? 'Copy';
+				if (t) { t.textContent = 'Copied'; }
+				setTimeout(() => { btn.classList.remove('done'); if (t) { t.textContent = old; } }, 1600);
+			} catch { /* clipboard refused: nothing to do */ }
+		});
+	}
+</script>

@@ -5,13 +5,16 @@ import { Font } from 'astro:assets';
 import Nav from '../components/Nav.astro';
 import Footer from '../components/Footer.astro';
 import { site } from '../site.config';
+import { ogSlugFor } from '../og/pages';
 
 interface Props {
 	title: string;
 	description: string;
 	ogImage?: string;
+	/** Error and utility pages: no canonical, not indexed. */
+	noindex?: boolean;
 }
-const { title, description, ogImage = '/og/default.png' } = Astro.props;
+const { title, description, ogImage = `/og/${ogSlugFor(Astro.url.pathname)}.png`, noindex = false } = Astro.props;
 const canonical = new URL(Astro.url.pathname, Astro.site ?? site.url).href;
 const fullTitle = title === site.name ? `${site.name} — ${site.tagline}` : `${title} — ${site.name}`;
 const ogUrl = new URL(ogImage, Astro.site ?? site.url).href;
@@ -19,7 +22,7 @@ const ogUrl = new URL(ogImage, Astro.site ?? site.url).href;
 // Before first paint: which OS is this, and did the visitor choose a theme? Sets two
 // data attributes the CSS reads. The served HTML names no OS (BRIEF.md §4); without
 // JavaScript everything still renders, with the neutral labels.
-const boot = `(function(){try{var d=document.documentElement,n=navigator,p=((n.userAgentData&&n.userAgentData.platform)||n.platform||'').toLowerCase(),u=(n.userAgent||'').toLowerCase(),o='other';if(/android|iphone|ipad|ipod/.test(u)||/iphone|ipad|ipod|android/.test(p)){o='mobile'}else if(/win/.test(p)||/windows/.test(u)){o='windows'}else if(/mac/.test(p)||/mac os/.test(u)){o='macos'}else if(/linux|x11|cros|bsd/.test(p)||/linux|cros|bsd/.test(u)){o='linux'}d.dataset.os=o;var t=localStorage.getItem('sirius-theme');if(t==='light'||t==='dark'){d.dataset.theme=t}}catch(e){}})();`;
+const boot = `(function(){try{var d=document.documentElement,n=navigator,p=((n.userAgentData&&n.userAgentData.platform)||n.platform||'').toLowerCase(),u=(n.userAgent||'').toLowerCase(),o='other';if(/android|iphone|ipad|ipod/.test(u)||/iphone|ipad|ipod|android/.test(p)){o='mobile'}else if(/win/.test(p)||/windows/.test(u)){o='windows'}else if(/mac/.test(p)||/mac os/.test(u)){o='macos'}else if(/linux|x11|cros|bsd/.test(p)||/linux|cros|bsd/.test(u)){o='linux'}try{var s=localStorage.getItem('sirius-os');if(s==='linux'||s==='windows'||s==='macos'){o=s}}catch(e){}d.dataset.os=o;var t=localStorage.getItem('starlight-theme');if(t==='light'||t==='dark'){d.dataset.theme=t}}catch(e){}})();`;
 ---
 <!doctype html>
 <html lang="en">
@@ -29,7 +32,7 @@ const boot = `(function(){try{var d=document.documentElement,n=navigator,p=((n.u
 		<script is:inline set:html={boot} />
 		<title>{fullTitle}</title>
 		<meta name="description" content={description} />
-		<link rel="canonical" href={canonical} />
+		{noindex ? <meta name="robots" content="noindex" /> : <link rel="canonical" href={canonical} />}
 		<meta name="color-scheme" content="dark light" />
 		<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#06080d" />
 		<meta name="theme-color" media="(prefers-color-scheme: light)" content="#f5f7fb" />
@@ -52,6 +55,7 @@ const boot = `(function(){try{var d=document.documentElement,n=navigator,p=((n.u
 		<Font cssVariable="--font-sans" preload />
 		<Font cssVariable="--font-mono" preload />
 		<ClientRouter />
+		<slot name="head" />
 	</head>
 	<body>
 		<a class="skip" href="#main">Skip to content</a>

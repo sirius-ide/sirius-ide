@@ -26,7 +26,7 @@
 	--radius-l: 16px;
 	--container: 1200px;
 	--gutter: clamp(16px, 4vw, 40px);
-	--section-y: clamp(72px, 10vw, 140px);
+	--section-y: clamp(56px, 7vw, 104px);
 
 	/* type scale (Geist 100–900 · Geist Mono 100–900) */
 	--text-xs: 0.8125rem;

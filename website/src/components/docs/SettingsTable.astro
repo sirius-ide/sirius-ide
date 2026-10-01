@@ -1,0 +1,19 @@
+---
+import { currentSettings, deprecatedSettings, describe } from './ext';
+interface Props { deprecated?: boolean; prefix?: string }
+const { deprecated = false, prefix } = Astro.props;
+const rows = (deprecated ? deprecatedSettings : currentSettings).filter((s) => !prefix || s.key.startsWith(prefix));
+const parts = (s: string) => s.split(/(`[^`]+`)/g).filter(Boolean).map((part) => part.startsWith('`') ? { code: true, text: part.slice(1, -1) } : { code: false, text: part });
+---
+<table>
+	<thead><tr><th>Setting</th><th>Default</th><th>What it does</th></tr></thead>
+	<tbody>
+		{rows.map((s) => (
+			<tr>
+				<td><code>{s.key}</code><br /><small>{s.type}{s.enumValues ? `: ${s.enumValues.join(' · ')}` : ''}</small></td>
+				<td><code>{s.defaultValue}</code></td>
+				<td>{parts(describe(s.description)).map((p) => p.code ? <code>{p.text}</code> : p.text)}{s.deprecated && <><br /><em>{s.deprecated}</em></>}</td>
+			</tr>
+		))}
+	</tbody>
+</table>

@@ -1,0 +1,42 @@
+---
+import MediaSlot from '../MediaSlot.astro';
+import RemoteArt from '../art/RemoteArt.astro';
+import Logo from '../Logo.astro';
+---
+<section class="section feature" id="remote" aria-labelledby="remote-title">
+	<div class="container split">
+		<div class="copy head">
+			<p class="eyebrow">08 — Remote server</p>
+			<h2 id="remote-title">The server half, <span class="muted">shipped with every release.</span></h2>
+			<p class="lede">
+				<code>sirius-server-linux-x64.tar.gz</code> and its arm64 twin are the headless half a remote extension
+				installs on the machine you connect to — built from the same commit as the editor. Unpack it, run
+				<code>bin/sirius-server</code>, and <code>/version</code> answers with the release commit.
+			</p>
+		</div>
+		<div class="demo">
+			<MediaSlot name="remote-server" label="A terminal on a remote host: unpacking the Sirius server tarball, the requirements check, --version, starting the server, and /version answering the release commit."><RemoteArt /></MediaSlot>
+		</div>
+		<div class="copy more">
+			<ul class="points">
+				<li><Logo size={20} class="pt-icon" /><div><b>A floor you can plan on.</b> glibc 2.28 and GLIBCXX 3.4.25 — Debian 10, Ubuntu 20.04, RHEL 8 or newer — checked by the server's own <code>check-requirements.sh</code> before it starts.</div></li>
+				<li><Logo size={20} class="pt-icon" /><div><b>Proven on three distributions, two architectures.</b> Every release starts the server on Debian 12, Ubuntu 22.04 and Rocky 9, x64 and arm64, before anything is published.</div></li>
+				<li><Logo size={20} class="pt-icon" /><div><b>Wired for remote extensions.</b> The editor's <code>serverDownloadUrlTemplate</code> points at these tarballs, so a compatible remote extension can fetch the matching server on first connect.</div></li>
+			</ul>
+		</div>
+	</div>
+</section>
+
+<style>
+	.split { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); grid-template-areas: "demo head" "demo more"; column-gap: clamp(2rem, 6vw, 5.5rem); row-gap: 1.75rem; align-items: center; }
+	.head { grid-area: head; align-self: end; }
+	.more { grid-area: more; align-self: start; }
+	.demo { grid-area: demo; }
+	.copy h2 { margin-top: 1rem; }
+	.copy .lede { margin-top: 1.25rem; font-size: var(--text-m); }
+	.points { list-style: none; padding: 0; margin: 0; display: grid; gap: 1rem; }
+	.points li { display: grid; grid-template-columns: 20px 1fr; gap: 0.85rem; align-items: start; color: var(--fg-muted); font-size: var(--text-s); line-height: 1.55; }
+	.points b { color: var(--fg); }
+	.points :global(.pt-icon) { margin-top: 0.3em; }
+	@media (max-width: 900px) { .split { grid-template-columns: minmax(0, 1fr); grid-template-areas: "head" "demo" "more"; row-gap: 2.25rem; } }
+</style>

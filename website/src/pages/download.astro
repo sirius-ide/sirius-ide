@@ -1,0 +1,218 @@
+---
+import Base from '../layouts/Base.astro';
+import CopyButton from '../components/CopyButton.astro';
+import { site } from '../site.config';
+import { release, releaseDate, formatSize, cdnUrl, type ReleaseAsset } from '../data/release';
+import { assetByKind, type AssetKind } from '../data/assets';
+
+const r = release;
+const get = (k: AssetKind) => assetByKind(r, k);
+const a = {
+	tarX64: get('linux-x64-tar'), tarArm: get('linux-arm64-tar'),
+	debAmd: get('deb-amd64'), debArm: get('deb-arm64'),
+	rpmX86: get('rpm-x86_64'), rpmA64: get('rpm-aarch64'),
+	arch: get('arch-pkg'), srvX64: get('server-x64'), srvArm: get('server-arm64'),
+	win: get('win32-x64-setup'),
+};
+const cdn = (asset: ReleaseAsset) => cdnUrl(r, asset, site.downloadHost);
+const sha = (asset?: ReleaseAsset) => asset?.sha256 ?? null;
+const description = `Download Sirius IDE ${r.tag} for Linux (x64, arm64: tarball, .deb, .rpm, pacman) and Windows (x64). Every asset is attested and carries a sha256.`;
+
+const pacman = `[sirius]\nSigLevel = Optional\nServer = ${site.downloadHost}/arch/$arch`;
+---
+<Base title="Download" description={description}>
+	<script type="application/ld+json" slot="head" set:html={JSON.stringify({
+		'@context': 'https://schema.org', '@type': 'SoftwareApplication', name: site.name, applicationCategory: 'DeveloperApplication',
+		operatingSystem: 'Linux, Windows', softwareVersion: r.version, datePublished: r.publishedAt, downloadUrl: `${site.url}/download/`,
+		offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' }, url: `${site.url}/download/`,
+	})} />
+	<section class="section head">
+		<div class="container">
+			<p class="eyebrow">Download · {r.tag} · {releaseDate(r)}</p>
+			<h1>Get Sirius for <span class="os os-default">your machine</span><span class="os os-linux">Linux</span><span class="os os-windows">Windows</span>.</h1>
+			<p class="lede">Free to download and use — you bring your own model keys. Every asset is built by the release pipeline, attested, and carries a sha256 beside it. Downloads come from <code>{site.downloadHost.replace('https://', '')}</code>; GitHub keeps the archival copy.</p>
+			<div class="detect" role="group" aria-label="Choose your platform">
+				<span class="detect-label"><span class="os os-default">Pick a platform</span><span class="os os-linux">Detected: Linux</span><span class="os os-windows">Detected: Windows</span><span class="os os-macos">Detected: macOS — not available yet</span></span>
+				<button type="button" class="chip" data-os-pick="linux">Linux</button>
+				<button type="button" class="chip" data-os-pick="windows">Windows</button>
+				<button type="button" class="chip" data-os-pick="macos">macOS</button>
+			</div>
+		</div>
+	</section>
+
+	<div class="container platforms">
+		<!-- Linux -->
+		<section class="plat plat-linux" id="linux" aria-labelledby="linux-title">
+			<header><h2 id="linux-title">Linux</h2><p class="arch">x64 · arm64 · glibc 2.28 or newer</p></header>
+
+			<article class="method" id="arch">
+				<h3>Arch Linux <span class="rec">recommended on Arch</span></h3>
+				<p>Add the Sirius repository to <code>/etc/pacman.conf</code>, then install like any package. Updates arrive with <code>pacman -Syu</code>; the release itself publishes each tag to the repository. x86_64 only for now — on aarch64 use the tarball.</p>
+				<div class="cmd"><pre><code>{pacman}</code></pre><CopyButton text={pacman} /></div>
+				<div class="cmd"><pre><code>sudo pacman -Syu sirius-ide-bin</code></pre><CopyButton text="sudo pacman -Syu sirius-ide-bin" /></div>
+				{a.arch && <p class="asset">Or install the package directly: <a href={cdn(a.arch)}>{a.arch.name}</a> <span class="size">{formatSize(a.arch.size)}</span>{sha(a.arch) && <code class="sha">sha256 {sha(a.arch)}</code>}</p>}
+			</article>
+
+			<article class="method" id="deb">
+				<h3>Debian, Ubuntu <span class="arch-tag">.deb</span></h3>
+				<p>The package is named <code>sirius</code> and carries a build stamp in its version, so the glob below is deliberate. It adds no third-party apt repository or key to your system; update by installing a newer package, or let the editor tell you when one exists. The arm64 package needs Debian 11, Ubuntu 20.04 or newer.</p>
+				<div class="cmd"><pre><code>sudo apt install ./sirius_*_amd64.deb   <span class="c"># x86_64</span>
+sudo apt install ./sirius_*_arm64.deb   <span class="c"># arm64 / aarch64</span></code></pre><CopyButton text={'sudo apt install ./sirius_*_amd64.deb'} label="Copy x64" /></div>
+				<ul class="assets">
+					{a.debAmd && <li><a href={cdn(a.debAmd)}>{a.debAmd.name}</a> <span class="size">{formatSize(a.debAmd.size)}</span></li>}
+					{a.debArm && <li><a href={cdn(a.debArm)}>{a.debArm.name}</a> <span class="size">{formatSize(a.debArm.size)}</span></li>}
+				</ul>
+			</article>
+
+			<article class="method" id="rpm">
+				<h3>Fedora, RHEL <span class="arch-tag">.rpm</span></h3>
+				<p>Same naming note as the <code>.deb</code>. Both architectures are installed and run on Rocky Linux 9 by the release pipeline; aarch64 needs RHEL 9 or newer.</p>
+				<div class="cmd"><pre><code>sudo dnf install ./sirius-*.x86_64.rpm    <span class="c"># x86_64</span>
+sudo dnf install ./sirius-*.aarch64.rpm   <span class="c"># arm64 / aarch64</span></code></pre><CopyButton text={'sudo dnf install ./sirius-*.x86_64.rpm'} label="Copy x64" /></div>
+				<ul class="assets">
+					{a.rpmX86 && <li><a href={cdn(a.rpmX86)}>{a.rpmX86.name}</a> <span class="size">{formatSize(a.rpmX86.size)}</span></li>}
+					{a.rpmA64 && <li><a href={cdn(a.rpmA64)}>{a.rpmA64.name}</a> <span class="size">{formatSize(a.rpmA64.size)}</span></li>}
+				</ul>
+			</article>
+
+			<article class="method" id="tarball">
+				<h3>Any Linux <span class="arch-tag">tarball</span></h3>
+				<p>Built against a glibc 2.28 sysroot; arm64 additionally needs GCC 9's libstdc++ (GLIBCXX 3.4.26). The editor notifies you of updates and opens this page. Unpacks to <code>VSCode-linux-x64</code> or <code>VSCode-linux-arm64</code>.</p>
+				<div class="cmd"><pre><code>tar -xzf sirius-linux-x64.tar.gz
+./VSCode-linux-x64/bin/sirius</code></pre><CopyButton text={'tar -xzf sirius-linux-x64.tar.gz\n./VSCode-linux-x64/bin/sirius'} /></div>
+				<ul class="assets">
+					{a.tarX64 && <li><a href={cdn(a.tarX64)}>{a.tarX64.name}</a> <span class="size">{formatSize(a.tarX64.size)}</span>{sha(a.tarX64) && <code class="sha">sha256 {sha(a.tarX64)}</code>}</li>}
+					{a.tarArm && <li><a href={cdn(a.tarArm)}>{a.tarArm.name}</a> <span class="size">{formatSize(a.tarArm.size)}</span>{sha(a.tarArm) && <code class="sha">sha256 {sha(a.tarArm)}</code>}</li>}
+				</ul>
+				<p class="note">For a menu entry, <a href="/docs/install/#any-linux-tarball">INSTALL.md shows the desktop file</a> to drop in place.</p>
+			</article>
+
+			<article class="method" id="server">
+				<h3>Remote server <span class="arch-tag">sirius-server</span></h3>
+				<p>The headless half a remote extension installs on the machine you connect to, x64 and arm64, needing glibc 2.28 and GLIBCXX 3.4.25 or newer. <code>product.json</code> points remote extensions at these tarballs; to place one yourself, unpack it on the host and run <code>bin/sirius-server</code>.</p>
+				<ul class="assets">
+					{a.srvX64 && <li><a href={cdn(a.srvX64)}>{a.srvX64.name}</a> <span class="size">{formatSize(a.srvX64.size)}</span>{sha(a.srvX64) && <code class="sha">sha256 {sha(a.srvX64)}</code>}</li>}
+					{a.srvArm && <li><a href={cdn(a.srvArm)}>{a.srvArm.name}</a> <span class="size">{formatSize(a.srvArm.size)}</span>{sha(a.srvArm) && <code class="sha">sha256 {sha(a.srvArm)}</code>}</li>}
+				</ul>
+			</article>
+		</section>
+
+		<!-- Windows -->
+		<section class="plat plat-windows" id="windows" aria-labelledby="windows-title">
+			<header><h2 id="windows-title">Windows</h2><p class="arch">x64 · Windows 10 or newer</p></header>
+			<article class="method">
+				<h3>Installer</h3>
+				{a.win && <p class="asset big"><a class="btn btn-primary" href={cdn(a.win)}>Download {a.win.name}</a> <span class="size">{formatSize(a.win.size)}</span></p>}
+				{a.win && sha(a.win) && <p><code class="sha">sha256 {sha(a.win)}</code></p>}
+				<div class="callout">
+					<b>SmartScreen will warn on first run.</b> The installer is not code-signed yet. Choose <em>More info</em>, then <em>Run anyway</em>. You can verify the file first — see <a href="#verify">how to verify</a>. Signing is on the <a href="/roadmap/">roadmap</a>.
+				</div>
+				<p class="note">Windows updates in place: the editor downloads and installs new versions itself.</p>
+			</article>
+		</section>
+
+		<!-- macOS -->
+		<section class="plat plat-macos" id="macos" aria-labelledby="macos-title">
+			<header><h2 id="macos-title">macOS</h2><p class="arch">not yet</p></header>
+			<article class="method">
+				<p>The packaging exists, but a macOS release needs an Apple Developer certificate for signing and notarisation; without it Gatekeeper refuses the app. <a href={site.macosIssue} rel="noopener">Follow the issue on GitHub</a> to hear when it ships. Linux and Windows builds are above.</p>
+			</article>
+		</section>
+
+		<section class="plat" id="verify" aria-labelledby="verify-title">
+			<header><h2 id="verify-title">How to verify a download</h2></header>
+			<article class="method">
+				<p>Every asset has a <code>.sha256</code> sidecar beside it on the release, and every asset is attested with GitHub's build provenance, which ties the bytes to the exact workflow run and commit that produced them.</p>
+				<div class="cmd"><pre><code>sha256sum -c sirius-linux-x64.tar.gz.sha256
+gh attestation verify sirius-linux-x64.tar.gz --owner {site.githubOwner}</code></pre><CopyButton text={`sha256sum -c sirius-linux-x64.tar.gz.sha256\ngh attestation verify sirius-linux-x64.tar.gz --owner ${site.githubOwner}`} /></div>
+				<p class="note">The sidecars and <code>commit.txt</code> are on the <a href={r.url} rel="noopener">GitHub release</a>.</p>
+			</article>
+		</section>
+
+		<section class="plat" id="updates" aria-labelledby="updates-title">
+			<header><h2 id="updates-title">How updates reach you</h2></header>
+			<article class="method">
+				<table class="updates">
+					<thead><tr><th scope="col">How you installed</th><th scope="col">How it updates</th></tr></thead>
+					<tbody>
+						<tr><th scope="row">Sirius pacman repo</th><td><code>sudo pacman -Syu</code> — the release updates the repository itself</td></tr>
+						<tr><th scope="row"><code>.deb</code> / <code>.rpm</code></th><td>Install a newer package</td></tr>
+						<tr><th scope="row">Tarball</th><td>The editor notifies you and opens this page</td></tr>
+						<tr><th scope="row">Windows installer</th><td>In place, automatically</td></tr>
+					</tbody>
+				</table>
+				<p class="note">On Linux the editor notifies rather than replacing itself, because a package installed by your distribution is not the editor's to overwrite. The update check sends the platform, channel and build commit — no identifier for you or your machine.</p>
+			</article>
+		</section>
+
+		<section class="plat" id="after" aria-labelledby="after-title">
+			<header><h2 id="after-title">After installing</h2></header>
+			<article class="method">
+				<p>Sirius needs a model. Either add a provider key — <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd>, <em>Sirius: Set API Key</em>; keys go to your system keyring — or run models locally with nothing leaving your machine:</p>
+				<div class="cmd"><pre><code>ollama serve
+ollama pull qwen3</code></pre><CopyButton text={'ollama serve\nollama pull qwen3'} /></div>
+				<p>Sirius finds a running Ollama automatically; LM Studio, llama.cpp and vLLM work the same way. Pick a model with <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>M</kbd>. <a href="/docs/">The getting-started guide</a> takes it from there.</p>
+			</article>
+		</section>
+	</div>
+</Base>
+
+<script>
+	// The manual override: a pick sets data-os for this page and is remembered for the hero's button.
+	for (const b of document.querySelectorAll<HTMLButtonElement>('[data-os-pick]')) {
+		b.addEventListener('click', () => {
+			const os = b.dataset.osPick!;
+			document.documentElement.dataset.os = os;
+			try { localStorage.setItem('sirius-os', os); } catch { /* private mode */ }
+			document.getElementById(os)?.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+		});
+	}
+</script>
+
+<style>
+	.head { padding-bottom: 0; }
+	.head h1 { margin-top: 0.75rem; max-width: 18ch; }
+	.head .lede { margin-top: 1.25rem; max-width: 64ch; }
+	.os { display: none; }
+	:global(html:not([data-os])) .os-default, :global(html[data-os="other"]) .os-default, :global(html[data-os="mobile"]) .os-default { display: inline; }
+	:global(html[data-os="linux"]) .os-linux { display: inline; }
+	:global(html[data-os="windows"]) .os-windows { display: inline; }
+	:global(html[data-os="macos"]) .os-macos { display: inline; }
+	:global(html[data-os="macos"]) .head .os-default { display: inline; }
+	.detect { margin-top: 1.75rem; display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+	.detect-label { font-family: var(--font-mono); font-size: var(--text-xs); letter-spacing: 0.06em; text-transform: uppercase; color: var(--fg-muted); margin-right: 0.5rem; }
+	.chip { padding: 0.45em 0.9em; border-radius: 999px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--fg); font-size: var(--text-s); font-weight: 500; cursor: pointer; }
+	.chip:hover { border-color: var(--accent); }
+	:global(html[data-os="linux"]) .chip[data-os-pick="linux"], :global(html[data-os="windows"]) .chip[data-os-pick="windows"], :global(html[data-os="macos"]) .chip[data-os-pick="macos"] { background: var(--accent-strong); color: var(--on-accent); border-color: var(--accent-strong); }
+	.platforms { display: grid; gap: 1.5rem; padding-block: 2.5rem var(--section-y); }
+	/* the detected platform comes first */
+	:global(html[data-os="windows"]) .plat-windows, :global(html[data-os="macos"]) .plat-macos, :global(html[data-os="linux"]) .plat-linux { order: -1; }
+	.plat { border: 1px solid var(--border); border-radius: var(--radius-l); background: var(--surface); padding: clamp(1.25rem, 3vw, 2.25rem); scroll-margin-top: 80px; }
+	.plat header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.5rem 1.25rem; margin-bottom: 1rem; }
+	.plat h2 { font-size: var(--text-xl); }
+	.arch { font-family: var(--font-mono); font-size: var(--text-xs); letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent-text); }
+	.method { padding: 1.25rem 0; border-top: 1px solid var(--border); display: grid; gap: 0.8rem; }
+	.method h3 { font-size: var(--text-l); display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; }
+	.method p { color: var(--fg-muted); font-size: var(--text-s); line-height: 1.6; max-width: 80ch; }
+	.rec, .arch-tag { font-family: var(--font-mono); font-size: 0.65em; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; padding: 0.2em 0.6em; border-radius: 999px; border: 1px solid var(--border-strong); color: var(--fg-muted); }
+	.rec { color: var(--accent-text); border-color: color-mix(in srgb, var(--accent) 50%, transparent); }
+	.cmd { position: relative; display: grid; }
+	.cmd pre { margin: 0; padding: 0.9rem 6.5rem 0.9rem 1rem; border-radius: var(--radius-m); background: var(--bg); border: 1px solid var(--border); font-size: var(--text-xs); line-height: 1.65; overflow-x: auto; color: var(--fg); }
+	.cmd pre code { background: none; border: 0; padding: 0; font-size: inherit; }
+	.cmd :global(.copy) { position: absolute; top: 0.55rem; right: 0.55rem; }
+	.c { color: var(--fg-dim); }
+	.assets { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.5rem; }
+	.assets li, .asset { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.35rem 0.75rem; font-size: var(--text-s); color: var(--fg-muted); }
+	.assets a, .asset a { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--link); }
+	.size { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--fg-dim); }
+	.sha { font-size: 0.72rem; color: var(--fg-dim); background: none; border: 0; padding: 0; word-break: break-all; flex-basis: 100%; }
+	.asset.big { align-items: center; gap: 1rem; }
+	.callout { padding: 0.9rem 1rem; border-radius: var(--radius-m); background: var(--surface-2); border: 1px solid var(--border); color: var(--fg-muted); font-size: var(--text-s); line-height: 1.55; max-width: 80ch; }
+	.callout b { color: var(--fg); }
+	.note { font-size: var(--text-xs) !important; color: var(--fg-dim) !important; }
+	.updates { border-collapse: collapse; width: 100%; max-width: 760px; font-size: var(--text-s); }
+	.updates th, .updates td { text-align: left; padding: 0.6rem 0.75rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+	.updates thead th { color: var(--fg-dim); font-family: var(--font-mono); font-size: var(--text-xs); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 500; }
+	.updates tbody th { color: var(--fg); font-weight: 600; }
+	.updates td { color: var(--fg-muted); }
+</style>

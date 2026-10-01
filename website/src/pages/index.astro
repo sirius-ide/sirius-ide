@@ -1,10 +1,54 @@
 ---
 import Base from '../layouts/Base.astro';
 import Hero from '../components/hero/Hero.astro';
+import Reasons from '../components/sections/Reasons.astro';
+import AgentMode from '../components/sections/AgentMode.astro';
+import TabCompletion from '../components/sections/TabCompletion.astro';
 import Providers from '../components/sections/Providers.astro';
+import Rules from '../components/sections/Rules.astro';
+import Browser from '../components/sections/Browser.astro';
+import GitAssist from '../components/sections/GitAssist.astro';
+import Import from '../components/sections/Import.astro';
+import Remote from '../components/sections/Remote.astro';
+import Privacy from '../components/sections/Privacy.astro';
+import Platforms from '../components/sections/Platforms.astro';
+import Comparison from '../components/sections/Comparison.astro';
+import Faq from '../components/sections/Faq.astro';
+import FinalCta from '../components/sections/FinalCta.astro';
 import { site } from '../site.config';
+import { release } from '../data/release';
+
+const softwareLd = {
+	'@context': 'https://schema.org',
+	'@type': 'SoftwareApplication',
+	name: site.name,
+	applicationCategory: 'DeveloperApplication',
+	operatingSystem: 'Linux, Windows',
+	softwareVersion: release.version,
+	datePublished: release.publishedAt,
+	url: site.url,
+	downloadUrl: `${site.url}/download/`,
+	description: site.description,
+	offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+	license: `${site.url}/license/`,
+	sameAs: [site.github],
+};
 ---
 <Base title={site.name} description={site.description}>
+	<script type="application/ld+json" slot="head" set:html={JSON.stringify(softwareLd)} />
 	<Hero />
+	<Reasons />
+	<AgentMode />
+	<TabCompletion />
 	<Providers />
+	<Rules />
+	<Browser />
+	<GitAssist />
+	<Import />
+	<Remote />
+	<Privacy />
+	<Platforms />
+	<Comparison />
+	<Faq />
+	<FinalCta />
 </Base>

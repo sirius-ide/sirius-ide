@@ -1,0 +1,35 @@
+---
+const points = [
+	['No telemetry, no crash reports, no analytics, no account.', 'There is no setting to find: there is no code in Sirius that reports anything about you anywhere.'],
+	['No relay.', 'A request goes from your machine to the provider you chose. Sirius runs no proxy, so there is nothing for it to log.'],
+	['Keys in the keyring.', 'libsecret, the Keychain or the Credential Manager — never settings.json, never synchronised.'],
+	['Local means local.', 'With Ollama, LM Studio, llama.cpp or vLLM, no prompt, file or fragment of code reaches a third party.'],
+];
+---
+<section class="section privacy" id="privacy" aria-labelledby="privacy-title">
+	<div class="container">
+		<div class="grid">
+			<div class="lead">
+				<p class="eyebrow">Privacy</p>
+				<h2 id="privacy-title">Collects <span class="muted">nothing.</span></h2>
+				<p class="lede">Sirius has no telemetry to turn off, because none was written. The only thing that ever leaves your machine is the request you send to the provider you picked — and with a local model, not even that.</p>
+				<p class="also">This site holds to the same rule: no third-party scripts, no cookies, no analytics. <a href="/privacy/">Read the privacy statement</a>.</p>
+			</div>
+			<ul class="points">
+				{points.map(([title, text]) => <li><b>{title}</b> <span>{text}</span></li>)}
+			</ul>
+		</div>
+	</div>
+</section>
+
+<style>
+	.privacy { border-block: 1px solid var(--border); background: var(--surface); }
+	.grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: clamp(2rem, 6vw, 5rem); align-items: start; }
+	.lead h2 { margin-top: 1rem; }
+	.lead .lede { margin-top: 1.25rem; }
+	.also { margin-top: 1.25rem; color: var(--fg-muted); font-size: var(--text-s); }
+	.points { list-style: none; padding: 0; margin: 0; display: grid; gap: 0; border-top: 1px solid var(--border); }
+	.points li { padding: 1.1rem 0; border-bottom: 1px solid var(--border); color: var(--fg-muted); line-height: 1.55; font-size: var(--text-s); }
+	.points b { display: block; color: var(--fg); font-size: var(--text-m); margin-bottom: 0.2rem; }
+	@media (max-width: 900px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+</style>

@@ -1,0 +1,15 @@
+---
+// Starlight <SiteTitle> override: the Sirius mark and name link back to the site; a DOCS tag says where you are.
+import Logo from './Logo.astro';
+---
+<a href="/" class="site-title sl-flex" aria-label="Sirius IDE — home">
+	<Logo size={26} />
+	<span class="name">Sirius <span class="ide">IDE</span></span>
+	<span class="docs-tag" aria-hidden="true">Docs</span>
+</a>
+<style>
+	.site-title { align-items: center; gap: 0.6rem; text-decoration: none; color: inherit; }
+	.name { font-size: 1.05rem; }
+	.ide { font-weight: 400; color: var(--fg-muted); }
+	@media (max-width: 440px) { .docs-tag { display: none; } }
+</style>

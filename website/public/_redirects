@@ -1,0 +1,14 @@
+# Cloudflare Pages redirects. Host-level redirects (www, siriuside.dev) are zone rules, not here.
+/install            /download/            301
+/downloads          /download/            301
+/download/linux     /download/#linux      301
+/download/windows   /download/#windows    301
+/download/mac       /download/#macos      301
+/download/macos     /download/#macos      301
+/releases           /changelog/           301
+/changelog.xml      /rss.xml              301
+/feed               /rss.xml              301
+/feed.xml           /rss.xml              301
+/docs/getting-started /docs/              301
+/licence            /license/             301
+/security.txt       /.well-known/security.txt 301
