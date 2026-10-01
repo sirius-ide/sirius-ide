@@ -714,9 +714,12 @@ hygiene-checks the tree). Lighthouse: every page 100/100/100/100 with CLS 0 — 
 `/docs/install/` land at an LCP of **1.504 s**, 4 ms over the 1.5 s assertion, on all three runs
 (the VM measured 1.36 and 1.43 s). Pages fall on ~150 ms steps — one simulated round trip: 1.20 s,
 1.35 s (`/`, `/roadmap/`), 1.50 s (docs) — and the docs HTML is 28.5 KB gzipped, carrying 76 KB of
-inline CSS (Starlight + Expressive Code). Dropping the mono preload on the docs does not move it
-and adds a 0.0001 CLS, so the fix is shrinking or externalising the docs CSS. Until then the
-workflow's Lighthouse step may go red on a runner: it gates nothing (no Pages token yet).
+inline CSS (Starlight + Expressive Code); dropping the mono preload on the docs does not move it
+and adds a 0.0001 CLS. **On GitHub's runner it passes:** the first `sirius-website.yml` run on
+`sirius` (36926585620, on `0e2bba8`) is green in every step — smoke, links, axe, and Lighthouse
+with the docs pages at 1.36 s (worst run 1.44 s) and every other page at 1.21–1.36 s, CLS 0, all
+scores 100; deploy skipped (no Pages token yet). The 1.504 s is this machine's Chrome. Trimming
+or externalising the docs CSS would buy margin; it is not a blocker.
 **Cloudflare, read-only from here:** the full-control token is active; `siriuside.com` and
 `siriuside.dev` are both active zones on the account; the Pages project `sirius-website` does not
 exist yet; the token **cannot read** the zone's dynamic-redirect phase ("request is not
@@ -946,8 +949,8 @@ PRs #1–#4 are closed; #5 is moot and left for Dependabot.
 **Next, in order** (one cloud session per item, each on its own branch; the owner lands it
 locally by cherry-pick, §12, before the next item starts — so each builds on the merged state):
 (1) **merged 2026-10-02, not deployed — owner next: look at the site, then the deploy steps,
-DNS, the outside checks and the `product.json` flip, in the order the handoff gives; a small
-cloud follow-up brings the docs pages under the 1.5 s LCP line (above):** the website (hole 2),
+DNS, the outside checks and the `product.json` flip, in the order the handoff gives:** the
+website (hole 2),
 to the specification in `website/BRIEF.md` (2026-10-01): a flagship site — Astro + Starlight, the Sirius Star
 identity, hard Lighthouse budgets, honest content from the repo's own files — built in two
 stops: the design direction (screenshots under `website/design/`) for the owner's OK, then the
