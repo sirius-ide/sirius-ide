@@ -100,7 +100,7 @@ jobs:
 
       # preinstall.ts rejects a mismatched major, so read the pin rather than
       # hardcoding a version that will drift.
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
 
@@ -605,7 +605,7 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
       - run: npm install -g npm@10
