@@ -104,7 +104,7 @@ kbd {
 
 /* sections */
 .section { padding-block: var(--section-y); }
-.section + .section { padding-top: calc(var(--section-y) * 0.6); }
+.section + .section, .bolt-div + .section { padding-top: calc(var(--section-y) * 0.6); }
 .section-head { max-width: 760px; }
 .section-head .eyebrow { margin-bottom: 1rem; }
 .section-head h2 + p { margin-top: 1rem; }

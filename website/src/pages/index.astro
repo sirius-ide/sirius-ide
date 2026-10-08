@@ -1,6 +1,7 @@
 ---
 import Base from '../layouts/Base.astro';
 import Hero from '../components/hero/Hero.astro';
+import Bolt from '../components/Bolt.astro';
 import Reasons from '../components/sections/Reasons.astro';
 import AgentMode from '../components/sections/AgentMode.astro';
 import TabCompletion from '../components/sections/TabCompletion.astro';
@@ -38,6 +39,7 @@ const softwareLd = {
 	<script type="application/ld+json" slot="head" set:html={JSON.stringify(softwareLd)} />
 	<Hero />
 	<Reasons />
+	<Bolt />
 	<AgentMode />
 	<TabCompletion />
 	<Providers />
@@ -46,6 +48,7 @@ const softwareLd = {
 	<GitAssist />
 	<Import />
 	<Remote />
+	<Bolt flip />
 	<Privacy />
 	<Platforms />
 	<Comparison />

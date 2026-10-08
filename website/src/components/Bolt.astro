@@ -1,0 +1,52 @@
+---
+/**
+ * The hero's bolt carried down the page as a section divider: one crisp hairline, slightly off the
+ * horizontal, running from the lens flare — the point, its crosshair and its ring — across the
+ * container. Flat: no glow, no gradient. It takes a short band of its own between two sections,
+ * strikes in once as it rises into view (a scroll timeline, no script), and is simply drawn,
+ * settled, where that is unsupported or motion is reduced. Decorative.
+ */
+interface Props { flip?: boolean }
+const { flip = false } = Astro.props;
+---
+<div class:list={['bolt-div', { flip }]} aria-hidden="true">
+	<div class="in">
+		<span class="line"></span>
+		<span class="cross"></span>
+		<span class="ring"></span>
+		<span class="flare"></span>
+	</div>
+</div>
+
+<style>
+	/* a band of its own between two sections; the 120px box inside it centres the line on the band */
+	.bolt-div { position: relative; height: 72px; pointer-events: none; }
+	.in { position: absolute; top: -24px; left: 0; right: 0; height: 120px; width: min(100% - 2 * var(--gutter), var(--container)); margin-inline: auto; view-timeline: --bolt block; --arm: min(48px, calc(var(--gutter) - 2px)); }
+	.line { position: absolute; top: 60px; right: 0; width: 100%; height: 1px; background: var(--bolt); transform-origin: right center; transform: rotate(-1.6deg); }
+	.flare { position: absolute; top: 57px; right: -3px; width: 6px; height: 6px; border-radius: 50%; background: var(--shine); }
+	.ring { position: absolute; top: 48px; right: -12px; width: 24px; height: 24px; border-radius: 50%; border: 1px solid var(--bolt); }
+	.cross { position: absolute; top: 60px; right: 0; width: 0; height: 0; }
+	.cross::before, .cross::after { content: ""; position: absolute; background: var(--bolt); }
+	/* the crosshair's arm stops short of the viewport edge: never wider than the page gutter */
+	.cross::before { width: calc(2 * var(--arm)); height: 1px; left: calc(-1 * var(--arm)); top: 0; }
+	.cross::after { width: 1px; height: 48px; left: 0; top: -24px; }
+	.flip .line { right: auto; left: 0; transform-origin: left center; transform: rotate(1.6deg); }
+	.flip .flare { right: auto; left: -3px; }
+	.flip .ring { right: auto; left: -12px; }
+	.flip .cross { right: auto; left: 0; }
+	@media (max-width: 640px) {
+		.cross::after { height: 28px; top: -14px; }
+		.ring { width: 20px; height: 20px; top: 50px; right: -10px; }
+		.flip .ring { right: auto; left: -10px; }
+	}
+	@media (prefers-reduced-motion: no-preference) {
+		@supports (animation-timeline: view()) {
+			.line { animation: bolt-strike linear both; animation-timeline: --bolt; animation-range: entry 0% entry 100%; }
+			.flip .line { animation-name: bolt-strike-flip; }
+			.flare, .ring, .cross { animation: bolt-flare linear both; animation-timeline: --bolt; animation-range: entry 40% entry 100%; }
+		}
+	}
+	@keyframes bolt-strike { from { transform: rotate(-1.6deg) scaleX(0); } to { transform: rotate(-1.6deg) scaleX(1); } }
+	@keyframes bolt-strike-flip { from { transform: rotate(1.6deg) scaleX(0); } to { transform: rotate(1.6deg) scaleX(1); } }
+	@keyframes bolt-flare { from { opacity: 0; } to { opacity: 1; } }
+</style>
