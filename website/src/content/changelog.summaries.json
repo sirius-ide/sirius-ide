@@ -6,6 +6,6 @@
 	"v1.118.4": "One command imports settings, keybindings, snippets and extensions from VS Code, Cursor, Windsurf or VSCodium. Sirius also refuses to load Ollama models above 12 GB by default, after one froze a machine; the limit is a setting.",
 	"v1.118.3": "The agent now acts in the project whatever the model's size: a curated tool set for small models, edit and create-file tools whose changes land in the editor's diff-and-checkpoint review, and a recovery net for models that write tool calls as prose.",
 	"v1.118.2": "Chat works out of the box: Sirius is the editor's default chat agent, so there is no Copilot sign-in prompt, and a default model always exists. Tab completion is rebuilt on the local model's native fill-in-the-middle — debounced, cached and cancellable, and off until you turn it on.",
-	"v1.118.1": "The first Sirius-authored patch release. Agent edits now go only through the editor's reviewed edit path, and the commit-message and merge-conflict actions in Source Control work. The first release that installed editors are offered through the update server.",
+	"v1.118.1": "The first Sirius-authored patch release. Agent edits now go only through the editor's reviewed edit path, and the commit-message and merge-conflict actions in Source Control work.",
 	"v1.118.0": "The first public release: Linux (x64 and arm64) and Windows (x64), built in CI from the tag, with a build-provenance attestation on every asset and delivery through the update server."
 }
