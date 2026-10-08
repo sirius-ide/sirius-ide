@@ -5,7 +5,7 @@
 #
 # siriuside.com on Cloudflare Pages, in the house pattern (see deploy.sh): idempotent, every
 # resource addressed by its exact name, the token read from ~/.secrets/cloudflare-sirius.env.
-# Run from the owner's machine; the cloud never runs this (PROJECT-STATE §13).
+# Run from the owner's machine; the cloud never runs this (PROJECT-STATE section 13).
 #
 #   build/cloudflare/deploy-website.sh build      # npm ci + npm run build + npm test in website/
 #   build/cloudflare/deploy-website.sh project    # create the Pages project if it does not exist
@@ -65,6 +65,17 @@ account_id() {
 }
 zone_id() { cf GET "/zones?name=$1" | pick "r['result'][0]['id']"; }
 
+# The project's own pages.dev host. Cloudflare suffixes the name when the plain subdomain
+# is taken (this project is sirius-website-mub.pages.dev, 2026-10-08), so it is read from
+# the API, never assumed — the DNS step points the apex at it.
+pages_host() {
+	account_id
+	local host
+	host=$(cf GET "/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/$PROJECT" | pick "r['result']['subdomain']")
+	[[ -n "$host" && "$host" == *.pages.dev ]] || { echo "could not read the pages.dev host of $PROJECT — run the project step first" >&2; exit 1; }
+	echo "$host"
+}
+
 step_build() {
 	echo "== build =="
 	( cd website && npm ci --no-audit --no-fund && npm run build && npm test )
@@ -90,7 +101,7 @@ step_upload() {
 	[[ -f "$DIST/index.html" ]] || { echo "run the build step first"; exit 1; }
 	if [[ $DRY = 1 ]]; then echo "  [dry-run] wrangler pages deploy $DIST --project-name $PROJECT --branch $PRODUCTION_BRANCH"; return; fi
 	( cd website && npx wrangler pages deploy "$(pwd)/dist" --project-name "$PROJECT" --branch "$PRODUCTION_BRANCH" --commit-dirty=true )
-	echo "  live at https://$PROJECT.pages.dev — check it before the cut-over steps"
+	echo "  live at https://$(pages_host) — check it before the cut-over steps"
 }
 
 step_domain() {
@@ -124,7 +135,7 @@ step_dns() {
 	zone=$(zone_id "$DOMAIN"); [[ -n "$zone" ]] || { echo "zone $DOMAIN not in this account"; exit 1; }
 	# The apex points at the Pages project (Cloudflare flattens the CNAME); www is a
 	# placeholder that only exists so the redirect rule has something to answer on.
-	ensure_record "$zone" CNAME "$DOMAIN" "$PROJECT.pages.dev"
+	ensure_record "$zone" CNAME "$DOMAIN" "$(pages_host)"
 	ensure_record "$zone" AAAA "www.$DOMAIN" "100::"
 	alt=$(zone_id "$ALT_DOMAIN")
 	if [[ -n "$alt" ]]; then
@@ -166,7 +177,7 @@ step_verify() {
 	for u in "https://www.$DOMAIN/download/" "https://$ALT_DOMAIN/docs/" "https://www.$ALT_DOMAIN/"; do
 		printf '  %-48s ' "$u"; curl -sS -o /dev/null -w '%{http_code} → %{redirect_url}\n' --max-time 20 "$u" || true
 	done
-	echo "  then: Lighthouse from a real device, every link, both schemes (BRIEF.md §8)."
+	echo "  then: Lighthouse from a real device, every link, both schemes (BRIEF.md section 8)."
 }
 
 case "$STEP" in
