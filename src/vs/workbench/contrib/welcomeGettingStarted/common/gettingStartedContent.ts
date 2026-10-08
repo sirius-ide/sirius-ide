@@ -255,7 +255,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 		description: localize('gettingStarted.setup.description', "Customize your editor, learn the basics, and start coding"),
 		isFeatured: true,
 		icon: setupIcon,
-		when: '!isWeb',
+		when: 'false', // Sirius: replaced by sirius-ai's "Get started with Sirius" (its first step sells Copilot)
 		walkthroughPageTitle: localize('gettingStarted.setup.walkthroughPageTitle', 'Setup VS Code'),
 		next: 'Beginner',
 		content: {
@@ -482,6 +482,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 		isFeatured: false,
 		title: localize('gettingStarted.beginner.title', "Learn the Fundamentals"),
 		icon: beginnerIcon,
+		when: 'false', // Sirius: replaced by sirius-ai's walkthrough (this one names VS Code and needs a sync account)
 		description: localize('gettingStarted.beginner.description', "Get an overview of the most essential features"),
 		walkthroughPageTitle: localize('gettingStarted.beginner.walkthroughPageTitle', 'Essential Features'),
 		content: {

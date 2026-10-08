@@ -244,6 +244,10 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 			return; // experimental onboarding is disabled
 		}
 
+		if (!this.productService.defaultChatAgent?.entitlementUrl) {
+			return; // the overlay signs in for a chat entitlement; a product without that flow has nothing to show
+		}
+
 		if (!this.storageService.isNew(StorageScope.APPLICATION)) {
 			return; // only show onboarding for new users who have never used the product before
 		}
