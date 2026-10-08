@@ -143,8 +143,17 @@ interface WireResponse {
 }
 
 interface WireModelList {
-	data?: Array<{ id: string }>;
+	/** OpenRouter adds `architecture.input_modalities`; plain OpenAI-shaped servers do not. */
+	data?: Array<{ id: string; architecture?: { input_modalities?: string[] } }>;
 }
+
+/**
+ * Model families known to accept images, for endpoints whose model list does not
+ * say. Deliberately conservative: a model left out keeps working and only loses
+ * images (the bridge's vision guard tells the model one was attached), while a
+ * wrong entry would send images a server rejects.
+ */
+const VISION_MODEL = /(^|[/:-])(gpt-4o|gpt-4\.1|gpt-5|o3(?!-mini)|o4-mini|chatgpt-4o|pixtral|llava|bakllava|qwen2(\.5)?-vl|qwen3-vl|gemma-3|llama-4|grok-4|grok-2-vision)|vision/i;
 
 /**
  * One adapter for every service that speaks OpenAI chat-completions.
@@ -493,7 +502,7 @@ export class OpenAICompatibleProvider implements IAIProvider {
 
 	// ─── Discovery ───────────────────────────────────────────────────────────
 
-	private _describe(id: string): SiriusModel {
+	private _describe(id: string, inputModalities?: readonly string[]): SiriusModel {
 		return {
 			id,
 			name: id,
@@ -501,7 +510,7 @@ export class OpenAICompatibleProvider implements IAIProvider {
 			contextWindow: this.config.assumedContextWindow ?? 128000,
 			description: `${this.config.name} model`,
 			supportsStreaming: true,
-			supportsVision: false,
+			supportsVision: inputModalities ? inputModalities.includes('image') : VISION_MODEL.test(id),
 			supportsThinking: false,
 			supportsImageGen: false
 		};
@@ -525,10 +534,9 @@ export class OpenAICompatibleProvider implements IAIProvider {
 
 			const data = await response.json() as WireModelList;
 			const discovered = (data.data ?? [])
-				.map(m => m.id)
-				.filter(Boolean)
-				.sort()
-				.map(id => this._describe(id));
+				.filter(m => Boolean(m.id))
+				.sort((a, b) => a.id.localeCompare(b.id))
+				.map(m => this._describe(m.id, m.architecture?.input_modalities));
 
 			if (discovered.length > 0) {
 				this._models = discovered;
