@@ -45,6 +45,7 @@ export const unicodeFilter = Object.freeze<string[]>([
 	'!**/*.{d.ts,json,md}',
 	'!**/*.mp3',
 	'!**/*.tiff',
+	'!**/*.webp',
 	'!**/*.provisionprofile',
 
 	'!build/win32/**',
@@ -155,6 +156,7 @@ export const indentationFilter = Object.freeze<string[]>([
 	'!**/*.Dockerfile',
 	'!**/*.dockerfile',
 	'!**/*.tiff',
+	'!**/*.webp',
 
 	// except for built files
 	'!extensions/mermaid-chat-features/chat-webview-out/*.js',
@@ -194,6 +196,7 @@ export const copyrightFilter = Object.freeze<string[]>([
 	'!**/*.js.map',
 	'!**/*.wasm',
 	'!**/*.tiff',
+	'!**/*.webp',
 	'!**/*.provisionprofile',
 	'!build/**/*.init',
 	'!build/darwin/patch-dmg.py',
