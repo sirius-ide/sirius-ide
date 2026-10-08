@@ -5,6 +5,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { selectDefaultModel } from '../lm/defaultModel';
 
 /** The slice of the vscode.git extension API these commands need. */
 interface GitRepository {
@@ -62,7 +63,7 @@ async function generateCommitMessage(...args: unknown[]): Promise<void> {
 		return;
 	}
 
-	const [model] = await vscode.lm.selectChatModels({ vendor: 'sirius' });
+	const model = await selectDefaultModel();
 	if (!model) {
 		vscode.window.showWarningMessage('Sirius: no model available — add a provider key with "Sirius: Set API Key", or start Ollama.');
 		return;
@@ -87,7 +88,9 @@ async function generateCommitMessage(...args: unknown[]): Promise<void> {
 			for await (const part of response.text) {
 				message += part;
 			}
-			repository.inputBox.value = message.trim();
+			// Small models wrap the message in a code fence despite being told not
+			// to; the commit box wants the text.
+			repository.inputBox.value = message.trim().replace(/^```[\w-]*\n([\s\S]*?)\n?```$/, '$1').trim();
 		}
 	);
 }
