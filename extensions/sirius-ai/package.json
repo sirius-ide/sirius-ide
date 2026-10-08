@@ -1,7 +1,7 @@
 {
 	"name": "sirius-ai",
 	"displayName": "Sirius AI",
-	"description": "Multi-model AI for Sirius IDE — Anthropic, Gemini, OpenAI, Ollama and eight more providers behind the editor's own chat, agent mode and inline chat. Thinking, native tool calling, vision input, Tab completion, next-edit prediction.",
+	"description": "Multi-model AI for Sirius IDE — Anthropic, Gemini, OpenAI, Ollama and eight more providers behind the editor's own chat, agent mode and inline chat. Thinking, native tool calling, image input for vision models, Tab completion, next-edit prediction.",
 	"version": "2.0.0",
 	"publisher": "sirius",
 	"license": "SEE LICENSE IN LICENSE.txt",
@@ -15,6 +15,8 @@
 	],
 	"activationEvents": [
 		"onChatParticipant:sirius.default",
+		"onChatParticipant:sirius.edit",
+		"onChatParticipant:sirius.agent",
 		"onStartupFinished",
 		"onLanguageModelChatProvider:sirius"
 	],
@@ -261,23 +263,6 @@
 				}
 			}
 		},
-		"keybindings": [
-			{
-				"command": "sirius.ai.openChat",
-				"key": "ctrl+shift+i",
-				"mac": "cmd+shift+i"
-			},
-			{
-				"command": "sirius.ai.selectModel",
-				"key": "ctrl+shift+m",
-				"mac": "cmd+shift+m"
-			},
-			{
-				"command": "sirius.ai.toggleThinking",
-				"key": "ctrl+shift+t",
-				"mac": "cmd+shift+t"
-			}
-		],
 		"languageModelChatProviders": [
 			{
 				"vendor": "sirius",
@@ -372,30 +357,6 @@
 				}
 			},
 			{
-				"name": "sirius_search_web",
-				"toolReferenceName": "searchWeb",
-				"displayName": "Search Web",
-				"modelDescription": "Open a web search in the default browser.",
-				"userDescription": "Open a web search in the default browser.",
-				"canBeReferencedInPrompt": true,
-				"icon": "$(globe)",
-				"tags": [
-					"sirius"
-				],
-				"inputSchema": {
-					"type": "object",
-					"properties": {
-						"query": {
-							"type": "string",
-							"description": "What to search for"
-						}
-					},
-					"required": [
-						"query"
-					]
-				}
-			},
-			{
 				"name": "sirius_get_diagnostics",
 				"toolReferenceName": "problems",
 				"displayName": "Get Diagnostics",
@@ -423,12 +384,32 @@
 				"id": "sirius.default",
 				"name": "sirius",
 				"fullName": "Sirius",
+				"description": "Explore and understand your code",
+				"isDefault": true,
+				"isSticky": true,
+				"modes": [
+					"ask"
+				]
+			},
+			{
+				"id": "sirius.edit",
+				"name": "sirius",
+				"fullName": "Sirius",
+				"description": "Edit or refactor code",
+				"isDefault": true,
+				"isSticky": true,
+				"modes": [
+					"edit"
+				]
+			},
+			{
+				"id": "sirius.agent",
+				"name": "sirius",
+				"fullName": "Sirius",
 				"description": "Describe what to build",
 				"isDefault": true,
 				"isSticky": true,
 				"modes": [
-					"ask",
-					"edit",
 					"agent"
 				]
 			}

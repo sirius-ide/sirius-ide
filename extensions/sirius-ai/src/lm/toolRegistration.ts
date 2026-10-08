@@ -69,7 +69,6 @@ function describeInvocation(name: string, input: Record<string, unknown>): strin
 		case 'read_file': return `Read ${path}`;
 		case 'list_directory': return `List ${path || 'the workspace root'}`;
 		case 'search_files': return `Search for "${query}"`;
-		case 'search_web': return `Search the web for "${query}"`;
 		case 'get_diagnostics': return 'Check errors and warnings';
 		default: return name;
 	}

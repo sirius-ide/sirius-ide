@@ -10,6 +10,7 @@
 
 import * as vscode from 'vscode';
 import { ToolDefinition, ToolCallRequest } from '../types';
+import { resolveWorkspacePath } from './workspacePath';
 
 // ─── Tool Definitions ────────────────────────────────────────────────────────
 
@@ -66,17 +67,6 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 		}
 	},
 	{
-		name: 'search_web',
-		description: 'Open a web search in the default browser.',
-		inputSchema: {
-			type: 'object',
-			properties: {
-				query: { type: 'string', description: 'What to search for' }
-			},
-			required: ['query']
-		}
-	},
-	{
 		name: 'get_diagnostics',
 		description: 'Get current errors and warnings reported in the workspace.',
 		inputSchema: {
@@ -116,8 +106,6 @@ export class SiriusToolExecutor {
 				return this._searchFiles(tool.arguments);
 			case 'list_directory':
 				return this._listDirectory(tool.arguments);
-			case 'search_web':
-				return this._searchWeb(tool.arguments);
 			case 'get_diagnostics':
 				return this._getDiagnostics(tool.arguments);
 			default:
@@ -129,10 +117,7 @@ export class SiriusToolExecutor {
 
 	private async _readFile(args: Record<string, any>): Promise<ToolResult> {
 		try {
-			const rootUri = vscode.workspace.workspaceFolders?.[0]?.uri;
-			if (!rootUri) { return { success: false, output: 'No workspace open' }; }
-
-			const fileUri = vscode.Uri.joinPath(rootUri, args.path);
+			const fileUri = resolveWorkspacePath(args.path);
 			const data = await vscode.workspace.fs.readFile(fileUri);
 			let content = new TextDecoder().decode(data);
 
@@ -192,12 +177,7 @@ export class SiriusToolExecutor {
 
 	private async _listDirectory(args: Record<string, any>): Promise<ToolResult> {
 		try {
-			const rootUri = vscode.workspace.workspaceFolders?.[0]?.uri;
-			if (!rootUri) { return { success: false, output: 'No workspace open' }; }
-
-			const dirUri = args.path
-				? vscode.Uri.joinPath(rootUri, args.path)
-				: rootUri;
+			const dirUri = resolveWorkspacePath(args.path || '.');
 
 			const entries = await vscode.workspace.fs.readDirectory(dirUri);
 			const skipDirs = new Set(['node_modules', '.git', '__pycache__', '.next', 'dist']);
@@ -217,18 +197,6 @@ export class SiriusToolExecutor {
 		} catch (e: any) {
 			return { success: false, output: `Failed to list directory: ${e.message}` };
 		}
-	}
-
-	private async _searchWeb(args: Record<string, any>): Promise<ToolResult> {
-		const query = encodeURIComponent(args.query);
-		const url = `https://www.google.com/search?q=${query}`;
-
-		await vscode.env.openExternal(vscode.Uri.parse(url));
-
-		return {
-			success: true,
-			output: `🔍 Opened web search for: "${args.query}"\n\nURL: ${url}`
-		};
 	}
 
 	private async _getDiagnostics(args: Record<string, any>): Promise<ToolResult> {
