@@ -386,6 +386,69 @@
 					},
 					"required": []
 				}
+			},
+			{
+				"name": "sirius_edit_file",
+				"toolReferenceName": "editFile",
+				"displayName": "Edit File",
+				"modelDescription": "Replace an exact span of text in an existing file. The search text must match exactly and appear exactly once. Sirius applies it through the editor's Keep and Undo.",
+				"userDescription": "Change files from the Sirius chat; every change goes through Keep and Undo. Untick to stop Edit and Agent from changing files.",
+				"canBeReferencedInPrompt": true,
+				"icon": "$(edit)",
+				"tags": [
+					"sirius"
+				],
+				"inputSchema": {
+					"type": "object",
+					"properties": {
+						"path": {
+							"type": "string",
+							"description": "Path relative to the workspace root"
+						},
+						"search": {
+							"type": "string",
+							"description": "Exact text to find"
+						},
+						"replace": {
+							"type": "string",
+							"description": "Text to put in its place"
+						}
+					},
+					"required": [
+						"path",
+						"search",
+						"replace"
+					]
+				}
+			},
+			{
+				"name": "sirius_create_file",
+				"toolReferenceName": "createFile",
+				"displayName": "Create File",
+				"modelDescription": "Create a new file with the given contents. Fails if the file already exists. Sirius applies it through the editor's Keep and Undo.",
+				"userDescription": "Create files from the Sirius chat; Undo removes them. Untick to stop Edit and Agent from creating files.",
+				"canBeReferencedInPrompt": true,
+				"icon": "$(new-file)",
+				"tags": [
+					"sirius"
+				],
+				"inputSchema": {
+					"type": "object",
+					"properties": {
+						"path": {
+							"type": "string",
+							"description": "Path relative to the workspace root"
+						},
+						"content": {
+							"type": "string",
+							"description": "Full contents of the new file"
+						}
+					},
+					"required": [
+						"path",
+						"content"
+					]
+				}
 			}
 		],
 		"chatParticipants": [
@@ -451,17 +514,17 @@
 						}
 					},
 					{
-						"id": "agent",
-						"title": "Ask the agent",
-						"description": "Open the chat and describe what you want. The agent reads your code, proposes edits you accept or reject file by file, and can run commands, tasks and tests to finish the job.\n[Open Chat](command:workbench.action.chat.open)",
+						"id": "chatModes",
+						"title": "Ask, Edit or Agent",
+						"description": "Open the chat and pick how much Sirius may do. **Ask** reads your code and answers. **Edit** proposes changes you accept or reject, file by file. **Agent** can also run commands, tasks and tests to finish the job.\n[Open Chat](command:workbench.action.chat.open)",
 						"media": {
 							"image": {
-								"dark": "media/walkthrough/agent-dark.webp",
-								"light": "media/walkthrough/agent-light.webp",
-								"hc": "media/walkthrough/agent-dark.webp",
-								"hcLight": "media/walkthrough/agent-light.webp"
+								"dark": "media/walkthrough/modes-dark.webp",
+								"light": "media/walkthrough/modes-light.webp",
+								"hc": "media/walkthrough/modes-dark.webp",
+								"hcLight": "media/walkthrough/modes-light.webp"
 							},
-							"altText": "The agent at work beside the editor: it looks through the project, writes limiter.test.ts by the project's rules, and asks before running the tests."
+							"altText": "The chat's mode picker offering Agent, Ask and Edit."
 						}
 					},
 					{
@@ -545,6 +608,20 @@
 							"altText": "The color theme picker listing light and dark themes, Sirius Star Dark among them."
 						}
 					}
+				]
+			}
+		],
+		"chatAgents": [
+			{
+				"path": "./agents/ask.agent.md",
+				"sessionTypes": [
+					"local"
+				]
+			},
+			{
+				"path": "./agents/edit.agent.md",
+				"sessionTypes": [
+					"local"
 				]
 			}
 		]

@@ -49,6 +49,28 @@ const PARTICIPANTS: ReadonlyArray<{ readonly id: string; readonly mode: Mode }> 
 /** Sirius's own registered tools — all read-only — by the names toolRegistration gives them. */
 const SIRIUS_TOOLS: ReadonlySet<string> = new Set(TOOL_DEFINITIONS.map(definition => `sirius_${definition.name}`));
 
+/**
+ * Editing runs through the response stream (createLocalTools), so it cannot be an ordinary
+ * tool — but agent files and the tools picker grant tools by registered name. These two
+ * registrations exist for that: `editFile` in an .agent.md's tools (the default chat
+ * extension's tools are internal, so no extension prefix), or unticking Edit File in the
+ * picker, decides whether edit_file is offered.
+ */
+const EDIT_TOOLS: Readonly<Record<string, string>> = { edit_file: 'sirius_edit_file', create_file: 'sirius_create_file' };
+
+/** Instructions longer than this are cut, like project rules. */
+const MAX_AGENT_INSTRUCTIONS_CHARS = 8_000;
+
+/**
+ * A custom agent — an .agent.md: Sirius's own Ask and Edit, or one the user wrote — arrives at
+ * the Agent participant (every custom agent is agent-kind) carrying its instructions; the
+ * built-in modes carry none.
+ */
+function customAgent(request: vscode.ChatRequest): { readonly name: string; readonly instructions: string } | undefined {
+	const agent = request.modeInstructions2;
+	return agent && !agent.isBuiltin ? { name: agent.name, instructions: agent.content } : undefined;
+}
+
 /** What each mode may do, stated to the model so it does not reach for a tool it lacks. */
 const MODE_RULES: Record<Mode, string> = {
 	ask: 'You are in Ask mode: explain and answer. You can read and search the workspace, but you cannot change files or run commands here — when a change is needed, describe it; the user can switch to Edit or Agent mode to make it.',
@@ -165,6 +187,15 @@ export function registerSiriusAgent(context: vscode.ExtensionContext, lm: Sirius
 		participant.iconPath = new vscode.ThemeIcon('sparkle');
 		context.subscriptions.push(participant);
 	}
+	// Named in package.json so agents and the picker can grant them; the participant runs the
+	// real edit itself, so a call that reaches here came from somewhere else.
+	for (const name of Object.values(EDIT_TOOLS)) {
+		context.subscriptions.push(vscode.lm.registerTool(name, {
+			invoke: () => new vscode.LanguageModelToolResult([new vscode.LanguageModelTextPart(
+				'Sirius makes edits from its own chat, through the editor\'s Keep and Undo. Ask Sirius in the chat to make this change.'
+			)])
+		}));
+	}
 	context.subscriptions.push(output);
 
 	// The tier decision is otherwise only visible in the output channel, so
@@ -234,22 +265,33 @@ const createHandler = (mode: Mode): vscode.ChatRequestHandler => async (request,
 		return {};
 	}
 
-	// Ask reads; Edit reads and changes files; only Agent runs commands, tasks,
-	// subagents and the browser. Sirius's own registered tools are all read-only;
-	// they are matched by the names this extension registered, so another
-	// extension's `sirius_*` tool is not swept in.
-	const localTools = mode === 'ask' ? [] : createLocalTools(stream);
+	// Built-in modes: Ask reads; Edit reads and changes files; only Agent runs
+	// commands, tasks, subagents and the browser — less anything the user unticked
+	// in the tools picker. A custom agent gets exactly the tools its file allows,
+	// and never more than Agent would offer: the workbench passes that list in
+	// `request.tools` but does not enforce it, so this is the only place an
+	// agent's `tools:` means anything. Sirius's own registered tools are all
+	// read-only; they are matched by the names this extension registered, so
+	// another extension's `sirius_*` tool is not swept in.
+	const agent = customAgent(request);
 	const known = lmProvider?.getKnownModel(model.id);
 	const extended = isExtendedTier(known, model.maxInputTokens);
-	const allowlist = mode !== 'agent' ? new Set<string>() : extended ? EXTENDED_NATIVE : CORE_NATIVE;
+	const allowlist = agent || mode === 'agent' ? (extended ? EXTENDED_NATIVE : CORE_NATIVE) : new Set<string>();
+	const choice = new Map(Array.from(request.tools ?? [], ([tool, enabled]) => [tool.name, enabled] as const));
+	const permitted = (name: string): boolean => agent ? choice.get(name) === true : choice.get(name) !== false;
+	const localTools = mode === 'ask' && !agent ? [] : createLocalTools(stream).filter(tool => permitted(EDIT_TOOLS[tool.name]));
 	const tools: vscode.LanguageModelChatTool[] = [
 		...vscode.lm.tools
-			.filter(tool => SIRIUS_TOOLS.has(tool.name) || allowlist.has(tool.name))
+			.filter(tool => (SIRIUS_TOOLS.has(tool.name) || allowlist.has(tool.name)) && permitted(tool.name))
 			.map(tool => ({ name: tool.name, description: tool.description, inputSchema: tool.inputSchema })),
 		...localTools.map(tool => ({ name: tool.name, description: tool.description, inputSchema: tool.inputSchema }))
 	];
 	const toolNames = new Set(tools.map(tool => tool.name));
-	debug(`[request] mode=${mode} model=${model.id} window=${model.maxInputTokens} size=${known?.sizeBytes ?? 'unknown'} tier=${extended ? 'extended' : 'core'} tools=${tools.length}`);
+	const scope = agent ? `the ${agent.name} agent` : `${mode} mode`;
+	if (agent) {
+		debug(`[request] ${scope} enables ${[...choice].filter(([, enabled]) => enabled).map(([name]) => name).join(',') || 'nothing'} (of ${choice.size} known)`);
+	}
+	debug(`[request] mode=${mode}${agent ? ` agent=${agent.name} instructions=${agent.instructions.length}` : ''} model=${model.id} window=${model.maxInputTokens} size=${known?.sizeBytes ?? 'unknown'} tier=${extended ? 'extended' : 'core'} tools=${tools.length} (${[...toolNames].join(',')})`);
 
 	const messages = await buildMessages(chatContext, request, mode, model.maxInputTokens);
 	const prompt = messages[messages.length - 1].content;
@@ -307,9 +349,9 @@ const createHandler = (mode: Mode): vscode.ChatRequestHandler => async (request,
 			// read. Only what this mode offered runs; otherwise Ask's read-only set
 			// was a suggestion, and `run_in_terminal` ran if a model asked for it.
 			if (!toolNames.has(call.name)) {
-				debug(`[refused] ${call.name} is not offered in ${mode} mode`);
+				debug(`[refused] ${call.name} is not offered in ${scope}`);
 				results.push(new vscode.LanguageModelToolResultPart(call.callId, [
-					new vscode.LanguageModelTextPart(`${call.name} is not available in ${mode} mode.`)
+					new vscode.LanguageModelTextPart(`${call.name} is not available in ${scope}.`)
 				]));
 				continue;
 			}
@@ -659,7 +701,10 @@ async function buildMessages(chatContext: vscode.ChatContext, request: vscode.Ch
 		references.push(reference);
 	}
 
-	const base = MODE_RULES[mode] ? `${PREAMBLE} ${MODE_RULES[mode]}` : PREAMBLE;
+	const agent = customAgent(request);
+	const base = agent
+		? `${PREAMBLE} You are running as the "${agent.name}" agent: follow its instructions, and use only the tools it allows.\n${agent.instructions.trim().slice(0, MAX_AGENT_INSTRUCTIONS_CHARS)}`
+		: MODE_RULES[mode] ? `${PREAMBLE} ${MODE_RULES[mode]}` : PREAMBLE;
 	const preamble = [
 		base,
 		rules.text ? `Project instructions (from ${rules.sources.join(', ')}) — follow these:\n${rules.text}` : '',
