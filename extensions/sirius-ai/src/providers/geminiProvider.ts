@@ -7,6 +7,15 @@
 import { SiriusSecretStore } from '../auth/secretStore';
 import { IAIProvider, SiriusModel, ChatRequest, ChatChunk, ChatMessage, ImagePart, ProviderType, ImageGenRequest, ImageGenResult, StopReason, ToolCallRequest } from '../types';
 
+/**
+ * The key travels in the `x-goog-api-key` header, not the `?key=` query
+ * parameter: a URL ends up in proxy logs, error messages and crash reports,
+ * where a header does not.
+ */
+function geminiHeaders(apiKey: string): Record<string, string> {
+	return { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey };
+}
+
 /** A single part of a Gemini candidate's content. */
 interface GeminiPart {
 	text?: string;
@@ -123,7 +132,8 @@ export class GeminiProvider implements IAIProvider {
 		try {
 			const apiKey = this.getApiKey();
 			const response = await fetch(
-				`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`
+				'https://generativelanguage.googleapis.com/v1beta/models',
+				{ headers: { 'x-goog-api-key': apiKey } }
 			);
 			return response.ok;
 		} catch {
@@ -292,10 +302,10 @@ export class GeminiProvider implements IAIProvider {
 	 * Handle SSE streaming response
 	 */
 	private async *_handleStream(model: string, apiKey: string, body: string): AsyncIterable<ChatChunk> {
-		const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${apiKey}`;
+		const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse`;
 		const response = await fetch(url, {
 			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
+			headers: geminiHeaders(apiKey),
 			body
 		});
 
@@ -375,10 +385,10 @@ export class GeminiProvider implements IAIProvider {
 	 * Handle non-streaming response
 	 */
 	private async *_handleNonStream(model: string, apiKey: string, body: string): AsyncIterable<ChatChunk> {
-		const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+		const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
 		const response = await fetch(url, {
 			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
+			headers: geminiHeaders(apiKey),
 			body
 		});
 
@@ -436,11 +446,11 @@ export class GeminiProvider implements IAIProvider {
 		}
 
 		const model = 'gemini-3.1-flash-image';
-		const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+		const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
 
 		const response = await fetch(url, {
 			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
+			headers: geminiHeaders(apiKey),
 			body: JSON.stringify({
 				contents: [{
 					parts: [{ text: request.prompt }]
@@ -489,7 +499,7 @@ export class GeminiProvider implements IAIProvider {
 		}
 
 		try {
-			const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+			const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models', { headers: { 'x-goog-api-key': apiKey } });
 			if (!response.ok) {
 				return this.models;
 			}
