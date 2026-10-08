@@ -15,10 +15,11 @@
     "preview": "astro preview",
     "check": "astro check",
     "screenshots": "node scripts/screenshots.mjs",
-    "test": "node scripts/smoke.mjs && node scripts/links.mjs && node scripts/axe.mjs",
+    "test": "node scripts/smoke.mjs && node scripts/links.mjs && node scripts/axe.mjs && node scripts/interact.mjs",
     "test:smoke": "node scripts/smoke.mjs",
     "test:links": "node scripts/links.mjs",
     "test:axe": "node scripts/axe.mjs",
+    "test:interact": "node scripts/interact.mjs",
     "lighthouse": "lhci autorun --config=lighthouserc.cjs"
   },
   "dependencies": {
