@@ -137,11 +137,23 @@ exports.run = async function (vscode, context) {
 			const r = await vscode.lm.invokeTool('sirius_read_file', { input: { path: p }, toolInvocationToken: undefined });
 			return r.content.map(c => c.value ?? '').join('').slice(0, 160);
 		};
+		// A symlink checked into a repository, pointing out of it.
+		try { fs.symlinkSync('/etc', path.join(ws, 'etc-link')); } catch { /* already there */ }
+		const search = async input => {
+			const r = await vscode.lm.invokeTool('sirius_search_files', { input, toolInvocationToken: undefined });
+			return r.content.map(c => c.value ?? '').join('').slice(0, 200);
+		};
 		result.confinement = {
 			relative: await read('inside.txt'),
 			absoluteInside: await read(path.join(ws, 'inside.txt')),
 			traversal: await read('../../../../../../etc/hostname'),
-			absoluteOutside: await read('/etc/hostname')
+			absoluteOutside: await read('/etc/hostname'),
+			// The two escapes the review found: `..` inside an absolute path, and
+			// a symlink; and the search tool's `{ base, pattern }` include.
+			absoluteWithDotDot: await read(`${ws}/../../../../../../etc/hostname`),
+			throughSymlink: await read('etc-link/hostname'),
+			searchWithBaseObject: await search({ query: 'localhost', include: { base: '/etc', pattern: 'hosts' } }),
+			searchThroughSymlink: await search({ query: 'localhost', include: 'etc-link/hosts' })
 		};
 	});
 

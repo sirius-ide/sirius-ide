@@ -74,7 +74,7 @@ while IFS=$'\t' read -r size name; do
 done < <(grep -v '\.sha256$' assets.tsv; grep '\.sha256$' assets.tsv)
 
 echo "== update server"
-prev=$(git -C "$REPO" rev-parse "v$PREV^{commit}")
+prev=$(git -C "$REPO" rev-parse "v$PREV^{commit}" 2>/dev/null) || { git -C "$REPO" fetch -q origin "refs/tags/v$PREV:refs/tags/v$PREV"; prev=$(git -C "$REPO" rev-parse "v$PREV^{commit}"); }
 for p in linux-x64 linux-arm64 win32-x64; do
 	case $p in
 		linux-x64) a=sirius-linux-x64.tar.gz ;;
@@ -128,14 +128,17 @@ gate() { # <label> <app dir> <x64|arm64> <client|server>
 	fi
 }
 for arch in arm64 x64; do
-	rm -rf x && mkdir x && bsdtar -xzf "sirius-linux-$arch.tar.gz" -C x && gate "tarball $arch" "x/VSCode-linux-$arch" $arch client
-	rm -rf x && mkdir x && bsdtar -xzf "sirius-server-linux-$arch.tar.gz" -C x && gate "server $arch" "x/sirius-server-linux-$arch" $arch server
+	rm -rf x && mkdir x
+	if bsdtar -xzf "sirius-linux-$arch.tar.gz" -C x; then gate "tarball $arch" "x/VSCode-linux-$arch" $arch client; else bad "sirius-linux-$arch.tar.gz does not extract"; fi
+	rm -rf x && mkdir x
+	if bsdtar -xzf "sirius-server-linux-$arch.tar.gz" -C x; then gate "server $arch" "x/sirius-server-linux-$arch" $arch server; else bad "sirius-server-linux-$arch.tar.gz does not extract"; fi
 done
 for pair in arm64:arm64 amd64:x64; do
 	debarch=${pair%%:*} arch=${pair#*:}
 	deb=$(ls sirius_*_"$debarch".deb 2>/dev/null | head -1)
 	[ -n "$deb" ] || { bad "no $debarch .deb"; continue; }
-	rm -rf x && mkdir -p x/c x/d && (cd x && bsdtar -xf "../$deb" && bsdtar -xf control.tar.* -C c && bsdtar -xf data.tar.* -C d)
+	rm -rf x && mkdir -p x/c x/d
+	(cd x && bsdtar -xf "../$deb" && bsdtar -xf control.tar.* -C c && bsdtar -xf data.tar.* -C d) || { bad "$deb does not extract"; continue; }
 	grep -q "^Architecture: $debarch$" x/c/control && ok "$deb: Architecture $debarch" || bad "$deb: wrong Architecture"
 	echo "    Depends: $(grep '^Depends:' x/c/control | cut -c10-)"
 	gate ".deb $debarch" x/d/usr/share/sirius $arch client
@@ -146,7 +149,8 @@ for pair in aarch64:arm64 x86_64:x64; do
 	[ -n "$rpmf" ] || { bad "no $rarch .rpm"; continue; }
 	q=$(rpm -qp --qf '%{ARCH}' "$rpmf" 2>/dev/null)
 	[ "$q" = "$rarch" ] && ok "$rpmf: ARCH $rarch" || bad "$rpmf: ARCH $q"
-	rm -rf x && mkdir x && (cd x && rpm2cpio "../$rpmf" | bsdtar -xf -) && gate ".rpm $rarch" x/usr/share/sirius $arch client
+	rm -rf x && mkdir x
+	if (cd x && rpm2cpio "../$rpmf" | bsdtar -xf -); then gate ".rpm $rarch" x/usr/share/sirius $arch client; else bad "$rpmf does not extract"; fi
 done
 rm -rf x
 
