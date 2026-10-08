@@ -12,6 +12,7 @@ const date = new Intl.DateTimeFormat('en', { dateStyle: 'long', timeZone: 'UTC' 
 			<p class="lede">Compared on {date} from each vendor's own pages; every competitor cell has a recorded source, and a cell without one is left blank rather than guessed.</p>
 		</div>
 		<p class="hint" aria-hidden="true">The table scrolls sideways — seven editors across.</p>
+		<p id="compare-keys" class="visually-hidden">Each row is one tab stop for its sources; the left and right arrow keys move between them.</p>
 		<div class="scroll" tabindex="0" role="region" aria-label="Comparison table, scrolls sideways">
 			<table>
 				<thead>
@@ -61,3 +62,24 @@ const date = new Intl.DateTimeFormat('en', { dateStyle: 'long', timeZone: 'UTC' 
 	.src:hover, .src:focus-visible { text-decoration: underline; }
 	.foot { margin-top: 1rem; color: var(--fg-dim); font-size: var(--text-xs); line-height: 1.6; max-width: 90ch; }
 </style>
+
+<script>
+	// One tab stop per row for the † source links, not one per cell: the first link in a row takes Tab, and the
+	// arrow keys (and Home / End) move along the row. Without JavaScript every link stays a tab stop.
+	for (const row of document.querySelectorAll<HTMLTableRowElement>('#compare tbody tr')) {
+		const links = [...row.querySelectorAll<HTMLAnchorElement>('a.src')];
+		if (links.length < 2) { continue; }
+		links.forEach((a, i) => { a.tabIndex = i === 0 ? 0 : -1; });
+		links[0].setAttribute('aria-describedby', 'compare-keys');
+		row.addEventListener('keydown', (e) => {
+			const i = links.indexOf(document.activeElement as HTMLAnchorElement);
+			if (i < 0) { return; }
+			const to = e.key === 'ArrowRight' ? Math.min(i + 1, links.length - 1) : e.key === 'ArrowLeft' ? Math.max(i - 1, 0) : e.key === 'Home' ? 0 : e.key === 'End' ? links.length - 1 : -1;
+			if (to < 0) { return; }
+			e.preventDefault();
+			links[i].tabIndex = -1;
+			links[to].tabIndex = 0;
+			links[to].focus();
+		});
+	}
+</script>

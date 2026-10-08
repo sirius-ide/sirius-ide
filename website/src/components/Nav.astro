@@ -86,3 +86,17 @@ const current = (href: string) => (href !== '/' && path.startsWith(href) ? 'page
 		.cta { display: none; }
 	}
 </style>
+
+<script>
+	// The phone menu is a <details>: close it on Escape (focus returns to its button) and on a click or tap anywhere outside it.
+	const menu = document.querySelector<HTMLDetailsElement>('header.nav details.menu');
+	if (menu) {
+		const close = (refocus: boolean) => {
+			if (!menu.open) { return; }
+			menu.open = false;
+			if (refocus) { menu.querySelector('summary')?.focus(); }
+		};
+		document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { close(true); } });
+		document.addEventListener('click', (e) => { if (!menu.contains(e.target as Node)) { close(false); } });
+	}
+</script>
