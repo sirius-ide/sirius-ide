@@ -13,8 +13,9 @@
 #   build/cloudflare/deploy-website.sh domain     # attach siriuside.com to the project
 #   build/cloudflare/deploy-website.sh dns        # the DNS records: apex CNAME, www and the .dev placeholders
 #   build/cloudflare/deploy-website.sh redirects  # www.siriuside.com and siriuside.dev → siriuside.com (zone Single Redirects)
+#   build/cloudflare/deploy-website.sh analytics  # switch off the Web Analytics beacon Cloudflare injects
 #   build/cloudflare/deploy-website.sh verify     # curl the live site, the headers and the redirects
-#   build/cloudflare/deploy-website.sh all        # the six in order
+#   build/cloudflare/deploy-website.sh all        # the eight in order
 #
 # Steps up to `upload` touch nothing a user can see. `domain`, `dns` and `redirects` are the
 # cut-over; run them when the pages.dev deployment looks right. Everything is re-runnable.
@@ -169,12 +170,28 @@ step_redirects() {
 	fi
 }
 
+# Cloudflare turned Web Analytics on for every free zone (October 2025) and injects its beacon
+# into HTML at the edge; the site's CSP blocks it, so it only logs an error. BRIEF.md keeps
+# analytics off unless the owner opts in, so one Configuration Rule switches RUM off for the
+# whole zone. PUT replaces the zone's config-settings phase — Sirius's own zone. Needs
+# "Config Rules: Edit".
+step_analytics() {
+	echo "== analytics off =="
+	local zone rules out
+	zone=$(zone_id "$DOMAIN"); [[ -n "$zone" ]] || { echo "zone $DOMAIN not in this account"; exit 1; }
+	rules='{"rules":[{"action":"set_config","expression":"true","description":"sirius: no Web Analytics beacon (analytics stay off unless the owner opts in)","action_parameters":{"disable_rum":true}}]}'
+	out=$(cf PUT "/zones/$zone/rulesets/phases/http_config_settings/entrypoint" --data "$rules")
+	echo "$out" | ok && echo "  RUM off on $DOMAIN" || { echo "  config rule failed: $(echo "$out" | errors)"; exit 1; }
+}
+
 step_verify() {
 	echo "== verify =="
 	for u in "https://$DOMAIN/" "https://$DOMAIN/download/" "https://$DOMAIN/docs/" "https://$DOMAIN/rss.xml" "https://$DOMAIN/.well-known/security.txt"; do
 		printf '  %-48s ' "$u"; curl -sS -o /dev/null -w '%{http_code} %{time_starttransfer}s\n' --max-time 20 "$u" || true
 	done
 	echo "  headers on /:"; curl -sSI --max-time 20 "https://$DOMAIN/" | grep -iE '^(content-security-policy|strict-transport-security|x-content-type-options|referrer-policy|permissions-policy|cache-control):' | sed 's/^/    /' || true
+	# The edge injects the beacon only for browser-looking requests.
+	printf '  %-48s ' "analytics beacon on /"; curl -sS --max-time 20 -A 'Mozilla/5.0 (X11; Linux x86_64) Chrome/141.0' -H 'Accept: text/html' "https://$DOMAIN/" | grep -q cloudflareinsights && echo "PRESENT — run the analytics step" || echo "absent"
 	for u in "https://www.$DOMAIN/download/" "https://$ALT_DOMAIN/docs/" "https://www.$ALT_DOMAIN/"; do
 		printf '  %-48s ' "$u"; curl -sS -o /dev/null -w '%{http_code} → %{redirect_url}\n' --max-time 20 "$u" || true
 	done
@@ -188,7 +205,8 @@ case "$STEP" in
 	domain) step_domain ;;
 	dns) step_dns ;;
 	redirects) step_redirects ;;
+	analytics) step_analytics ;;
 	verify) step_verify ;;
-	all) step_build; step_project; step_upload; step_domain; step_dns; step_redirects; step_verify ;;
-	*) echo "usage: $0 {build|project|upload|domain|dns|redirects|verify|all} [--dry-run]"; exit 2 ;;
+	all) step_build; step_project; step_upload; step_domain; step_dns; step_redirects; step_analytics; step_verify ;;
+	*) echo "usage: $0 {build|project|upload|domain|dns|redirects|analytics|verify|all} [--dry-run]"; exit 2 ;;
 esac
