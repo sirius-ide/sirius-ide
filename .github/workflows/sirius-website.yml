@@ -19,8 +19,14 @@ on:
       - 'SECURITY.md'
       - 'LICENSE.txt'
       - '.github/workflows/sirius-website.yml'
-  release:
-    types: [published]
+  # After a tag's release run, so the download page and the changelog list the new release.
+  # Not `release: published`: CI publishes with GITHUB_TOKEN, and GitHub starts no workflow
+  # from an event that token caused (v1.118.9's release never rebuilt the site), but
+  # workflow_run is exempt. Whatever the run's conclusion — Publish can succeed while an
+  # optional job fails.
+  workflow_run:
+    workflows: [Sirius Release]
+    types: [completed]
   workflow_dispatch:
 
 permissions:
@@ -33,6 +39,8 @@ concurrency:
 jobs:
   site:
     name: Build, test, deploy
+    # A release run on a branch is a rehearsal and publishes nothing; only a tag's matters.
+    if: github.event_name != 'workflow_run' || startsWith(github.event.workflow_run.head_branch, 'v')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
