@@ -16,8 +16,8 @@ export const site = {
 	issues: 'https://github.com/sirius-ide/sirius-ide/issues',
 	releases: 'https://github.com/sirius-ide/sirius-ide/releases',
 	securityAdvisories: 'https://github.com/sirius-ide/sirius-ide/security/advisories/new',
-	/** The macOS tracking issue — create it on GitHub and put its URL here (PROJECT-STATE §13). */
-	macosIssue: 'https://github.com/sirius-ide/sirius-ide/issues',
+	/** The macOS tracking issue: "Notify me when macOS builds ship". */
+	macosIssue: 'https://github.com/sirius-ide/sirius-ide/issues/9',
 	downloadHost: 'https://dl.siriuside.com',
 	updateHost: 'https://update.siriuside.com',
 } as const;
