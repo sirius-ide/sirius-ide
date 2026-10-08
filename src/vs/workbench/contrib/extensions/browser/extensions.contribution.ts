@@ -890,6 +890,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
 				const hostService = accessor.get(IHostService);
 				const notificationService = accessor.get(INotificationService);
+				const productService = accessor.get(IProductService);
 
 				const vsixs = Array.isArray(resources) ? resources : [resources];
 				const result = await Promise.allSettled(vsixs.map(async (vsix) => await extensionsWorkbenchService.install(vsix, { installGivenVersion: true })));
