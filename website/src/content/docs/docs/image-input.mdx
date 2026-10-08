@@ -1,6 +1,6 @@
 ---
 title: Image input
-description: Which models can see images, how images reach them, and what does not work yet.
+description: Which models can see images, and how images reach them — pasted, attached or taken by the browser tools.
 sidebar:
   order: 9
 ---
@@ -12,7 +12,8 @@ sidebar:
 | Anthropic Claude | all listed models (👁️ in the picker) |
 | Google Gemini | all listed and discovered models |
 | Ollama | models whose server details declare `vision`; older servers: recognised by family name (llava, moondream, minicpm-v, llama3.2-vision, gemma3, qwen2.5-vl, pixtral, granite-vision) |
-| OpenAI, OpenRouter, Groq, DeepSeek, Mistral, xAI, LM Studio, llama.cpp / vLLM, custom | registered **without** vision in 1.118.7, even when the model behind the endpoint can see |
+| OpenRouter | models whose listing declares `image` among its input modalities |
+| OpenAI, Groq, DeepSeek, Mistral, xAI, LM Studio, llama.cpp / vLLM, custom | recognised by family name: GPT-4o, GPT-4.1, GPT-5, o3, o4-mini, Pixtral, LLaVA, Qwen-VL, Gemma 3, Llama 4, Grok 4, and any model with `vision` in its name. The list is conservative: a vision model it misses still works, without images. |
 
 For a model without vision Sirius strips the images and tells the model *[N image(s)
 attached — this model cannot view images]* instead of failing the request.
@@ -20,17 +21,20 @@ attached — this model cannot view images]* instead of failing the request.
 ## How images reach the model
 
 Each provider gets images in its own format — Anthropic image blocks, Gemini inline data,
-OpenAI-style data URIs, Ollama's base64 list. The path that is wired end to end in 1.118.7
-is **tool output**: when the agent takes a screenshot with the
-[integrated browser](/docs/browser/)'s `screenshot_page`, the image goes back to a vision
-model as part of the tool result, and the model reasons about what it sees.
+OpenAI-style data URIs, Ollama's base64 list. Images arrive three ways:
 
-:::caution
-An image pasted or dropped into the chat box is **not** forwarded to the model by the
-Sirius participant in 1.118.7: the participant passes on file and location attachments,
-and a pasted image is neither. The chat input accepts and shows the image, but the model
-does not receive it. Until this is fixed, save the image into the workspace and ask the
-agent about the file, or let the browser tools take the screenshot.
+- **Pasted or dropped into the chat box.** The image goes to the model with your message.
+- **An image file attached** from the workspace (PNG, JPEG, GIF or WebP, up to 5 MB) — the
+  model receives the picture, not its path.
+- **Tool output.** When the agent takes a screenshot with the
+  [integrated browser](/docs/browser/)'s `screenshot_page`, the image goes back to a vision
+  model as part of the tool result, and the model reasons about what it sees.
+
+:::note[Changed in 1.118.8]
+In 1.118.7 a pasted image or an attached image file did not reach the model: the Sirius
+participant passed on only paths, and OpenAI-compatible models were all registered without
+vision. If you are still on 1.118.7, save the image into the workspace and ask about it, or
+let the browser tools take the screenshot.
 :::
 
 No image *generation* is exposed: the Gemini image models exist in the catalog but are

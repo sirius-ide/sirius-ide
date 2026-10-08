@@ -19,9 +19,9 @@ and no relay. Eight hosted providers take a key; four local or self-hosted ones 
 | Mistral | yes | fixed | discovered |
 | xAI Grok | yes | fixed | discovered |
 | Ollama (local) | no | `sirius.ai.ollama.endpoint` (default `http://localhost:11434`) | discovered |
-| LM Studio (local) | no | `sirius.ai.lmstudio.baseUrl` (default `http://localhost:1234/v1`) | discovered |
-| llama.cpp / vLLM (local) | no | `sirius.ai.llamacpp.baseUrl` (default `http://localhost:8080/v1`) | discovered |
-| Custom OpenAI-compatible | no | `sirius.ai.custom.baseUrl` (empty until you set it; include the `/v1` suffix) | discovered |
+| LM Studio (local) | optional | `sirius.ai.lmstudio.baseUrl` (default `http://localhost:1234/v1`) | discovered |
+| llama.cpp / vLLM (local) | optional | `sirius.ai.llamacpp.baseUrl` (default `http://localhost:8080/v1`) | discovered |
+| Custom OpenAI-compatible | optional | `sirius.ai.custom.baseUrl` (empty until you set it; include the `/v1` suffix) | discovered |
 
 *Discovered* means Sirius asks the server for its model list (`/models`, or Ollama's
 `/api/tags`) each time it refreshes, so what you see is what the endpoint offers. Every
@@ -31,8 +31,10 @@ chat-completions adapter.
 ## Setting a key
 
 **Sirius: Set API Key** from the Command Palette. The picker lists the eight keyed providers
-— each marked *key stored* or *no key set* — and Ollama, which needs no key and instead lets
-you edit its endpoint. Choose a provider, paste the key into the password field, done: the
+— each marked *key stored* or *no key set* — then LM Studio, llama.cpp / vLLM and the custom
+endpoint, whose key is *optional* (set one only if your server was started with a key — LM
+Studio's authentication, `llama-server --api-key`, `vllm serve --api-key` — or the endpoint is
+a hosted gateway), and Ollama, which needs no key and instead lets you edit its endpoint. Choose a provider, paste the key into the password field, done: the
 key is kept in the editor's secret storage and the provider's models appear immediately.
 
 - The key is stored as you typed it (trimmed), not validated. If it is wrong, the first

@@ -30,11 +30,13 @@ uploads: it has nowhere to upload to.
 
 ## Where keys live
 
-Provider keys are set with **Sirius: Set API Key** and stored in the editor's secret
-storage, which is backed by the operating system's keyring — not in `settings.json`, not
-in Settings Sync, and never sent anywhere but the provider they belong to. On Linux that
-needs a Secret Service provider (GNOME Keyring or KWallet) to be available; on a headless
-or minimal system, see [Troubleshooting](/docs/troubleshooting/).
+Provider keys are set with **Sirius: Set API Key** and kept in the editor's secret
+storage, encrypted with the operating system's own facility — DPAPI on Windows, the
+Keychain on macOS, libsecret or KWallet on Linux — not in `settings.json`, not in Settings
+Sync, and never sent anywhere but the provider they belong to (Gemini's travels in a request
+header, not the URL). On Linux that needs a Secret Service provider (GNOME Keyring or
+KWallet); without one the editor says so and asks before falling back to weaker encryption
+— see [Troubleshooting](/docs/troubleshooting/).
 
 The old `sirius.ai.<provider>.apiKey` settings are deprecated: a key in one of them still
 works for now, but a key in a settings file is a key on disk in plain text, so move it with

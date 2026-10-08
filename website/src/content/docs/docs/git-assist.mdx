@@ -18,9 +18,14 @@ want each described precisely.
 Run it from the Command Palette, or from the Source Control view's commit-box action where
 the editor shows one. From the palette it describes the first repository of the workspace.
 
-It uses the first model in Sirius's list — with an Anthropic key that is Claude Opus 5,
-with only Ollama your first local model — rather than the chat's selected model. Project
-rules are not applied to it.
+It uses your default model — `sirius.ai.defaultModel`, else the first model of
+`sirius.ai.defaultProvider`, else the first model Sirius lists — the same one the chat
+panel's *Auto* resolves to. Project rules are not applied to it. If a small model wraps its
+answer in a code fence, the fence is removed before the message reaches the commit box.
+
+:::note[Changed in 1.118.8]
+In 1.118.7 it took the first model in Sirius's list regardless of your default.
+:::
 
 What it says when it cannot: *Sirius: no git repository found.* · *Sirius: nothing staged
 or changed to describe.* · *Sirius: no model available — add a provider key with "Sirius:

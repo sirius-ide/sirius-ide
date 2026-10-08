@@ -63,7 +63,7 @@ language.
 | `sirius.ai.inlineCompletions` | `false` | Deprecated: `true` still turns completion on everywhere |
 
 :::note
-Tab completion and next-edit prediction were not part of the automated build verification
-for 1.118.7 (the harness probes cover the agent, rules and import). They are written as
-described; the Ollama path has been used by hand.
+The llama.cpp path is covered by the harness from 1.118.8: a probe drives Tab completion
+against a stub llama-server and checks the request reaches `/infill` at the server root.
+The Ollama path has been used by hand; next-edit prediction is not covered by a probe.
 :::

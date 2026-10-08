@@ -51,8 +51,12 @@ All three are OpenAI-compatible servers, so Sirius reads their `/models` list an
 | vLLM | `sirius.ai.llamacpp.baseUrl` | point it at your vLLM `/v1` |
 
 vLLM shares the llama.cpp entry; there is no separate provider. Models discovered this way
-are assumed to have a 32,768-token window and no vision or thinking — the OpenAI-compatible
-model list does not carry that information.
+are assumed to have a 32,768-token window and no thinking — the OpenAI-compatible model list
+does not carry that information. Vision is recognised from the model's name (LLaVA, Qwen-VL,
+Gemma 3, Pixtral, Llama 4, anything with `vision` in it — see [Image input](/docs/image-input/)).
+
+If you started the server with a key (LM Studio's authentication, `llama-server --api-key`,
+`vllm serve --api-key`), set it with **Sirius: Set API Key**; it is optional for these three.
 
 Sirius treats these three (and Ollama) as always configured, so every model-list refresh
 probes `localhost:11434`, `:1234` and `:8080` with a short timeout. That is a local
@@ -71,7 +75,9 @@ llama.cpp — never on a hosted provider.
   `codestral`, `codellama`). If there is none, it uses a configured llama.cpp server; if
   neither, completions stay off.
 - `ollama/<model>` — a specific Ollama model, for example `ollama/qwen2.5-coder:7b`.
-- `llamacpp` — the server at `sirius.ai.llamacpp.baseUrl`.
+- `llamacpp` — the server at `sirius.ai.llamacpp.baseUrl`. Completions use llama-server's
+  own `/infill` endpoint at the server root, so the same `…/v1` base the chat uses works
+  (in 1.118.7 the request went to `…/v1/infill`, which llama-server does not serve).
 
 Good choices are the models built for FIM: `qwen2.5-coder`, `codestral`, `starcoder2`,
 `codegemma`, `codellama:code`. A chat model picked up by the name rule but lacking FIM

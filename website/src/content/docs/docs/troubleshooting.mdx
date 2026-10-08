@@ -96,19 +96,21 @@ at the next start, with a toast saying so.
 
 ## Shortcuts do the wrong thing
 
-Sirius's three default shortcuts shadow stock ones: <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>M</kbd>
+In 1.118.7 Sirius's three default shortcuts shadowed stock ones: <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>M</kbd>
 (the Problems view), <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>T</kbd> (Reopen Closed Editor) and
-<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>I</kbd> (the editor's own open-chat-in-agent-mode).
-Rebind either side in **Keyboard Shortcuts**; see [Keyboard shortcuts](/docs/reference/keyboard-shortcuts/).
+<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>I</kbd> (the editor's own open-chat-in-agent-mode). From
+1.118.8 Sirius binds no keys; its commands are in the Command Palette, and you can give them
+shortcuts in **Keyboard Shortcuts**. See [Keyboard shortcuts](/docs/reference/keyboard-shortcuts/).
 
-## Known limits in 1.118.7
+## "… is outside the workspace"
 
-- Reasoning summaries are requested but not shown in the transcript.
-- An image pasted into the chat box is not forwarded to the model; images reach vision
-  models through tool results such as `screenshot_page`.
-- LM Studio, llama.cpp/vLLM and custom endpoints cannot be given an API key.
-- The commit-message command uses the first model in Sirius's list, not the chat's
-  selected model.
+From 1.118.8 the agent's file tools read and write only inside the folders you opened. A
+model asking for `../../something` or an absolute path elsewhere gets this message instead
+of the file. To share a file from outside, attach it to your message — attached files go to
+the model with the prompt.
+
+## Known limits
+
 - The status-bar model item refreshes when you pick a model, not when settings change.
 - The update check runs on every install, the distribution packages included; `update.mode`
   turns it off.
