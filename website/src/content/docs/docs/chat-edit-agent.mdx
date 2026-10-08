@@ -1,13 +1,14 @@
 ---
 title: Chat, edit and agent
-description: The three modes of the chat, the tools the agent can use, how edits come back as diffs you keep or undo, and the checkpoints behind them.
+description: Ask, Edit and Agent, your own agents, the tools each may use, how edits come back as diffs you keep or undo, and the checkpoints behind them.
 sidebar:
   order: 5
 ---
 
 Sirius is the default participant in the editor's chat view, so there is nothing to invoke:
-open the chat (<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>I</kbd>), type into *Describe what to
-build*, press Enter. The mode selector in the input offers **Ask**, **Edit** and **Agent**.
+open the chat (<kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>I</kbd>), type into *Describe what to
+build*, press Enter. The mode picker in the input offers **Agent**, **Ask** and **Edit**;
+Agent is where it starts.
 
 ## What happens to a message
 
@@ -34,7 +35,7 @@ caught: Sirius recognises up to six such calls per round and runs them as real t
 
 ## The tools
 
-**Sirius's own, always offered:**
+**Sirius's own** — the names the tools picker and agent files use:
 
 | Tool | What it does |
 | --- | --- |
@@ -42,10 +43,11 @@ caught: Sirius recognises up to six such calls per round and runs them as real t
 | `searchFiles` | Searches workspace files for a literal string, like grep; an optional glob narrows the files |
 | `listDirectory` | Lists a directory, folders first; skips `node_modules`, `.git`, `dist` and the like |
 | `problems` | The current errors and warnings, optionally filtered by path |
-| `edit_file` | Replaces one exactly-matching span in a file |
-| `create_file` | Creates a file that does not exist yet |
+| `editFile` | Replaces one exactly-matching span in a file |
+| `createFile` | Creates a file that does not exist yet |
 
-`edit_file` insists the search text occurs exactly once; if it does not, the model is told
+Ask has the first four; Edit and Agent have all six. `editFile` insists the search text
+occurs exactly once; if it does not, the model is told
 to read the file again or include more context, and nothing is changed.
 
 Every one of these stays inside the workspace: a path that resolves outside the open
@@ -73,7 +75,7 @@ flow — the prompt you see is the workbench's, with its allow-once and allow-al
 
 ## Edits come back as diffs
 
-`edit_file` and `create_file` stream their changes into the editor's chat-editing
+`editFile` and `createFile` stream their changes into the editor's chat-editing
 session, which is what gives you:
 
 - the change shown as a diff in the file, hunk by hunk;
@@ -91,21 +93,55 @@ empty.
 
 ## Ask, Edit, Agent
 
-The three modes are the editor's, and each gets a different set of tools:
+**Agent** is the editor's own mode; **Ask** and **Edit** are agents Sirius ships, listed
+beside it at the top of the picker. Each gets a different set of tools:
 
 | Mode | The model can |
 | --- | --- |
 | **Ask** | read and search the workspace and see the problems list — it explains and answers, and cannot change a file or run a command |
-| **Edit** | all of Ask, plus `edit_file` and `create_file` |
+| **Edit** | all of Ask, plus `editFile` and `createFile` — it changes files and runs nothing |
 | **Agent** | all of Edit, plus the editor's terminal, task, test, sub-agent and browser tools, by tier (above) |
 
 Pick per message; it sticks until you change it. The conversation carries over when you
-switch. A tool the current mode does not offer is refused even if a model asks for it by
-name.
+switch. Under an Ask answer, **Make the change** hands the conversation to Agent; under an
+Edit answer, **Continue in Agent** does the same. A tool the current mode does not offer is
+refused even if a model asks for it by name. Unticking a tool in the chat's tools picker
+takes it away in every mode.
+
+:::note[Changed in 1.118.11: Ask and Edit in the picker]
+Earlier releases offered only **Agent** in the picker: the editor's own Ask and Edit modes
+are hidden in this version of the editor, which expects the chat extension to supply them.
+:::
 
 :::note[Changed in 1.118.8: per-mode tools]
 In 1.118.7 all three modes offered every tool, so Ask could run terminal commands and
 edit files.
+:::
+
+## Your own agents
+
+An agent is a Markdown file ending in `.agent.md` in your project's `.github/agents/` folder:
+a name, a description, the tools it may use, and its instructions.
+
+```markdown
+---
+name: Reviewer
+description: Reviews code without changing it
+tools: ['readFile', 'searchFiles', 'problems']
+---
+Review the code you are pointed at. Lead with the riskiest problem.
+```
+
+It appears in the mode picker beside Agent, Ask and Edit. Sirius gives it exactly the tools
+it lists — never more than Agent would have — and follows its instructions. Sirius's tools
+are the six above; the editor's are listed in the chat's tools picker. A `.github/agents`
+folder you create while Sirius is running is picked up at the next start. **Configure Custom
+Agents…** at the bottom of the picker lists them, opens one to edit, and shows or hides each
+in the picker.
+
+:::note[Changed in 1.118.11: your agents' tools and instructions]
+Earlier releases gave every custom agent all of Agent's tools, terminal included, and
+dropped its instructions.
 :::
 
 ## Thinking
