@@ -430,7 +430,7 @@
 			{
 				"id": "gettingStarted",
 				"title": "Get started with Sirius",
-				"description": "Connect a model, meet the agent, and set Sirius up your way. No account, no telemetry.",
+				"description": "Connect a model, meet the agent and set Sirius up your way.",
 				"icon": "media/walkthrough/icon.svg",
 				"steps": [
 					{
