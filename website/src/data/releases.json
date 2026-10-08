@@ -1,8 +1,311 @@
 {
-	"fetchedAt": "2026-10-01T17:10:11.579Z",
+	"fetchedAt": "2026-10-08T07:17:28.866Z",
 	"owner": "sirius-ide",
 	"repo": "sirius-ide",
 	"releases": [
+		{
+			"tag": "v1.118.8",
+			"version": "1.118.8",
+			"name": "v1.118.8",
+			"prerelease": false,
+			"publishedAt": "2026-10-08T07:04:39Z",
+			"url": "https://github.com/sirius-ide/sirius-ide/releases/tag/v1.118.8",
+			"body": "**Full Changelog**: https://github.com/sirius-ide/sirius-ide/compare/v1.118.7...v1.118.8",
+			"assets": [
+				{
+					"name": "commit.txt",
+					"size": 41,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.8/commit.txt",
+					"sha256": null
+				},
+				{
+					"name": "sirius-1.118.8-1791442705.el8.x86_64.rpm",
+					"size": 163073216,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.8/sirius-1.118.8-1791442705.el8.x86_64.rpm",
+					"sha256": null
+				},
+				{
+					"name": "sirius-1.118.8-1791442761.el8.aarch64.rpm",
+					"size": 159465789,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.8/sirius-1.118.8-1791442761.el8.aarch64.rpm",
+					"sha256": null
+				},
+				{
+					"name": "sirius-ide-bin-1.118.8-1-x86_64.pkg.tar.zst",
+					"size": 152789925,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.8/sirius-ide-bin-1.118.8-1-x86_64.pkg.tar.zst",
+					"sha256": "b3c0a3b8f424ffbbf37f502e39ee0f0b4b8b845a29916e1c14c7816fd1cdf455"
+				},
+				{
+					"name": "sirius-linux-arm64.tar.gz",
+					"size": 158089228,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.8/sirius-linux-arm64.tar.gz",
+					"sha256": "07ca276b8b4333571387503592e6c9cbb54a716836e3b91417da465c0e379bf8"
+				},
+				{
+					"name": "sirius-linux-x64.tar.gz",
+					"size": 161869846,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.8/sirius-linux-x64.tar.gz",
+					"sha256": "e9252b196eacd53bb947d519bca5aaee9b33468d96f5e004af773bdbd4df4021"
+				},
+				{
+					"name": "sirius-server-linux-arm64.tar.gz",
+					"size": 80521444,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.8/sirius-server-linux-arm64.tar.gz",
+					"sha256": "d2d9b09fb2b18ee4a0f9a90675c6866924f063edb2fe2a4a2810833ed0daceb4"
+				},
+				{
+					"name": "sirius-server-linux-x64.tar.gz",
+					"size": 82777755,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.8/sirius-server-linux-x64.tar.gz",
+					"sha256": "f7f6f05f2b55fe7d9d0149905266a6620c6b2b44f62778eb543f64abecdd75c5"
+				},
+				{
+					"name": "sirius-win32-x64-setup.exe",
+					"size": 128491026,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.8/sirius-win32-x64-setup.exe",
+					"sha256": "32a0c0ae5d001f2476b37195c96f9c2ec416704b3d05f8e64ce36fdeed12a8fd"
+				},
+				{
+					"name": "sirius_1.118.8-1791442622_amd64.deb",
+					"size": 113863876,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.8/sirius_1.118.8-1791442622_amd64.deb",
+					"sha256": null
+				},
+				{
+					"name": "sirius_1.118.8-1791442674_arm64.deb",
+					"size": 105622768,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.8/sirius_1.118.8-1791442674_arm64.deb",
+					"sha256": null
+				}
+			],
+			"commits": [
+				{
+					"sha": "e9f952a",
+					"subject": "1.118.8"
+				},
+				{
+					"sha": "02d5fbf",
+					"subject": "website: the v1.118.8 line for the changelog"
+				},
+				{
+					"sha": "fd118fd",
+					"subject": "docs: the 2026-10-08 handoff — fixes proven and landed, the website finished, both unreleased; what waits on the owner, in order"
+				},
+				{
+					"sha": "55fc848",
+					"subject": "website: no shortcut Sirius no longer binds is named — the model picker and the commands instead; each 'Changed in 1.118.8' aside on a page has its own name"
+				},
+				{
+					"sha": "4550335",
+					"subject": "website: v1.118.1's summary says only what its commits did"
+				},
+				{
+					"sha": "0365fa6",
+					"subject": "website: the comparison re-verified on 2026-10-08 against each vendor's live page — Trae and Cursor prices, Zed on Windows, Devin without Cascade, Kiro's telemetry; every source an anchored heading"
+				},
+				{
+					"sha": "dbae71f",
+					"subject": "website: DIRECTION.md records the drawn surfaces and the bolt dividers; the landing renders under design/ are the page as it is now"
+				},
+				{
+					"sha": "0c336ae",
+					"subject": "website: the docs search dialog's backdrop is a flat plane, not a blur — the house rule applies to the component we now own"
+				},
+				{
+					"sha": "ea56960",
+					"subject": "website: declare Starlight's pagefind-config module so astro check stays at zero errors"
+				},
+				{
+					"sha": "e26b6ed",
+					"subject": "website: an interaction test in npm test — phone menu, comparison tab stops, lazy docs search, download page"
+				},
+				{
+					"sha": "1ecbb39",
+					"subject": "website: docs pages load the search only when it is opened, and inline the print stylesheet and the code-block script — one chain and two requests fewer, the docs LCP 1.50 s to 1.36 s"
+				},
+				{
+					"sha": "dfe8eb6",
+					"subject": "website: the comparison table is one tab stop per row for its sources, and the phone menu closes on Escape and on an outside click"
+				},
+				{
+					"sha": "3f28af8",
+					"subject": "website: /download/ jumps to each platform and method, and every arm64 command has its copy button"
+				},
+				{
+					"sha": "58a3bd6",
+					"subject": "website: the macOS notify link points at issue 9"
+				},
+				{
+					"sha": "6fd3c06",
+					"subject": "docs: ROADMAP.md gets a public introduction, drops the competitor opener and the word AI from its prose, and marks browser control shipped"
+				},
+				{
+					"sha": "3e4f4fa",
+					"subject": "website: the changelog opens each release with a user-facing summary, written from the commits between the tags"
+				},
+				{
+					"sha": "7c82be6",
+					"subject": "website: the bolt carried down the page as a section divider — a hairline from the flare, twice"
+				},
+				{
+					"sha": "14adab9",
+					"subject": "website: the feature sections show the drawn surfaces and say it in sixty words or fewer; the split alternates and the demos widen"
+				},
+				{
+					"sha": "c6067f1",
+					"subject": "website: drawn product surfaces for the feature demos — agent diff, Tab and next-edit, rules, browser, Source Control, import, remote terminal, in the real theme colours"
+				},
+				{
+					"sha": "ca054cb",
+					"subject": "docs: the state after the docs-pass fixes and the review — seven src/vs files, the participant's rules, the new probe, what is proven, the DNS trap"
+				},
+				{
+					"sha": "afe27e9",
+					"subject": "website: the docs follow the review's changes — instruction files, the attachment budget, refused tools, symlinks, user-level endpoints"
+				},
+				{
+					"sha": "50578eb",
+					"subject": "harness, verify-release: the review's escapes probed live; a failed extraction counts as a failure"
+				},
+				{
+					"sha": "556fb4a",
+					"subject": "sirius-ai: from the review — endpoint settings are machine-scoped, audio/realtime/small Gemma models are not taken for vision, any commit fence is stripped, the exact default model wins, the llama.cpp key is read per request"
+				},
+				{
+					"sha": "687a463",
+					"subject": "sirius-ai: from the review — the workspace boundary normalises paths and resolves symlinks, search is confined, only offered tools run, instruction files join the preamble once, attachments share a budget behind a nonce"
+				},
+				{
+					"sha": "abad80b",
+					"subject": "website: the docs follow the 1.118.8 fixes — images and attachments, per-mode tools, thinking, created files, optional local keys, the default model for commits, no default shortcuts"
+				},
+				{
+					"sha": "fd3e4a1",
+					"subject": "build: verify-release.sh — the outside check of a published release, every platform"
+				},
+				{
+					"sha": "58f4ca7",
+					"subject": "harness: a probe for the docs-pass fixes; runs stay in Xvfb on a Wayland desktop"
+				},
+				{
+					"sha": "b0e4dc7",
+					"subject": "workbench: the title bar shows the Sirius mark"
+				},
+				{
+					"sha": "ac84a48",
+					"subject": "update: the update settings no longer say the updates come from a Microsoft service"
+				},
+				{
+					"sha": "b2d5ff3",
+					"subject": "sirius-ai: one participant per mode, attachments and images reach the model, thinking is shown, created files belong to the editing session, tools stay in the workspace"
+				},
+				{
+					"sha": "25be2ea",
+					"subject": "sirius-ai: OpenAI-compatible models that can see images are registered with image input"
+				},
+				{
+					"sha": "11fea2d",
+					"subject": "sirius-ai: commit messages use the configured default model, without a wrapping code fence"
+				},
+				{
+					"sha": "0945eb6",
+					"subject": "sirius-ai: the Gemini key travels in the x-goog-api-key header, not the URL"
+				},
+				{
+					"sha": "9bd0239",
+					"subject": "sirius-ai: LM Studio, llama.cpp / vLLM and custom endpoints take an optional API key"
+				},
+				{
+					"sha": "b71b926",
+					"subject": "sirius-ai: Tab completion calls llama-server's /infill at the server root, with the stored key"
+				},
+				{
+					"sha": "c50dfdf",
+					"subject": "build(deps): actions/setup-node v7 in the Sirius workflows (Dependabot #8, the upstream workflows left to the rebase)"
+				},
+				{
+					"sha": "1864361",
+					"subject": "docs: the website workflow's first run is green on GitHub's runner — the docs pages at 1.36 s"
+				},
+				{
+					"sha": "0e2bba8",
+					"subject": "docs: the website is on sirius, not deployed — verified locally, the docs pages 4 ms over the LCP line, the Cloudflare facts read from here"
+				},
+				{
+					"sha": "5cfd5be",
+					"subject": "docs: PRIVACY.md says what the editor does — every install checks for updates, and keys are encrypted with DPAPI on Windows"
+				},
+				{
+					"sha": "7826426",
+					"subject": "docs: §13 — the website handoff: what is on the branch, verified versus written, the Lighthouse table, the deploy sequence, the product.json lines, the findings for the owner"
+				},
+				{
+					"sha": "bfd2aae",
+					"subject": "website: the comparison region no longer widens the document on phones; every page holds the brief's budget as written"
+				},
+				{
+					"sha": "8e36e4f",
+					"subject": "website: the performance / accessibility / SEO audit applied"
+				},
+				{
+					"sha": "b2e0810",
+					"subject": "website: the starfield's pattern fill, navigation links without the in-text underline, docs tables that wrap, the window's reveals without fades, the mono face preloaded off the landing page, the Lighthouse matrix"
+				},
+				{
+					"sha": "2d2a45b",
+					"subject": "website: the docs written to the code, the two review passes applied, the token and starfield fixes"
+				},
+				{
+					"sha": "fb65f0d",
+					"subject": "website: the full build, first checkpoint — every page, the pipeline around it, the deploy script and the workflow"
+				},
+				{
+					"sha": "2215b7a",
+					"subject": "website: the six answers applied — Geist and Geist Mono, the window follows the scheme, the diff is the resting state, the headline; release data from GitHub at build"
+				},
+				{
+					"sha": "847ec83",
+					"subject": "website: the picker shows its title row as the product does; the wording rule is for the site's own copy"
+				},
+				{
+					"sha": "f70eea5",
+					"subject": "docs: §13 — the owner's first answers on the website direction, applied"
+				},
+				{
+					"sha": "ba5cc31",
+					"subject": "website: no gradients anywhere, the positioning line, no company mention"
+				},
+				{
+					"sha": "691329e",
+					"subject": "docs: §13 — the website's design direction is up for the owner's OK"
+				},
+				{
+					"sha": "7e1b891",
+					"subject": "website: the design direction — Astro + Starlight scaffold, tokens, the drawn hero, the providers section, review renders"
+				},
+				{
+					"sha": "d799edf",
+					"subject": "docs: SECURITY.md is the Sirius policy — private vulnerability reporting on GitHub"
+				},
+				{
+					"sha": "acb848e",
+					"subject": "legal: LICENSE.txt names the State of Delaware as the governing law"
+				},
+				{
+					"sha": "f8cc08e",
+					"subject": "docs: the website brief — a flagship site to the Sirius Star identity, with budgets, the page inventory, honest claims and the competitor survey"
+				},
+				{
+					"sha": "e6ebc63",
+					"subject": "docs: the cloud queue after v1.118.7 — website, create_file, onboarding, provider settings — and the roadmap brought to v1.118.7"
+				},
+				{
+					"sha": "a9824e4",
+					"subject": "docs: v1.118.7 is live — arm64 .deb/.rpm shipped and verified from the outside, and the tag run proved R2's 404"
+				}
+			]
+		},
 		{
 			"tag": "v1.118.7",
 			"version": "1.118.7",
