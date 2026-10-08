@@ -23,6 +23,10 @@ and no relay. Eight hosted providers take a key; four local or self-hosted ones 
 | llama.cpp / vLLM (local) | optional | `sirius.ai.llamacpp.baseUrl` (default `http://localhost:8080/v1`) | discovered |
 | Custom OpenAI-compatible | optional | `sirius.ai.custom.baseUrl` (empty until you set it; include the `/v1` suffix) | discovered |
 
+The endpoint settings (`…baseUrl`, `sirius.ai.ollama.endpoint`) are read from your user
+settings only, never from a project's `.vscode/settings.json` — a repository cannot point
+your keys at a server of its choosing.
+
 *Discovered* means Sirius asks the server for its model list (`/models`, or Ollama's
 `/api/tags`) each time it refreshes, so what you see is what the endpoint offers. Every
 provider except Anthropic, Gemini and Ollama is driven through the same OpenAI-compatible

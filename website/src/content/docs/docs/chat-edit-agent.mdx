@@ -17,8 +17,12 @@ choice):
 1. Sirius sends the model its system prompt, your [project rules](/docs/rules-and-context/),
    the file you have open with the selection or the lines around the cursor, the earlier
    turns of the conversation, and what you attached: the text of attached files and
-   selections (up to 100 KB each; larger or binary files go by path), and attached or pasted
-   images for a [model that can see](/docs/image-input/).
+   selections (up to 100 KB each, and about half the model's context window in all; what
+   does not fit, and binary files, go by path), and attached or pasted images for a
+   [model that can see](/docs/image-input/). Instruction files the editor attaches —
+   `AGENTS.md`, `CLAUDE.md` (including your personal `~/.claude/CLAUDE.md`, under the
+   editor's `chat.useClaudeMdFile` setting), `*.instructions.md` — join the instructions
+   once, not the message.
 2. The model answers, or asks for a tool. A tool call shows as *Running read file…* in
    the transcript; the result goes back to the model, and the loop continues — for up to
    **25 tool rounds** per message. After that Sirius stops with *Stopping here — this task
@@ -45,8 +49,9 @@ caught: Sirius recognises up to six such calls per round and runs them as real t
 to read the file again or include more context, and nothing is changed.
 
 Every one of these stays inside the workspace: a path that resolves outside the open
-folders — `../../etc/passwd`, `~/.ssh/…` — is refused with *… is outside the workspace*,
-for reading and writing alike. For the web, the agent uses the
+folders — `../../etc/passwd`, `/home/you/project/../.ssh/…`, or a symlink in the project
+that points elsewhere — is refused with *… is outside the workspace*, for reading,
+searching and writing alike. For the web, the agent uses the
 [integrated browser](/docs/browser/) tools.
 
 **The editor's own tools, by tier.** The workbench provides terminal, task, test and
@@ -95,7 +100,8 @@ The three modes are the editor's, and each gets a different set of tools:
 | **Agent** | all of Edit, plus the editor's terminal, task, test, sub-agent and browser tools, by tier (above) |
 
 Pick per message; it sticks until you change it. The conversation carries over when you
-switch.
+switch. A tool the current mode does not offer is refused even if a model asks for it by
+name.
 
 :::note[Changed in 1.118.8]
 In 1.118.7 all three modes offered every tool, so Ask could run terminal commands and
