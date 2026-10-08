@@ -29,8 +29,11 @@ reap; pgrep -x Xvfb >/dev/null && pkill -x Xvfb || true; sleep 1
 Xvfb :97 -screen 0 1400x900x24 >/dev/null 2>&1 & XP=$!
 sleep 2
 
-SIRIUS_PROBE_SCRIPT="$PROBE" SIRIUS_PROBE_OUT="$OUT" SIRIUS_AGENT_DEBUG=1 DISPLAY=:97 \
-	"$APP/bin/sirius" --user-data-dir="$WORK/user" --extensions-dir="$WORK/empty" \
+# On a Wayland desktop Electron prefers WAYLAND_DISPLAY over DISPLAY, and the
+# probe window opened on the owner's screen instead of in Xvfb: drop the variable
+# and pin the X11 backend so the run stays headless.
+env -u WAYLAND_DISPLAY SIRIUS_PROBE_SCRIPT="$PROBE" SIRIUS_PROBE_OUT="$OUT" SIRIUS_AGENT_DEBUG=1 DISPLAY=:97 \
+	"$APP/bin/sirius" --ozone-platform=x11 --user-data-dir="$WORK/user" --extensions-dir="$WORK/empty" \
 	--no-sandbox --disable-gpu --disable-workspace-trust --use-inmemory-secretstorage \
 	--skip-welcome --skip-release-notes --disable-updates "$WORK/ws" >/dev/null 2>&1 &
 
