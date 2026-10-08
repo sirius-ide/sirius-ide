@@ -20,6 +20,29 @@ async function* walk(dir) {
 const html = [];
 for await (const f of walk(DIST)) { if (f.endsWith('.html')) { html.push(f); } }
 
+// 0. Expressive Code's copy-button script is a 2.5 KB module with no imports, fetched separately by every page that has
+// a code block. Inlined — and hashed with the other inline scripts below — it is one request fewer on the page, which
+// is worth a simulated round trip in the lab's load model (the install guide's LCP) and one connection in the field.
+{
+	const cache = new Map();
+	let inlined = 0;
+	for (const file of html) {
+		const text = await readFile(file, 'utf8');
+		let changed = text;
+		for (const m of text.matchAll(/<script type="module" src="\/_astro\/(ec\.[\w-]+\.js)"><\/script>/g)) {
+			if (!cache.has(m[1])) {
+				const js = await readFile(join(DIST, '_astro', m[1]), 'utf8').catch(() => null);
+				// only a self-contained script can move into the page
+				cache.set(m[1], js && !/\b(import|export)\b/.test(js) && !/<\/script/i.test(js) ? js : null);
+			}
+			const js = cache.get(m[1]);
+			if (js) { changed = changed.replace(m[0], () => { inlined++; return `<script type="module">${js}</script>`; }); }
+		}
+		if (changed !== text) { await writeFile(file, changed); }
+	}
+	if (inlined) { console.log(`postbuild: inlined Expressive Code's script into ${inlined} page(s)`); }
+}
+
 // 1. inline scripts → hashes; external references → must be same-origin
 const hashes = new Set();
 const foreign = [];
@@ -63,6 +86,21 @@ if (ecCss) {
 		if (next !== text) { await writeFile(file, next); }
 	}
 	if (inlined) { console.log(`postbuild: inlined Expressive Code's stylesheet into ${inlined} page(s)`); }
+}
+// Starlight's print stylesheet is a separate request on every docs page for styles that only matter on paper.
+// Inlined as a media="print" <style>, the page makes one request fewer — and an unrendered one is the kind
+// that costs a simulated round trip in the lab's load model — for 1.3 KB of HTML.
+const printFiles = (await readdir(join(DIST, '_astro'))).filter((f) => /^print\.[\w-]+\.css$/.test(f));
+for (const pf of printFiles) {
+	const css = (await readFile(join(DIST, '_astro', pf), 'utf8')).trim();
+	let inlined = 0;
+	for (const file of html) {
+		const text = await readFile(file, 'utf8');
+		const link = `<link rel="stylesheet" href="/_astro/${pf}" media="print">`;
+		if (!text.includes(link)) { continue; }
+		await writeFile(file, text.replaceAll(link, () => { inlined++; return `<style media="print">${css}</style>`; }));
+	}
+	if (inlined) { console.log(`postbuild: inlined ${pf} (media="print") into ${inlined} page(s)`); }
 }
 for (const ref of ecRefs) {
 	if (ecFiles.includes(ref)) { continue; }
