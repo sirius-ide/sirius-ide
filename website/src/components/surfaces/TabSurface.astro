@@ -1,0 +1,60 @@
+---
+/**
+ * Tab completion and next-edit prediction, the two things the section describes, drawn as the editor
+ * renders them (extensions/sirius-ai/src/inline, and the workbench's inline-completions views):
+ *   1. ghost text after the caret — italic, dim, continuing the code, accepted with Tab;
+ *   2. a next-edit prediction — the changed word tinted as removed, the replacement in a bordered
+ *      chip under it, and the inline-edit indicator (the Tab glyph) in the gutter.
+ * The two captions are annotations, not product chrome.
+ */
+import Surface from './Surface.astro';
+import Icon from '../hero/Icon.astro';
+---
+<Surface class="tab-s">
+	<div class="sx-tabs">
+		<div class="sx-tab on mod"><i class="sx-fi">TS</i><span class="nm">retry.ts</span><span class="x"><Icon name="close" size={12} /></span></div>
+		<div class="sx-tab"><i class="sx-fi">TS</i><span class="nm">server.ts</span></div>
+	</div>
+
+	<div class="cap"><span>Tab completion</span><span class="hint"><kbd>Tab</kbd> accepts</span></div>
+	<div class="sx-code">
+		<div class="sx-row"><span class="sx-ln">12</span><span class="sx-src"><b class="k">export function</b> <b class="f">retryAfter</b><b class="p">(</b><b class="v">ms</b><b class="p">:</b> <b class="t">number</b><b class="p">) {'{'}</b></span></div>
+		<div class="sx-row"><span class="sx-ln">13</span><span class="sx-src">  <b class="k2">const</b> <b class="v">seconds</b> <b class="p">=</b> <b class="t">Math</b><b class="p">.</b><b class="f">ceil</b><b class="p">(</b><b class="v">ms</b> <b class="p">/</b> <b class="n">1000</b><b class="p">);</b></span></div>
+		<div class="sx-row"><span class="sx-ln">14</span><span class="sx-src">  <b class="k">return</b> <b class="p">{'{'}</b></span></div>
+		<div class="sx-row cur"><span class="sx-ln">15</span><span class="sx-src">    <b class="v">headers</b><b class="p">:</b> <b class="p">{'{'}</b> <b class="s">'Retry-After'</b><b class="p">:</b> <b class="t">String</b><b class="p">(</b><b class="v">seconds</b><b class="p">) {'}'},</b><span class="caret"></span></span></div>
+		<div class="sx-row ghost"><span class="sx-ln"></span><span class="sx-src">    status: 429,</span></div>
+		<div class="sx-row ghost"><span class="sx-ln"></span><span class="sx-src">  {'}'};</span></div>
+		<div class="sx-row"><span class="sx-ln">16</span><span class="sx-src"><b class="p">{'}'}</b></span></div>
+	</div>
+
+	<div class="cap"><span>Next-edit prediction</span><span class="hint"><kbd>Tab</kbd> accepts</span></div>
+	<div class="sx-code">
+		<div class="sx-row cur"><span class="sx-ln">13</span><span class="sx-src">  <b class="k2">const</b> <b class="v">secs</b><span class="caret"></span> <b class="p">=</b> <b class="t">Math</b><b class="p">.</b><b class="f">ceil</b><b class="p">(</b><b class="v">ms</b> <b class="p">/</b> <b class="n">1000</b><b class="p">);</b></span></div>
+		<div class="sx-row"><span class="sx-ln">14</span><span class="sx-src">  <b class="k">return</b> <b class="p">{'{'}</b></span></div>
+		<div class="sx-row edit">
+			<span class="gi"><Icon name="tab" size={12} /></span>
+			<span class="sx-ln">15</span>
+			<span class="sx-src">    <b class="v">headers</b><b class="p">:</b> <b class="p">{'{'}</b> <b class="s">'Retry-After'</b><b class="p">:</b> <b class="t">String</b><b class="p">(</b><span class="rm"><b class="v">seconds</b><span class="chip"><b class="v">secs</b></span></span><b class="p">) {'}'},</b></span>
+		</div>
+		<div class="sx-row"><span class="sx-ln">16</span><span class="sx-src">  <b class="p">{'}'};</b></span></div>
+		<div class="sx-row"><span class="sx-ln">17</span><span class="sx-src"><b class="p">{'}'}</b></span></div>
+	</div>
+</Surface>
+
+<style>
+	.cap { display: flex; align-items: center; justify-content: space-between; gap: 1em; padding: 0.45em 1em; background: var(--w-s2); border-top: 1px solid var(--w-border); border-bottom: 1px solid var(--w-border); font-family: var(--font-mono); font-variant-ligatures: none; font-size: 0.78em; letter-spacing: 0.04em; text-transform: uppercase; color: var(--w-muted); }
+	.hint { text-transform: none; letter-spacing: 0; display: inline-flex; align-items: center; gap: 0.5em; white-space: nowrap; }
+	kbd { font-family: var(--font-mono); font-size: 1em; padding: 0 0.5em; border-radius: 3px; border: 1px solid var(--w-border2); border-bottom-width: 2px; background: var(--w-bg); color: var(--w-fg); }
+	.sx-code { padding-block: 0.6em; }
+	.sx-row { grid-template-columns: 4.3em minmax(0, 1fr); }
+	.sx-ln { padding-right: 1.4em; }
+	.sx-src { position: relative; overflow: visible; }
+	.sx-row { overflow: visible; }
+	.caret { display: inline-block; width: 0.16em; height: 1.2em; vertical-align: -0.2em; background: var(--w-fg); margin-left: -0.05em; }
+	.ghost .sx-src { color: var(--w-ghost); font-style: italic; }
+	/* the next edit: the old word tinted as removed, the new one in a bordered chip, the Tab glyph in the gutter */
+	.rm { position: relative; background: var(--w-del-text); border-radius: 2px; }
+	.chip { position: absolute; left: -0.3em; top: calc(100% + 0.1em); z-index: 2; padding: 0 0.5em; border: 1px solid var(--w-green); border-radius: 4px; background: var(--w-add-text); line-height: 1.45; }
+	.edit .sx-src { overflow: visible; }
+	.gi { position: absolute; left: 0.1em; top: 0.12em; width: 1.5em; height: 1.35em; display: inline-grid; place-items: center; border-radius: 4px; border: 1px solid var(--w-accent); background: color-mix(in srgb, var(--w-accent) 38%, var(--w-bg)); color: var(--w-fg); }
+</style>

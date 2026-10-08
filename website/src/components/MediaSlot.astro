@@ -3,7 +3,9 @@
  * A documented footage slot (src/media/README.md). When `src/media/<name>.mp4` exists the
  * slot renders it — poster, muted, looped, playsinline, lazy, and started only when the
  * visitor has not asked for reduced motion or data saving. Until then it renders the
- * stand-in passed as the default slot: a stylised, flat SVG, never a fake screenshot.
+ * stand-in passed as the default slot: a drawn surface (components/surfaces), the product's
+ * own UI in HTML and CSS — never a fake screenshot. The stand-in is one image to assistive
+ * technology, described by `label`.
  */
 interface Props { name: string; label: string; class?: string }
 const { name, label, class: className = '' } = Astro.props;
@@ -29,8 +31,7 @@ const poster = find('jpg') ?? find('png');
 <style>
 	.media { margin: 0; width: 100%; border: 1px solid var(--ring); outline: 1px solid var(--ring-soft); outline-offset: 3px; border-radius: 14px; overflow: hidden; background: var(--surface); }
 	.media-video { display: block; width: 100%; height: auto; aspect-ratio: 16 / 10; }
-	.standin { aspect-ratio: 16 / 10; display: grid; }
-	.standin :global(svg) { width: 100%; height: 100%; display: block; }
+	.standin { display: block; }
 </style>
 
 <script>

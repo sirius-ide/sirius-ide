@@ -1,0 +1,78 @@
+---
+/**
+ * The integrated browser and the agent using it. Left, the browser as an editor tab — back, forward,
+ * reload, the address, a page. Right, the chat with the tool runs as the workbench prints them once
+ * they finish (src/vs/workbench/contrib/browserView/electron-browser/tools: "Opened browser page at
+ * …", "Clicked … in Browser", "Read Browser", "Captured browser screenshot"). "Browser" is the
+ * workbench's link to the page.
+ */
+import Surface from './Surface.astro';
+import Icon from '../hero/Icon.astro';
+---
+<Surface class="browser-s">
+	<div class="grid">
+		<div class="br">
+			<div class="sx-tabs"><div class="sx-tab on"><Icon name="globe" size={13} /><span class="nm">Aurora status</span><span class="x"><Icon name="close" size={12} /></span></div></div>
+			<div class="nav">
+				<span class="ib"><Icon name="arrowLeft" size={14} /></span><span class="ib dis"><Icon name="arrowRight" size={14} /></span><span class="ib"><Icon name="refresh" size={14} /></span>
+				<span class="url sx-mono">http://localhost:3000/</span>
+				<span class="ib"><Icon name="linkExternal" size={14} /></span>
+			</div>
+			<div class="page">
+				<p class="brand">Aurora</p>
+				<h4>Service status</h4>
+				<p class="ok"><i></i> All systems operational</p>
+				<dl>
+					<div><dt>API</dt><dd class="sx-mono">42 ms</dd></div>
+					<div><dt>Queue</dt><dd class="sx-mono">0 jobs</dd></div>
+					<div><dt>Uptime</dt><dd class="sx-mono">4 821 s</dd></div>
+				</dl>
+				<span class="pbtn">Retry check</span>
+			</div>
+		</div>
+
+		<div class="sx-chat chat">
+			<div class="sx-chat-head"><span>Chat</span><span class="acts"><Icon name="plus" size={15} /><Icon name="history" size={15} /><Icon name="more" size={15} /></span></div>
+			<div class="sx-log">
+				<div class="sx-turn">
+					<span class="sx-av"><Icon name="person" size={13} /></span>
+					<div class="sx-bubble">Check that the status page loads and the retry button works.</div>
+				</div>
+				<div class="sx-ai">
+					<ul class="sx-prog">
+						<li><Icon name="check" size={14} class="ok" /><span>Opened browser page at <u>http://localhost:3000/</u></span></li>
+						<li><Icon name="check" size={14} class="ok" /><span>Clicked Retry check in <u>Browser</u></span></li>
+						<li><Icon name="check" size={14} class="ok" /><span>Read <u>Browser</u></span></li>
+						<li><Icon name="check" size={14} class="ok" /><span>Captured browser screenshot</span></li>
+					</ul>
+					<p class="sx-prose">The page loads, the retry button works, and it still reads “All systems operational”.</p>
+				</div>
+			</div>
+		</div>
+	</div>
+</Surface>
+
+<style>
+	.grid { display: grid; grid-template-columns: minmax(0, 56fr) minmax(0, 44fr); min-height: 20em; }
+	.br { min-width: 0; display: flex; flex-direction: column; border-right: 1px solid var(--w-border); }
+	.nav { display: flex; align-items: center; gap: 0.25em; padding: 0.4em 0.6em; border-bottom: 1px solid var(--w-border); background: var(--w-s2); color: var(--w-muted); }
+	.ib { display: inline-grid; place-items: center; width: 1.9em; height: 1.9em; border-radius: 4px; flex: none; }
+	.ib.dis { opacity: 0.55; }
+	.url { flex: 1; min-width: 0; margin: 0 0.3em; padding: 0.3em 0.7em; border-radius: 4px; background: var(--w-bg); border: 1px solid var(--w-border2); color: var(--w-fg); font-size: 0.92em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+	.page { flex: 1; padding: 1.2em 1.3em; background: var(--w-bg); color: var(--w-fg); }
+	.page p, .page h4, .page dl { margin: 0; }
+	.brand { font-family: var(--font-mono); font-variant-ligatures: none; font-size: 0.85em; letter-spacing: 0.06em; text-transform: uppercase; color: var(--w-muted); }
+	.page h4 { margin-top: 0.4em; font-size: 1.5em; font-weight: 700; letter-spacing: -0.02em; line-height: 1.15; }
+	.ok { margin-top: 0.8em; display: flex; align-items: center; gap: 0.55em; color: var(--w-green); font-weight: 500; }
+	.ok i { width: 0.7em; height: 0.7em; border-radius: 50%; background: var(--w-green); }
+	dl { margin-top: 0.9em; display: grid; gap: 0.35em; max-width: 15em; }
+	dl div { display: flex; justify-content: space-between; border-bottom: 1px solid var(--w-border2); padding-bottom: 0.3em; }
+	dt { color: var(--w-muted); }
+	dd { margin: 0; }
+	.pbtn { display: inline-block; margin-top: 1em; padding: 0.4em 1em; border-radius: 4px; background: var(--w-accent-strong); color: var(--w-on-accent); font-weight: 600; }
+	.sx-prog u { text-decoration: none; color: var(--w-ice); }
+	@container sx (max-width: 470px) {
+		.grid { grid-template-columns: minmax(0, 1fr); min-height: 0; }
+		.br { border-right: 0; border-bottom: 1px solid var(--w-border); }
+	}
+</style>

@@ -1,0 +1,11 @@
+---
+/**
+ * The frame every drawn surface sits in: the shared palette and metrics (styles/surface.css) and a
+ * container the surface sizes itself from. Decorative on its own — MediaSlot gives the whole
+ * surface its one description for assistive technology.
+ */
+import '../../styles/surface.css';
+interface Props { class?: string }
+const { class: className = '' } = Astro.props;
+---
+<div class:list={['sx', className]} aria-hidden="true"><div class="sx-in"><slot /></div></div>

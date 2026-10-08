@@ -1,0 +1,60 @@
+---
+/**
+ * "Sirius: Import from VS Code, Cursor, or Windsurf" — its three steps, side by side as the editor shows
+ * them one after another, with the strings of extensions/sirius-ai/src/importer/editorImporter.ts:
+ * the quick pick "Import settings from which editor?" (label and the profile path it will read,
+ * only for editors found on this machine), the multi-select "Import from <editor>" with the four
+ * categories ticked by default, and the information message the run ends with. The numbers in the
+ * message are an example; the format is the product's.
+ */
+import Surface from './Surface.astro';
+import Icon from '../hero/Icon.astro';
+const editors = [
+	{ label: 'Visual Studio Code', path: '/home/ada/.config/Code/User', focus: true },
+	{ label: 'Cursor', path: '/home/ada/.config/Cursor/User' },
+	{ label: 'VSCodium', path: '/home/ada/.config/VSCodium/User' },
+];
+const categories = ['settings', 'keybindings', 'snippets', 'extensions'];
+---
+<Surface class="import-s">
+	<div class="stage">
+		<div class="sx-qp pick">
+			<div class="sx-qp-title">Import settings from which editor?</div>
+			<div class="sx-qp-input"></div>
+			<ul class="sx-qp-list">
+				{editors.map((e) => (
+					<li class:list={['sx-qp-row', { focus: e.focus }]}><span class="lbl">{e.label}</span><span class="dsc">{e.path}</span></li>
+				))}
+			</ul>
+		</div>
+
+		<div class="sx-qp cats">
+			<div class="sx-qp-title">Import from Visual Studio Code</div>
+			<div class="head"><span class="sx-check on"><Icon name="check" size={12} /></span><div class="sx-qp-input"></div></div>
+			<ul class="sx-qp-list">
+				{categories.map((c, i) => (
+					<li class:list={['sx-qp-row', { focus: i === 0 }]}><span class="sx-check on"><Icon name="check" size={12} /></span><span class="lbl">{c}</span></li>
+				))}
+			</ul>
+			<div class="sx-qp-foot"><span>4 Selected</span><span class="sx-btn">OK</span></div>
+		</div>
+
+		<div class="sx-toast">
+			<Icon name="info" size={16} />
+			<span>Sirius: Imported from Visual Studio Code: 42 settings · keybindings imported · 18 snippets · 31 extensions installed (3 not on Open VSX)</span>
+		</div>
+	</div>
+</Surface>
+
+<style>
+	.stage { display: grid; grid-template-columns: minmax(0, 58fr) minmax(0, 42fr); grid-template-areas: "pick cats" "toast cats"; gap: 1em; align-items: start; padding: 1.2em; }
+	.pick { grid-area: pick; }
+	.cats { grid-area: cats; }
+	.sx-toast { grid-area: toast; }
+	.sx-qp-row .dsc { font-size: 0.86em; }
+	.head { display: flex; align-items: center; gap: 0.5em; padding-left: 0.6em; }
+	.head .sx-qp-input { flex: 1; margin-left: 0; }
+	@container sx (max-width: 470px) {
+		.stage { grid-template-columns: minmax(0, 1fr); grid-template-areas: "pick" "cats" "toast"; padding: 0.9em; }
+	}
+</style>

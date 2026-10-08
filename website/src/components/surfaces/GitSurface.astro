@@ -1,0 +1,78 @@
+---
+/**
+ * Git assist, both halves. Left, the Source Control view after "Generate Commit Message": the
+ * message in the commit box (a summary line, a blank line, a short body — what scm/gitAssist.ts asks
+ * for), the sparkle the workbench puts in the box, the Commit button, the staged files. Right, the
+ * chat after "Resolve Merge Conflicts": the request is the exact text the command sends
+ * (extensions/sirius-ai/src/scm/gitAssist.ts), then the agent reads the file and explains its
+ * resolution, and the edit waits for Keep or Undo like any other.
+ */
+import Surface from './Surface.astro';
+import Icon from '../hero/Icon.astro';
+---
+<Surface class="git-s">
+	<div class="grid">
+		<div class="sx-side scm">
+			<div class="sx-side-title"><span>Source Control</span><span class="acts"><Icon name="check" size={14} /><Icon name="sync" size={14} /><Icon name="more" size={14} /></span></div>
+			<div class="box">
+				<div class="msg">
+					<p class="subj">Rate-limit /health with a token bucket</p>
+					<p class="body">Reject requests over 20 per client, refilling 5 a second, and log each rejection.</p>
+					<span class="spark"><Icon name="sparkle" size={14} /></span>
+				</div>
+				<div class="commit"><span class="go"><Icon name="check" size={14} /> Commit</span><span class="dd"><Icon name="chevronDown" size={12} /></span></div>
+			</div>
+			<div class="sx-side-head grp"><Icon name="chevronDown" size={14} /> Staged Changes <span class="count">2</span></div>
+			<ul class="sx-tree files">
+				<li><i class="sx-fi">TS</i><span class="name">health.ts</span><span class="dir">src/routes</span><span class="m">M</span></li>
+				<li><i class="sx-fi">TS</i><span class="name">ratelimit.ts</span><span class="dir">src/lib</span><span class="m a">A</span></li>
+			</ul>
+		</div>
+
+		<div class="sx-chat chat">
+			<div class="sx-chat-head"><span>Chat</span><span class="acts"><Icon name="plus" size={15} /><Icon name="history" size={15} /><Icon name="more" size={15} /></span></div>
+			<div class="sx-log">
+				<div class="sx-turn">
+					<span class="sx-av"><Icon name="person" size={13} /></span>
+					<div class="sx-bubble">Resolve the merge conflicts in: src/lib/ratelimit.ts. Read each file, understand both sides of every conflict, and apply a resolution that keeps the intent of both changes. Explain each resolution briefly as you go.</div>
+				</div>
+				<div class="sx-ai">
+					<ul class="sx-prog">
+						<li><Icon name="check" size={14} class="ok" /><span>Running read file…</span></li>
+						<li><Icon name="check" size={14} class="ok" /><span>Running edit file…</span></li>
+					</ul>
+					<p class="sx-prose">Both sides changed the bucket's options. I kept your capacity of 20 and main's refill rate of 5 a second.</p>
+				</div>
+				<div class="sx-changed"><span class="cnt">1 file changed</span><span class="sx-kbtn keep">Keep All Edits</span><span class="sx-kbtn undo">Undo All Edits</span></div>
+			</div>
+		</div>
+	</div>
+</Surface>
+
+<style>
+	.grid { display: grid; grid-template-columns: minmax(0, 46fr) minmax(0, 54fr); min-height: 21em; }
+	.scm { border-right: 1px solid var(--w-border); }
+	.acts { display: inline-flex; gap: 0.8em; color: var(--w-muted); }
+	.box { padding: 0 0.8em 0.8em; display: grid; gap: 0.6em; }
+	.msg { position: relative; padding: 0.55em 2.4em 0.55em 0.7em; border: 1px solid var(--w-accent); border-radius: 3px; background: var(--w-bg); color: var(--w-fg); min-height: 8em; }
+	.msg p { margin: 0; line-height: 1.45; }
+	.subj { font-weight: 500; }
+	.body { margin-top: 0.9em !important; color: var(--w-fg2); }
+	.spark { position: absolute; right: 0.5em; bottom: 0.45em; display: inline-grid; place-items: center; width: 1.8em; height: 1.8em; border-radius: 4px; color: var(--w-fg); background: var(--w-s3); }
+	.commit { display: flex; align-items: stretch; border-radius: 3px; overflow: hidden; background: var(--w-accent-strong); color: var(--w-on-accent); font-weight: 500; }
+	.go { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 0.4em; padding: 0.45em 0; }
+	.dd { display: inline-grid; place-items: center; width: 2.2em; border-left: 1px solid color-mix(in srgb, var(--w-on-accent) 35%, transparent); }
+	.grp { border-top: 1px solid var(--w-border); margin-top: 0.1em; }
+	.count { margin-left: auto; margin-right: 0.6em; min-width: 1.6em; padding: 0 0.4em; border-radius: 999px; background: var(--w-s3); color: var(--w-fg); text-align: center; letter-spacing: 0; font-weight: 500; }
+	.files li { padding-left: 1.3em; gap: 0.35em; }
+	.files .name { color: var(--w-fg); }
+	.files .dir { color: var(--w-muted); font-size: 0.88em; margin-left: 0.3em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+	.files .m { flex: none; }
+	.files .m.a { color: var(--w-green); }
+	.sx-log { flex: 1; }
+	.sx-changed { margin-top: auto; }
+	@container sx (max-width: 470px) {
+		.grid { grid-template-columns: minmax(0, 1fr); min-height: 0; }
+		.scm { border-right: 0; border-bottom: 1px solid var(--w-border); }
+	}
+</style>

@@ -1,0 +1,78 @@
+---
+/**
+ * Project rules and ambient context: a .siriusrules file open beside the file being edited, and the
+ * chat carrying that file as context (the workbench's current-file context pill, with its eye
+ * toggle) while the agent works to the rules — pnpm, the test beside the code. Files and strings are
+ * the real ones: extensions/sirius-ai/src/chat/projectContext.ts reads .siriusrules,
+ * .sirius/rules.md and AGENTS.md; the pill is chat/attachments/implicitContextAttachment.ts.
+ */
+import Surface from './Surface.astro';
+import Icon from '../hero/Icon.astro';
+---
+<Surface class="rules-s">
+	<div class="groups">
+		<div class="grp">
+			<div class="sx-tabs"><div class="sx-tab"><Icon name="file" size={13} /><span class="nm">.siriusrules</span></div></div>
+			<div class="sx-code">
+				<div class="sx-row"><span class="sx-ln">1</span><span class="sx-src"><b class="c"># aurora</b></span></div>
+				<div class="sx-row"><span class="sx-ln">2</span><span class="sx-src">pnpm build, pnpm test.</span></div>
+				<div class="sx-row"><span class="sx-ln">3</span><span class="sx-src">- Never use npm or yarn.</span></div>
+				<div class="sx-row"><span class="sx-ln">4</span><span class="sx-src">- Tests sit beside the code.</span></div>
+				<div class="sx-row"><span class="sx-ln">5</span><span class="sx-src">- Never log request bodies.</span></div>
+				<div class="sx-row"><span class="sx-ln">6</span><span class="sx-src">- Do not touch generated/.</span></div>
+			</div>
+		</div>
+		<div class="grp on">
+			<div class="sx-tabs"><div class="sx-tab on"><i class="sx-fi">TS</i><span class="nm">health.ts</span><span class="x"><Icon name="close" size={12} /></span></div></div>
+			<div class="sx-code">
+				<div class="sx-row"><span class="sx-ln">8</span><span class="sx-src"><b class="v">router</b><b class="p">.</b><b class="f">get</b><b class="p">(</b><b class="s">'/health'</b><b class="p">, (</b><b class="v">req</b><b class="p">,</b> <b class="v">res</b><b class="p">)</b> <b class="k">=&gt;</b> <b class="p">{'{'}</b></span></div>
+				<div class="sx-row cur"><span class="sx-ln">9</span><span class="sx-src">  <b class="k">if</b> <b class="p">(!</b><b class="v">bucket</b><b class="p">.</b><b class="f">take</b><b class="p">(</b><b class="v">req</b><b class="p">.</b><b class="v">ip</b><b class="p">)) {'{'}</b></span></div>
+				<div class="sx-row"><span class="sx-ln">10</span><span class="sx-src">    <b class="v">log</b><b class="p">.</b><b class="f">warn</b><b class="p">(</b><b class="s">'rate limited'</b><b class="p">);</b></span></div>
+				<div class="sx-row"><span class="sx-ln">11</span><span class="sx-src">    <b class="k">return</b> <b class="v">res</b><b class="p">.</b><b class="f">sendStatus</b><b class="p">(</b><b class="n">429</b><b class="p">);</b></span></div>
+			</div>
+		</div>
+	</div>
+
+	<div class="sx-chat chat">
+		<div class="sx-log">
+			<div class="sx-turn">
+				<span class="sx-av"><Icon name="person" size={13} /></span>
+				<div class="sx-bubble">Add a test for the rate limiter.</div>
+			</div>
+			<div class="sx-ai">
+				<ul class="sx-prog">
+					<li><Icon name="check" size={14} class="ok" /><span>Running read file…</span></li>
+					<li><Icon name="check" size={14} class="ok" /><span>Running create file…</span></li>
+					<li><Icon name="check" size={14} class="ok" /><span>Running run in terminal…</span></li>
+				</ul>
+				<p class="sx-prose">Added <code>ratelimit.test.ts</code> beside <code>ratelimit.ts</code> and ran <code>pnpm test</code>.</p>
+			</div>
+		</div>
+		<div class="sx-input">
+			<div class="sx-ctx">
+				<span class="sx-chip"><Icon name="plus" size={12} /></span>
+				<span class="sx-chip"><Icon name="eye" size={12} /><i class="sx-fi">TS</i>health.ts</span>
+			</div>
+			<div class="sx-ph">Describe what to build</div>
+			<div class="sx-bar">
+				<span class="sx-pick mode"><Icon name="agent" size={14} /> Agent <Icon name="chevronDown" size={11} /></span>
+				<span class="sx-pick"><span>qwen3:32b</span> <Icon name="chevronDown" size={11} /></span>
+				<span class="sx-grow"></span>
+				<span class="sx-send"><Icon name="send" size={14} /></span>
+			</div>
+		</div>
+	</div>
+</Surface>
+
+<style>
+	.groups { display: grid; grid-template-columns: minmax(0, 42fr) minmax(0, 58fr); border-bottom: 1px solid var(--w-border); }
+	.grp { min-width: 0; }
+	.grp + .grp { border-left: 1px solid var(--w-border); }
+	.sx-code { padding-block: 0.5em; font-size: 0.88em; }
+	.sx-chip .sx-fi { width: 1.4em; }
+	.chat { border-top: 0; }
+	@container sx (max-width: 470px) {
+		.groups { grid-template-columns: minmax(0, 1fr); }
+		.grp + .grp { border-left: 0; border-top: 1px solid var(--w-border); }
+	}
+</style>

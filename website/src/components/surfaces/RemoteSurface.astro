@@ -1,0 +1,35 @@
+---
+/**
+ * The server half, in a terminal on the host you connect to: unpack the tarball, run the
+ * requirements check, ask for the version, start the server, ask it which commit it is. The
+ * commands are INSTALL.md's and the remote-server docs'; the output is what the code prints —
+ * `--version` is "<version>\n<commit>\n<arch>" (buildVersionMessage), starting prints the two
+ * "Server bound to" / "Extension host agent listening on" lines (src/server-main.ts), /version
+ * answers the commit as plain text, and the requirements check says nothing when the host is fine.
+ */
+import Surface from './Surface.astro';
+const commit = '603044c6cfb193c74774c10e45bbef1a02e30682';
+---
+<Surface class="remote-s">
+	<div class="sx-panel-tabs"><span>Problems</span><span>Output</span><span>Debug Console</span><span class="on">Terminal</span><span>Ports</span></div>
+	<div class="sx-term">
+		<p><span class="ps">deploy@edge-02:~$</span> mkdir sirius-server &amp;&amp; tar -xzf sirius-server-linux-x64.tar.gz -C sirius-server --strip-components 1</p>
+		<p><span class="ps">deploy@edge-02:~$</span> sirius-server/bin/helpers/check-requirements.sh</p>
+		<p><span class="ps">deploy@edge-02:~$</span> sirius-server/bin/sirius-server --version</p>
+		<p class="out">1.118.7</p>
+		<p class="out">{commit}</p>
+		<p class="out">x64</p>
+		<p><span class="ps">deploy@edge-02:~$</span> sirius-server/bin/sirius-server --host 127.0.0.1 --port 8317 --accept-server-license-terms --without-connection-token &amp;</p>
+		<p class="out">[1] 4128</p>
+		<p class="out">Server bound to 127.0.0.1:8317 (IPv4)</p>
+		<p class="out">Extension host agent listening on 8317</p>
+		<p><span class="ps">deploy@edge-02:~$</span> curl -s http://127.0.0.1:8317/version; echo</p>
+		<p class="out">{commit}</p>
+		<p><span class="ps">deploy@edge-02:~$</span> <span class="caret"></span></p>
+	</div>
+</Surface>
+
+<style>
+	.sx-term { min-height: 22em; }
+	@container sx (max-width: 470px) { .sx-panel-tabs span:nth-child(-n + 3) { display: none; } }
+</style>
