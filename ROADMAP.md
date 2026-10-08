@@ -94,10 +94,14 @@ rebase instead of drifting.
 
 ## Near-term next steps
 
-**Released: `v1.118.7` (2026-10-01).** Eight releases so far, all three platform builds
-from CI, provenance-attested, mirrored to R2 and served by the production update
-endpoint. v1.118.7 is the first with arm64 `.deb` and `.rpm` packages and the first whose
-arm64 builds hold the same glibc-2.28 floor as x64 — cross-compiled through upstream's
+**Released: `v1.118.8` (2026-10-08).** Nine releases so far, all three platform builds from CI,
+provenance-attested, mirrored to R2 and served by the production update endpoint. v1.118.8
+fixes what a file-and-line pass over the extension found: pasted and attached images reach the
+models that can see them; Ask, Edit and Agent each get their own tools, and the agent's file
+tools stay inside the workspace; thinking is shown; Tab completion works on llama.cpp; local
+servers can take an API key; commit messages use the default model; and Sirius no longer
+overrides three of the editor's shortcuts. v1.118.7 (2026-10-01) was the first with arm64
+`.deb` and `.rpm` packages and the first whose arm64 builds hold the same glibc-2.28 floor as x64 — cross-compiled through upstream's
 sysroot and installed and run on arm64 hardware before Publish. v1.118.6 (2026-09-30) was
 the first to ship the REH server and to publish the Arch pacman repository itself — no
 manual step is left after a tag — and the first whose `.deb`/`.rpm` were installed and run

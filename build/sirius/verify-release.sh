@@ -54,7 +54,7 @@ echo "== every asset: CDN size = GitHub size, bytes = .sha256 sidecar, attested"
 while IFS=$'\t' read -r size name; do
 	url="$CDN/releases/$TAG/$name"
 	if [ ! -f "$name" ] || [ "$(stat -c %s "$name")" != "$size" ]; then
-		curl -fsSL -o "$name" "$url" || { bad "$name: download from the CDN failed"; continue; }
+		curl -fsSL -o "$name" "$url" || { rm -f "$name"; bad "$name: download from the CDN failed"; continue; }
 	fi
 	got=$(stat -c %s "$name")
 	[ "$got" = "$size" ] || { bad "$name: CDN serves $got bytes, GitHub lists $size"; continue; }
