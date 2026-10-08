@@ -16,6 +16,8 @@ import { TabCompletionProvider } from './tabCompletionProvider';
  */
 export class SiriusInlineChatProvider {
 
+	constructor(private readonly llamaApiKey: () => string = () => '') { }
+
 	/**
 	 * Register all inline chat features
 	 */
@@ -31,7 +33,7 @@ export class SiriusInlineChatProvider {
 	private _registerInlineCompletions(context: vscode.ExtensionContext): void {
 		context.subscriptions.push(vscode.languages.registerInlineCompletionItemProvider(
 			{ pattern: '**' },
-			new TabCompletionProvider()
+			new TabCompletionProvider(this.llamaApiKey)
 		));
 	}
 }

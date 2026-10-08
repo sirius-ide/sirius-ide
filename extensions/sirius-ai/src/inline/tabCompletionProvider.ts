@@ -62,6 +62,9 @@ export class TabCompletionProvider implements vscode.InlineCompletionItemProvide
 	private backend: FimBackend | undefined;
 	private backendProbedAt = 0;
 
+	/** The llama.cpp key, read at resolve time so a key set later is picked up. */
+	constructor(private readonly llamaApiKey: () => string = () => '') { }
+
 	async provideInlineCompletionItems(
 		document: vscode.TextDocument,
 		position: vscode.Position,
@@ -126,7 +129,7 @@ export class TabCompletionProvider implements vscode.InlineCompletionItemProvide
 		// the editor is already open gets noticed without a reload.
 		if (!this.backend && Date.now() - this.backendProbedAt > 30_000) {
 			this.backendProbedAt = Date.now();
-			this.backend = await resolveFimBackend();
+			this.backend = await resolveFimBackend(this.llamaApiKey());
 		}
 		if (!this.backend || token.isCancellationRequested) {
 			return [];
@@ -173,7 +176,7 @@ export class TabCompletionProvider implements vscode.InlineCompletionItemProvide
 			return undefined;
 		}
 		if (!this.backend) {
-			this.backend = await resolveFimBackend();
+			this.backend = await resolveFimBackend(this.llamaApiKey());
 			if (!this.backend) {
 				return undefined;
 			}

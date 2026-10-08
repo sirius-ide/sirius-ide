@@ -74,14 +74,36 @@ class OllamaFim implements FimBackend {
 	}
 }
 
-/** llama.cpp's dedicated /infill endpoint. */
+/**
+ * llama.cpp's dedicated /infill endpoint.
+ *
+ * `sirius.ai.llamacpp.baseUrl` is the OpenAI-compatible base the chat provider
+ * uses, `http://host:8080/v1` by default, but `/infill` and `/completion` are
+ * llama-server's native endpoints and live at the server root — under `/v1`
+ * they 404, which left Tab completion dead on llama.cpp.
+ */
+export function llamaServerRoot(baseUrl: string): string {
+	return baseUrl.trim().replace(/\/+$/, '').replace(/\/v1$/, '');
+}
+
 class LlamaCppFim implements FimBackend {
-	constructor(readonly id: string, private readonly baseUrl: string) { }
+	private readonly root: string;
+
+	constructor(readonly id: string, baseUrl: string, private readonly apiKey: string) {
+		this.root = llamaServerRoot(baseUrl);
+	}
+
+	/** A server started with `--api-key` wants it on the native endpoints too. */
+	private headers(): Record<string, string> {
+		return this.apiKey
+			? { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.apiKey}` }
+			: { 'Content-Type': 'application/json' };
+	}
 
 	async generate(prompt: string, maxTokens: number, signal: AbortSignal): Promise<string> {
-		const response = await fetch(`${this.baseUrl}/completion`, {
+		const response = await fetch(`${this.root}/completion`, {
 			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
+			headers: this.headers(),
 			signal,
 			body: JSON.stringify({ prompt, n_predict: maxTokens, temperature: 0.1 })
 		});
@@ -93,9 +115,9 @@ class LlamaCppFim implements FimBackend {
 	}
 
 	async complete(request: FimRequest): Promise<string> {
-		const response = await fetch(`${this.baseUrl}/infill`, {
+		const response = await fetch(`${this.root}/infill`, {
 			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
+			headers: this.headers(),
 			signal: request.signal,
 			body: JSON.stringify({
 				input_prefix: request.prefix,
@@ -122,7 +144,7 @@ const FIM_CAPABLE = /coder|code|starcoder|codegemma|codestral|codellama/i;
  * automatically, so Tab completion lights up for local-first users with zero
  * setup.
  */
-export async function resolveFimBackend(): Promise<FimBackend | undefined> {
+export async function resolveFimBackend(llamaApiKey = ''): Promise<FimBackend | undefined> {
 	const config = vscode.workspace.getConfiguration('sirius.ai');
 	const configured = config.get<string>('completions.model', 'auto');
 
@@ -135,7 +157,7 @@ export async function resolveFimBackend(): Promise<FimBackend | undefined> {
 		return new OllamaFim(configured, ollamaEndpoint, configured.slice('ollama/'.length));
 	}
 	if (configured === 'llamacpp' && llamaBase) {
-		return new LlamaCppFim(configured, llamaBase);
+		return new LlamaCppFim(configured, llamaBase, llamaApiKey);
 	}
 
 	// Auto: a running Ollama with any FIM-capable model.
@@ -156,7 +178,7 @@ export async function resolveFimBackend(): Promise<FimBackend | undefined> {
 	}
 
 	if (llamaBase) {
-		return new LlamaCppFim('llamacpp', llamaBase);
+		return new LlamaCppFim('llamacpp', llamaBase, llamaApiKey);
 	}
 
 	return undefined;

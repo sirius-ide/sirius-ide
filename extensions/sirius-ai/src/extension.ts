@@ -72,7 +72,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	registerProjectContextDebug(context);
 
 	// ─── Inline Chat (Ctrl+I) ────────────────────────────────────────────
-	const inlineChat = new SiriusInlineChatProvider();
+	const inlineChat = new SiriusInlineChatProvider(() => secrets.get('llamacpp'));
 	inlineChat.register(context);
 
 	// ─── Commands ────────────────────────────────────────────────────────
