@@ -90,7 +90,7 @@ async function generateCommitMessage(...args: unknown[]): Promise<void> {
 			}
 			// Small models wrap the message in a code fence despite being told not
 			// to; the commit box wants the text.
-			repository.inputBox.value = message.trim().replace(/^```[\w-]*\n([\s\S]*?)\n?```$/, '$1').trim();
+			repository.inputBox.value = stripFence(message);
 		}
 	);
 }
@@ -112,6 +112,13 @@ async function resolveMergeConflicts(...args: unknown[]): Promise<void> {
 	await vscode.commands.executeCommand('workbench.action.chat.open', {
 		query: `Resolve the merge conflicts in: ${files}. Read each file, understand both sides of every conflict, and apply a resolution that keeps the intent of both changes. Explain each resolution briefly as you go.`
 	});
+}
+
+/** A message wrapped in a code fence (any length, any info string, CRLF or LF) loses the fence. */
+export function stripFence(message: string): string {
+	const trimmed = message.trim();
+	const fenced = /^(`{3,})[^\n]*\r?\n([\s\S]*?)\r?\n?\1[ \t]*$/.exec(trimmed);
+	return (fenced ? fenced[2] : trimmed).trim();
 }
 
 export function registerGitAssist(context: vscode.ExtensionContext): void {

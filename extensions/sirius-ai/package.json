@@ -160,6 +160,7 @@
 					"deprecationMessage": "Deprecated: keys are now stored in the system keyring. Run \"Sirius: Set API Key\" instead."
 				},
 				"sirius.ai.ollama.endpoint": {
+					"scope": "machine",
 					"type": "string",
 					"default": "http://localhost:11434",
 					"description": "Ollama server endpoint"
@@ -222,21 +223,25 @@
 					"description": "Enable AI-powered inline code completions (experimental)"
 				},
 				"sirius.ai.openai.baseUrl": {
+					"scope": "machine",
 					"type": "string",
 					"default": "https://api.openai.com/v1",
 					"description": "Override the OpenAI endpoint — e.g. an Azure deployment or a corporate proxy."
 				},
 				"sirius.ai.lmstudio.baseUrl": {
+					"scope": "machine",
 					"type": "string",
 					"default": "http://localhost:1234/v1",
 					"description": "LM Studio local server endpoint."
 				},
 				"sirius.ai.llamacpp.baseUrl": {
+					"scope": "machine",
 					"type": "string",
 					"default": "http://localhost:8080/v1",
 					"description": "llama.cpp or vLLM OpenAI-compatible endpoint."
 				},
 				"sirius.ai.custom.baseUrl": {
+					"scope": "machine",
 					"type": "string",
 					"default": "",
 					"description": "Base URL of any other OpenAI-compatible service, including the /v1 suffix."

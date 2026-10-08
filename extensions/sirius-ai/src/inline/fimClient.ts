@@ -83,20 +83,21 @@ class OllamaFim implements FimBackend {
  * they 404, which left Tab completion dead on llama.cpp.
  */
 export function llamaServerRoot(baseUrl: string): string {
-	return baseUrl.trim().replace(/\/+$/, '').replace(/\/v1$/, '');
+	return baseUrl.trim().replace(/\/+$/, '').replace(/\/v1$/i, '');
 }
 
 class LlamaCppFim implements FimBackend {
 	private readonly root: string;
 
-	constructor(readonly id: string, baseUrl: string, private readonly apiKey: string) {
+	constructor(readonly id: string, baseUrl: string, private readonly apiKey: () => string) {
 		this.root = llamaServerRoot(baseUrl);
 	}
 
 	/** A server started with `--api-key` wants it on the native endpoints too. */
 	private headers(): Record<string, string> {
-		return this.apiKey
-			? { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.apiKey}` }
+		const key = this.apiKey();
+		return key
+			? { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` }
 			: { 'Content-Type': 'application/json' };
 	}
 
@@ -144,7 +145,7 @@ const FIM_CAPABLE = /coder|code|starcoder|codegemma|codestral|codellama/i;
  * automatically, so Tab completion lights up for local-first users with zero
  * setup.
  */
-export async function resolveFimBackend(llamaApiKey = ''): Promise<FimBackend | undefined> {
+export async function resolveFimBackend(llamaApiKey: () => string = () => ''): Promise<FimBackend | undefined> {
 	const config = vscode.workspace.getConfiguration('sirius.ai');
 	const configured = config.get<string>('completions.model', 'auto');
 

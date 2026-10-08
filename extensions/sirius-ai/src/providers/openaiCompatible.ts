@@ -153,7 +153,9 @@ interface WireModelList {
  * images (the bridge's vision guard tells the model one was attached), while a
  * wrong entry would send images a server rejects.
  */
-const VISION_MODEL = /(^|[/:-])(gpt-4o|gpt-4\.1|gpt-5|o3(?!-mini)|o4-mini|chatgpt-4o|pixtral|llava|bakllava|qwen2(\.5)?-vl|qwen3-vl|gemma-3|llama-4|grok-4|grok-2-vision)|vision/i;
+const VISION_MODEL = /(^|[/:-])(gpt-4o|gpt-4\.1|gpt-5|o3(?!-mini)|o4-mini|chatgpt-4o|pixtral|llava|bakllava|qwen2(\.5)?-vl|qwen3-vl|gemma-3-(4|12|27)b|llama-4|grok-4|grok-2-vision)|vision/i;
+/** Variants of those families that take no images: audio, realtime, speech and search models. */
+const NOT_VISION = /-(audio|realtime|transcribe|tts|search)\b/i;
 
 /**
  * One adapter for every service that speaks OpenAI chat-completions.
@@ -510,7 +512,7 @@ export class OpenAICompatibleProvider implements IAIProvider {
 			contextWindow: this.config.assumedContextWindow ?? 128000,
 			description: `${this.config.name} model`,
 			supportsStreaming: true,
-			supportsVision: inputModalities ? inputModalities.includes('image') : VISION_MODEL.test(id),
+			supportsVision: inputModalities ? inputModalities.includes('image') : VISION_MODEL.test(id) && !NOT_VISION.test(id),
 			supportsThinking: false,
 			supportsImageGen: false
 		};

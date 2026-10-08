@@ -18,7 +18,10 @@ export async function selectDefaultModel(): Promise<vscode.LanguageModelChat | u
 	const config = vscode.workspace.getConfiguration('sirius.ai');
 	const wantedModel = config.get<string>('defaultModel', '');
 	const wantedProvider = config.get<string>('defaultProvider', '');
-	return (wantedModel ? models.find(m => m.id.endsWith(`/${wantedModel}`)) : undefined)
+	// The exact provider/model first: OpenRouter, for one, serves the same model
+	// names under its own prefix (`openrouter/anthropic/claude-…`).
+	return (wantedModel && wantedProvider ? models.find(m => m.id === `${wantedProvider}/${wantedModel}`) : undefined)
+		?? (wantedModel ? models.find(m => m.id.endsWith(`/${wantedModel}`)) : undefined)
 		?? (wantedProvider ? models.find(m => m.id.startsWith(`${wantedProvider}/`)) : undefined)
 		?? models[0];
 }
