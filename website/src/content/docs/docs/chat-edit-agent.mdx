@@ -83,7 +83,7 @@ session, which is what gives you:
 - checkpoints: **Restore Checkpoint**, **Restore to Last Checkpoint** and **Start Over**
   from the conversation, which roll the files back to how they were before a turn.
 
-:::note[Changed in 1.118.8]
+:::note[Changed in 1.118.8: created files]
 A file the agent *creates* is part of the editing session too: **Undo** removes it. In
 1.118.7 the empty file was written outside the session first, so Undo left it behind,
 empty.
@@ -103,7 +103,7 @@ Pick per message; it sticks until you change it. The conversation carries over w
 switch. A tool the current mode does not offer is refused even if a model asks for it by
 name.
 
-:::note[Changed in 1.118.8]
+:::note[Changed in 1.118.8: per-mode tools]
 In 1.118.7 all three modes offered every tool, so Ask could run terminal commands and
 edit files.
 :::
@@ -115,6 +115,6 @@ Models that reason (Claude, Gemini, and local models whose server declares `thin
 Level**); **Sirius: Toggle Thinking** turns it off. The reasoning shows in the transcript as
 a collapsible *Thinking* section above the answer.
 
-:::note[Changed in 1.118.8]
+:::note[Changed in 1.118.8: thinking shown]
 In 1.118.7 the reasoning was requested but not shown.
 :::
