@@ -1,6 +1,8 @@
 # Sirius IDE — Roadmap
 
-Sirius aims to combine the best of **Google Antigravity** (autonomous, agent-first workflows) and **Cursor** (Tab, inline edit, Composer, deep codebase context) on an open, multi-model foundation — under Sirius branding.
+Sirius is an advanced, agentic code editor: a fork of Code - OSS with chat, an agent that works across your files, Tab completion and next-edit prediction on a local model, and the model of your choice, hosted or on your own machine. It has no telemetry and needs no account.
+
+This is its plan: what has shipped, what is under way, and what is still ahead. Nothing marked planned is in a download yet. Releases are listed on [GitHub](https://github.com/sirius-ide/sirius-ide/releases).
 
 This is a living document. Status legend: ✅ done · 🔨 in progress · ⬜ planned.
 
@@ -23,7 +25,7 @@ This is a living document. Status legend: ✅ done · 🔨 in progress · ⬜ pl
 
 ## Phase 1 — A correct, secure model layer
 
-Before any of the editing features: the AI layer has to be safe to hand a paid
+Before any of the editing features: the model layer has to be safe to hand a paid
 API key and actually speak the providers' current APIs.
 
 - ✅ **Keys in the system keyring** — `SiriusSecretStore` over VS Code SecretStorage, with automatic migration of any key left in `settings.json` by an earlier build
@@ -33,7 +35,7 @@ API key and actually speak the providers' current APIs.
 - ✅ **Gemini: native tool calling and model discovery** — `functionDeclarations` / `functionResponse`, and the model list now comes from Google filtered to `generateContent` instead of being guessed. Also fixed `generationConfig.thinking` (the field is `thinkingConfig`) and the missing `includeThoughts`, which meant thought parts were never returned. Wire format verified by stub; not exercised against the live API
 - ✅ **One `OpenAICompatibleProvider`** replaces the OpenAI-only adapter and serves OpenAI, OpenRouter, Groq, DeepSeek, Mistral, xAI, LM Studio, llama.cpp/vLLM and any custom endpoint from a table — twelve providers total, with native tool calling and `/v1/models` discovery. Verified against a local Ollama model through its OpenAI-compatible endpoint
 
-## Phase 1b — Adopt the editor's own AI surfaces
+## Phase 1b — Adopt the editor's own chat and agent surfaces
 
 Upstream 1.118 already ships what the original roadmap planned to build by hand:
 `chatEditing` (multi-file edits with accept/reject/checkpoints), `inlineChat`,
@@ -41,16 +43,16 @@ Upstream 1.118 already ships what the original roadmap planned to build by hand:
 `vscode.lm.registerLanguageModelChatProvider` is **stable API** at this fork
 point, with a matching `languageModelChatProviders` extension point.
 
-Registering into that seam is how every upstream AI surface starts working
+Registering into that seam is how every upstream chat and agent surface starts working
 against Claude, Gemini, GPT and Ollama at once — and it keeps improving on each
 rebase instead of drifting.
 
 - ✅ **`LanguageModelChatProvider`** — Sirius registers as a language-model vendor, so every provider is selectable through the editor's own API. Verified from outside: `vscode.lm.selectChatModels({vendor:'sirius'})` returns Sirius models and `sendRequest` streams a real response through the bridge
 - ✅ **Retired the bespoke chat webview** — the editor's own panel was confirmed usable (it shows "Build with Agent", not a sign-in wall), so 1,700 lines came out: the 974-line webview, the context engine, the webview-only code actions, and the agent loop upstream now drives. The four selection commands seed the editor's chat instead
 - ✅ **Sirius supplies the agent tools** — removing Copilot took 39 `languageModelTools` with it and the workbench registers only two of its own, so agent mode could reason but not read, edit, search or run anything. Sirius's executor is contributed as `languageModelTools` and registered through `vscode.lm.registerTool`, with confirmation moved into `prepareInvocation` so writes are approved inline in the chat
-- ✅ **Fixed the editor disabling Sirius AI** — the extension was absent from the registry entirely, so no models, no tools, and a dead "Auto" in the model picker. Two Copilot-shaped mechanisms were disabling it: the built-in chat enablement migration, which keeps the chat extension dormant until a sign-in that Sirius does not have; and extension unification, which folds a completions extension into a chat extension and so disabled Sirius from itself. Both now check whether they apply
+- ✅ **Fixed the editor disabling the Sirius extension** — the extension was absent from the registry entirely, so no models, no tools, and a dead "Auto" in the model picker. Two Copilot-shaped mechanisms were disabling it: the built-in chat enablement migration, which keeps the chat extension dormant until a sign-in that Sirius does not have; and extension unification, which folds a completions extension into a chat extension and so disabled Sirius from itself. Both now check whether they apply
 - ✅ **Edits go through the chat-editing session** — `edit_file` streams `stream.textEdit`, so the editor's diff, checkpoint and accept/reject flow applies (since `cf02d47c535`; the roadmap lagged the code by a month). `create_file` refuses an existing path instead of prepending to it
-- ⬜ Then, free from upstream: Composer-class multi-file edits, @-mentions, checkpoints, MCP tools
+- ⬜ Then, free from upstream: multi-file edits, @-mentions, checkpoints, MCP tools
 
 ## Phase 1c — What is genuinely ours to build
 
@@ -66,12 +68,13 @@ rebase instead of drifting.
 - ✅ **Rules and ambient context** — project rules steer the agent per project, and the active editor's context is supplied automatically (`chat/projectContext.ts`), verified by `test/harness/probes/project-rules.js`
 - ⬜ **Repo memory / knowledge base** — persistent project facts the agent reuses across sessions.
 
-## Phase 3 — Antigravity-class agents
+## Phase 3 — Autonomous agents
 
 - ⬜ **Agent Manager surface** — a dedicated "Mission Control" view listing autonomous agents, their current task, plan, and status. (Build on upstream `src/vs/sessions/` agent-sessions layer.)
 - ⬜ **Autonomous task agents** — give a goal; the agent plans, edits, runs commands/tests, and reports back, working in the background.
 - ⬜ **Artifacts** — first-class plans, task lists, walkthroughs, and screenshots the agent produces and you review.
-- 🔨 **Browser control** — upstream already ships a Playwright-backed integrated browser with a full agent tool family (`open_browser_page`, `navigate_page`, `click_element`, `type_in_page`, `read_page` accessibility snapshot, `screenshot_page`, `run_playwright_code`, drag/hover/dialogs) behind `workbench.browser.enableChatTools`. Sirius turns that on by default and offers the tools in the agent's extended tier — proven live by `test/harness/probes/agent-tools.js` (29 → 38 tools). `read_page` is the primary path for text-only local models; `screenshot_page` reaches vision models through the image plumbing in the LM bridge. **Decided 2026-09-27:** integrated browser is the default; driving the user's own Chrome over CDP (for their real logged-in profile and sessions, which the integrated view cannot share) is a later opt-in, not a replacement
+- ✅ **Browser control** — upstream already ships a Playwright-backed integrated browser with a full agent tool family (`open_browser_page`, `navigate_page`, `click_element`, `type_in_page`, `read_page` accessibility snapshot, `screenshot_page`, `run_playwright_code`, drag/hover/dialogs) behind `workbench.browser.enableChatTools`. Sirius turns that on by default and offers the tools in the agent's extended tier (since v1.118.5) — proven live by `test/harness/probes/agent-tools.js` (29 → 38 tools on a fresh profile). `read_page` is the primary path for text-only local models; `screenshot_page` reaches vision models through the image plumbing in the LM bridge
+- ⬜ **Drive your own Chrome** — over CDP, for the real logged-in profile and sessions the integrated view cannot share. **Decided 2026-09-27:** the integrated browser is the default; this is a later opt-in, not a replacement
 - ⬜ **Multi-agent orchestration** — run several agents in parallel on subtasks.
 
 ## Phase 4 — Polish & distribution
