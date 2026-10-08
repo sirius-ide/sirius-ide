@@ -10,7 +10,7 @@
 
 import * as vscode from 'vscode';
 import { ToolDefinition, ToolCallRequest } from '../types';
-import { resolveWorkspacePath } from './workspacePath';
+import { isInWorkspace, resolveWorkspacePath } from './workspacePath';
 
 // ─── Tool Definitions ────────────────────────────────────────────────────────
 
@@ -117,7 +117,7 @@ export class SiriusToolExecutor {
 
 	private async _readFile(args: Record<string, any>): Promise<ToolResult> {
 		try {
-			const fileUri = resolveWorkspacePath(args.path);
+			const fileUri = await resolveWorkspacePath(args.path);
 			const data = await vscode.workspace.fs.readFile(fileUri);
 			let content = new TextDecoder().decode(data);
 
@@ -139,14 +139,27 @@ export class SiriusToolExecutor {
 
 	private async _searchFiles(args: Record<string, any>): Promise<ToolResult> {
 		try {
-			const include = args.include || '**/*';
-			const maxResults = args.maxResults || 20;
+			const query = typeof args.query === 'string' ? args.query : '';
+			if (!query) {
+				return { success: false, output: 'A search query is required.' };
+			}
+			// Only a string glob, searched inside each workspace folder: `findFiles`
+			// also takes a `{ base, pattern }` object, which pointed the search at
+			// any folder on disk.
+			const include = typeof args.include === 'string' && args.include.trim() ? args.include.trim() : '**/*';
+			const maxResults = Math.min(Math.max(Number(args.maxResults) || 20, 1), 100);
 
 			const results: string[] = [];
-			const files = await vscode.workspace.findFiles(include, '**/node_modules/**', 100);
+			const files: vscode.Uri[] = [];
+			for (const folder of vscode.workspace.workspaceFolders ?? []) {
+				files.push(...await vscode.workspace.findFiles(new vscode.RelativePattern(folder, include), '**/node_modules/**', 100));
+			}
 
 			for (const file of files) {
 				if (results.length >= maxResults) { break; }
+				// The search follows symlinks; a link pointing out of the workspace
+				// must not carry the search with it.
+				if (!await isInWorkspace(file)) { continue; }
 
 				try {
 					const data = await vscode.workspace.fs.readFile(file);
@@ -155,7 +168,7 @@ export class SiriusToolExecutor {
 
 					for (let i = 0; i < lines.length; i++) {
 						if (results.length >= maxResults) { break; }
-						if (lines[i].includes(args.query)) {
+						if (lines[i].includes(query)) {
 							const relativePath = vscode.workspace.asRelativePath(file);
 							results.push(`${relativePath}:${i + 1}: ${lines[i].trim()}`);
 						}
@@ -177,7 +190,7 @@ export class SiriusToolExecutor {
 
 	private async _listDirectory(args: Record<string, any>): Promise<ToolResult> {
 		try {
-			const dirUri = resolveWorkspacePath(args.path || '.');
+			const dirUri = await resolveWorkspacePath(args.path || '.');
 
 			const entries = await vscode.workspace.fs.readDirectory(dirUri);
 			const skipDirs = new Set(['node_modules', '.git', '__pycache__', '.next', 'dist']);

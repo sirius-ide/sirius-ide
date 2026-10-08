@@ -8,6 +8,9 @@ import * as vscode from 'vscode';
 import { activeEditorContext, loadProjectRules } from './projectContext';
 import { selectDefaultModel } from '../lm/defaultModel';
 import { resolveWorkspacePath } from '../tools/workspacePath';
+import { TOOL_DEFINITIONS } from '../tools/toolExecutor';
+import * as path from 'path';
+import { randomBytes } from 'crypto';
 import type { SiriusLanguageModelProvider } from '../lm/languageModelProvider';
 import type { SiriusModel } from '../types';
 
@@ -42,6 +45,9 @@ const PARTICIPANTS: ReadonlyArray<{ readonly id: string; readonly mode: Mode }> 
 	{ id: 'sirius.edit', mode: 'edit' },
 	{ id: 'sirius.agent', mode: 'agent' }
 ];
+
+/** Sirius's own registered tools — all read-only — by the names toolRegistration gives them. */
+const SIRIUS_TOOLS: ReadonlySet<string> = new Set(TOOL_DEFINITIONS.map(definition => `sirius_${definition.name}`));
 
 /** What each mode may do, stated to the model so it does not reach for a tool it lacks. */
 const MODE_RULES: Record<Mode, string> = {
@@ -229,21 +235,23 @@ const createHandler = (mode: Mode): vscode.ChatRequestHandler => async (request,
 	}
 
 	// Ask reads; Edit reads and changes files; only Agent runs commands, tasks,
-	// subagents and the browser. Every `sirius_` tool is read-only.
+	// subagents and the browser. Sirius's own registered tools are all read-only;
+	// they are matched by the names this extension registered, so another
+	// extension's `sirius_*` tool is not swept in.
 	const localTools = mode === 'ask' ? [] : createLocalTools(stream);
 	const known = lmProvider?.getKnownModel(model.id);
 	const extended = isExtendedTier(known, model.maxInputTokens);
 	const allowlist = mode !== 'agent' ? new Set<string>() : extended ? EXTENDED_NATIVE : CORE_NATIVE;
 	const tools: vscode.LanguageModelChatTool[] = [
 		...vscode.lm.tools
-			.filter(tool => tool.name.startsWith('sirius_') || allowlist.has(tool.name))
+			.filter(tool => SIRIUS_TOOLS.has(tool.name) || allowlist.has(tool.name))
 			.map(tool => ({ name: tool.name, description: tool.description, inputSchema: tool.inputSchema })),
 		...localTools.map(tool => ({ name: tool.name, description: tool.description, inputSchema: tool.inputSchema }))
 	];
 	const toolNames = new Set(tools.map(tool => tool.name));
 	debug(`[request] mode=${mode} model=${model.id} window=${model.maxInputTokens} size=${known?.sizeBytes ?? 'unknown'} tier=${extended ? 'extended' : 'core'} tools=${tools.length}`);
 
-	const messages = await buildMessages(chatContext, request, mode);
+	const messages = await buildMessages(chatContext, request, mode, model.maxInputTokens);
 	const prompt = messages[messages.length - 1].content;
 	const images = prompt.filter(part => part instanceof vscode.LanguageModelDataPart).length;
 	if (images > 0) {
@@ -295,6 +303,16 @@ const createHandler = (mode: Mode): vscode.ChatRequestHandler => async (request,
 
 		const results: vscode.LanguageModelToolResultPart[] = [];
 		for (const call of toolCalls) {
+			// A model can name any tool — hallucinated, or steered by a file it
+			// read. Only what this mode offered runs; otherwise Ask's read-only set
+			// was a suggestion, and `run_in_terminal` ran if a model asked for it.
+			if (!toolNames.has(call.name)) {
+				debug(`[refused] ${call.name} is not offered in ${mode} mode`);
+				results.push(new vscode.LanguageModelToolResultPart(call.callId, [
+					new vscode.LanguageModelTextPart(`${call.name} is not available in ${mode} mode.`)
+				]));
+				continue;
+			}
 			stream.progress(`Running ${call.name.replace(/^sirius_/, '').replace(/_/g, ' ')}…`);
 			const local = localTools.find(tool => tool.name === call.name);
 			try {
@@ -427,8 +445,8 @@ interface LocalTool {
 }
 
 /** File-changing tools stay inside the workspace, like the read tools (see workspacePath.ts). */
-function workspaceUri(path: string): vscode.Uri {
-	return resolveWorkspacePath(path);
+function workspaceUri(target: string): Promise<vscode.Uri> {
+	return resolveWorkspacePath(target);
 }
 
 /**
@@ -437,6 +455,10 @@ function workspaceUri(path: string): vscode.Uri {
  * in the editing session, with its diff and accept/reject controls.
  */
 function createLocalTools(stream: vscode.ChatResponseStream): LocalTool[] {
+	// The editing session writes a new file only when the response is processed,
+	// so a second create of the same path in one request would pass the stat
+	// check below and both contents would land in one file.
+	const created = new Set<string>();
 	return [
 		{
 			name: 'edit_file',
@@ -451,7 +473,7 @@ function createLocalTools(stream: vscode.ChatResponseStream): LocalTool[] {
 				required: ['path', 'search', 'replace']
 			},
 			async run(input) {
-				const uri = workspaceUri(String(input.path ?? ''));
+				const uri = await workspaceUri(String(input.path ?? ''));
 				const document = await vscode.workspace.openTextDocument(uri);
 				const content = document.getText();
 				const search = String(input.search ?? '');
@@ -479,18 +501,22 @@ function createLocalTools(stream: vscode.ChatResponseStream): LocalTool[] {
 				required: ['path', 'content']
 			},
 			async run(input) {
-				const uri = workspaceUri(String(input.path ?? ''));
+				const uri = await workspaceUri(String(input.path ?? ''));
 				// `createFile` with ignoreIfExists reported success on a path that
 				// already existed, and the insert below then PREPENDED the new content
 				// to that file. Refuse instead: a model asking to "create" something
 				// that exists has lost track of the tree, and edit_file is the tool
 				// for a file that is already there.
+				if (created.has(uri.toString())) {
+					return `${input.path} was already created in this response. Use edit_file to change it.`;
+				}
 				try {
 					await vscode.workspace.fs.stat(uri);
 					return `${input.path} already exists. Read it, then use edit_file to change it — or choose another path.`;
 				} catch {
 					// FileNotFound is the expected outcome; fall through and create.
 				}
+				created.add(uri.toString());
 				// The editing session creates the file itself: a streamed edit to a
 				// path that does not exist yet becomes a "created" entry, recorded as
 				// a file creation in the session's timeline, so Keep / Undo and the
@@ -585,13 +611,60 @@ async function imageFromFile(uri: vscode.Uri): Promise<vscode.LanguageModelDataP
 	}
 }
 
-async function buildMessages(chatContext: vscode.ChatContext, request: vscode.ChatRequest, mode: Mode): Promise<vscode.LanguageModelChatMessage[]> {
-	// Standing project instructions ride with every request, ahead of history.
+/** Instruction and prompt files the workbench attaches carry ids with these prefixes. */
+const INSTRUCTION_REFERENCE = /^vscode\.(instructions\.file|prompt\.file)/;
+
+/** A rough characters-per-token figure, for sizing what fits rather than counting it. */
+const CHARS_PER_TOKEN = 4;
+
+async function buildMessages(chatContext: vscode.ChatContext, request: vscode.ChatRequest, mode: Mode, maxInputTokens: number): Promise<vscode.LanguageModelChatMessage[]> {
 	const rules = loadProjectRules();
+	const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+	const ruleFiles = new Set(root ? rules.sources.map(source => path.join(root, source)) : []);
+
+	// Everything inlined below shares one budget, about half the model's window,
+	// so attachments and instruction files cannot crowd out the conversation; what
+	// does not fit is listed by path.
+	let budget = Math.max(16_000, Math.floor(maxInputTokens * CHARS_PER_TOKEN * 0.5));
+	const fits = (text: string): boolean => {
+		if (text.length > budget) {
+			return false;
+		}
+		budget -= text.length;
+		return true;
+	};
+
+	if (request.references.length) {
+		debug(`[request] references=${request.references.map(r => describeReference(r.value)).join(',')}`);
+	}
+
+	// Instruction and prompt files the workbench attaches (AGENTS.md, CLAUDE.md,
+	// *.instructions.md, a /prompt file) are standing instructions, not material
+	// for this one message: they join the preamble, once — a file Sirius already
+	// loads as a project rule is not sent twice.
+	const instructions: string[] = [];
+	const references: vscode.ChatPromptReference[] = [];
+	for (const reference of request.references) {
+		const value = reference.value;
+		if (INSTRUCTION_REFERENCE.test(reference.id) && value instanceof vscode.Uri) {
+			if (ruleFiles.has(value.fsPath)) {
+				continue;
+			}
+			const text = await attachmentText(value);
+			if (text?.trim() && fits(text)) {
+				instructions.push(`Instructions (from ${value.fsPath}) — follow these:\n${text.trim()}`);
+			}
+			continue;
+		}
+		references.push(reference);
+	}
+
 	const base = MODE_RULES[mode] ? `${PREAMBLE} ${MODE_RULES[mode]}` : PREAMBLE;
-	const preamble = rules.text
-		? `${base}\n\nProject instructions (from ${rules.sources.join(', ')}) — follow these:\n${rules.text}`
-		: base;
+	const preamble = [
+		base,
+		rules.text ? `Project instructions (from ${rules.sources.join(', ')}) — follow these:\n${rules.text}` : '',
+		...instructions
+	].filter(Boolean).join('\n\n');
 
 	const messages: vscode.LanguageModelChatMessage[] = [
 		vscode.LanguageModelChatMessage.User(preamble)
@@ -618,13 +691,12 @@ async function buildMessages(chatContext: vscode.ChatContext, request: vscode.Ch
 	const attachments: string[] = [];
 	const inlined: Array<{ label: string; text: string }> = [];
 	const images: vscode.LanguageModelDataPart[] = [];
-	if (request.references.length) {
-		debug(`[request] references=${request.references.map(r => describeReference(r.value)).join(',')}`);
-	}
-	for (const reference of request.references) {
+	for (const reference of references) {
 		const value = reference.value;
 		if (isBinaryReference(value)) {
-			if (value.mimeType.startsWith('image/')) {
+			// The four formats every vision provider accepts; a BMP or SVG would
+			// fail the whole request.
+			if (Object.values(IMAGE_MIME).includes(value.mimeType)) {
 				images.push(vscode.LanguageModelDataPart.image(await value.data(), value.mimeType));
 			}
 		} else if (value instanceof vscode.Uri) {
@@ -632,7 +704,7 @@ async function buildMessages(chatContext: vscode.ChatContext, request: vscode.Ch
 			const text = image ? undefined : await attachmentText(value);
 			if (image) {
 				images.push(image);
-			} else if (text !== undefined) {
+			} else if (text !== undefined && fits(text)) {
 				inlined.push({ label: value.fsPath, text });
 			} else {
 				attachments.push(value.fsPath);
@@ -640,7 +712,7 @@ async function buildMessages(chatContext: vscode.ChatContext, request: vscode.Ch
 		} else if (value instanceof vscode.Location) {
 			const label = `${value.uri.fsPath}:${value.range.start.line + 1}-${value.range.end.line + 1}`;
 			const text = await locationText(value);
-			if (text !== undefined) {
+			if (text !== undefined && fits(text)) {
 				inlined.push({ label, text });
 			} else {
 				attachments.push(label);
@@ -648,19 +720,23 @@ async function buildMessages(chatContext: vscode.ChatContext, request: vscode.Ch
 		}
 	}
 
-	let prompt = request.prompt;
-	for (const { label, text } of inlined) {
-		prompt += `\n\n<attachment path="${label}">\n${text}\n</attachment>`;
-	}
-	if (attachments.length) {
-		prompt += `\n\n(Attached: ${attachments.join(', ')})`;
-	}
-
-	// What the user is looking at is context they meant implicitly.
+	// Context first, the user's own words last. Each attachment sits between
+	// tags named with a per-request nonce, so a file's content cannot close its
+	// block early and continue as if it were the user.
+	const fence = `attachment-${randomBytes(6).toString('hex')}`;
+	const context: string[] = [];
 	const active = activeEditorContext();
 	if (active) {
-		prompt = `${active}\n\n${prompt}`;
+		context.push(active);
 	}
+	for (const { label, text } of inlined) {
+		context.push(`<${fence} path="${label}">\n${text}\n</${fence}>`);
+	}
+	if (attachments.length) {
+		context.push(`(Attached, not shown: ${attachments.join(', ')})`);
+	}
+	const prompt = [...context, request.prompt].join('\n\n');
+
 	messages.push(images.length
 		? vscode.LanguageModelChatMessage.User([new vscode.LanguageModelTextPart(prompt), ...images])
 		: vscode.LanguageModelChatMessage.User(prompt));
