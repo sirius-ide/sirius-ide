@@ -12,10 +12,18 @@ from Open VSX, your settings — works without one.
 <Steps>
 
 1. **Install and open Sirius.** The [install guide](/docs/install/) covers every platform.
-   On first launch a toast says *★ Sirius AI — multi-model chat with thinking, tools and
-   agent mode. Add a provider key, or start Ollama and Sirius finds your models.* with two
-   buttons, **Set API Key** and **Select Model**. It shows once. If the editor's own welcome
-   overlay appears first, it does not set up a model; close it and carry on.
+   The first start opens **Get started with Sirius**: seven short steps — connect a model,
+   ask the agent, change code in place, project rules, Tab completion, importing from
+   another editor, a theme — each with a button that does it. A step ticks itself off when
+   it is done; *Connect a model* does as soon as any model is reachable. Reopen it any time
+   from **Help: Welcome** or **Welcome: Open Walkthrough...**. The steps below are the same
+   ground, by hand.
+
+   :::note[Changed in 1.118.10]
+   Earlier releases showed the editor's own welcome overlay first — *Welcome to VS Code*,
+   with GitHub, Google and Apple sign-in buttons that do nothing for Sirius — and then a
+   toast with **Set API Key** and **Select Model**.
+   :::
 
 2. **Give it a model** — one of two ways.
 
@@ -46,11 +54,10 @@ from Open VSX, your settings — works without one.
    picker. The chat view has its own model picker too, grouped by provider, for a
    per-conversation choice.
 
-4. **Say what you want.** Open the chat with <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>I</kbd>
-   (**Sirius: Open AI Chat**; the editor's own <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>I</kbd>
-   works as well). **Sirius** is the default participant, so you type into the box that
-   says *Describe what to build* and press Enter. Switch between **Ask**, **Edit** and
-   **Agent** in the chat input — see [Chat, edit and agent](/docs/chat-edit-agent/).
+4. **Say what you want.** Open the chat with <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>I</kbd>
+   (or **Sirius: Open AI Chat** from the Command Palette). **Sirius** is the default
+   participant, so you type into the box that says *Describe what to build* and press
+   Enter. The chat starts in **Agent** mode — see [Chat, edit and agent](/docs/chat-edit-agent/).
 
 </Steps>
 
