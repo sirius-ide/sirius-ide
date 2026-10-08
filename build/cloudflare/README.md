@@ -33,7 +33,7 @@ Sirius infrastructure unattended:
 | Zone | Cache Purge | Purge | purge stale content |
 | Zone | Cache Rules | Edit | caching behaviour |
 | Zone | Transform Rules | Edit | redirects, header rewrites |
-| Zone | Dynamic URL Redirects | Edit | the Single Redirects `deploy-website.sh` writes: `www` and `siriuside.dev` → `siriuside.com` |
+| Zone | Single Redirect (once "Dynamic URL Redirects") | Edit | the Single Redirects `deploy-website.sh` writes: `www` and `siriuside.dev` → `siriuside.com` |
 | Zone | Config Rules | Edit | per-path settings |
 | Zone | Page Rules | Edit | the legacy equivalents |
 | Zone | Zone WAF | Edit | firewall rules for the two zones |

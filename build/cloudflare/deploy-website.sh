@@ -147,14 +147,15 @@ step_dns() {
 }
 
 # One zone-level Single Redirect ruleset per zone; PUT replaces that zone's dynamic-redirect
-# phase, which is fine because both zones are Sirius's own. Needs "Dynamic URL Redirects: Edit".
+# phase, which is fine because both zones are Sirius's own. Needs "Single Redirect: Edit" (the
+# dashboard's current name for what the API once called "Dynamic URL Redirects").
 set_redirect() {
 	local zone=$1 expr=$2 desc=$3
 	local rules
 	rules=$(python3 -c "import json,sys; print(json.dumps({'rules':[{'action':'redirect','expression':sys.argv[1],'description':sys.argv[2],'action_parameters':{'from_value':{'status_code':301,'preserve_query_string':True,'target_url':{'expression':'concat(\"https://$DOMAIN\", http.request.uri.path)'}}}}]}))" "$expr" "$desc")
 	local out
 	out=$(cf PUT "/zones/$zone/rulesets/phases/http_request_dynamic_redirect/entrypoint" --data "$rules")
-	echo "$out" | ok && echo "  $desc" || { echo "  redirect failed: $(echo "$out" | errors) — the token may lack 'Dynamic URL Redirects: Edit' (build/cloudflare/README.md); the rule can also be made in the dashboard: Rules → Redirect Rules"; exit 1; }
+	echo "$out" | ok && echo "  $desc" || { echo "  redirect failed: $(echo "$out" | errors) — the token may lack 'Zone → Single Redirect: Edit' (build/cloudflare/README.md); the rule can also be made in the dashboard: Rules → Redirect Rules"; exit 1; }
 }
 
 step_redirects() {
