@@ -1,46 +1,15 @@
 ---
+import Feature from './Feature.astro';
 import MediaSlot from '../MediaSlot.astro';
-import BrowserArt from '../art/BrowserArt.astro';
-import Logo from '../Logo.astro';
-const tools = ['open_browser_page', 'navigate_page', 'click_element', 'type_in_page', 'read_page', 'screenshot_page'];
+import BrowserSurface from '../surfaces/BrowserSurface.astro';
+const points = [
+	{ lead: 'Read first, look when it helps.', html: '<code>read_page</code> returns the accessibility tree; <code>screenshot_page</code> reaches models that accept images.' },
+	{ lead: 'Real Playwright.', html: 'No separate Chrome to install.' },
+	{ lead: 'Offered where it fits.', html: 'Small local models are not handed schemas they cannot hold.' },
+];
 ---
-<section class="section feature" id="browser" aria-labelledby="browser-title">
-	<div class="container split">
-		<div class="copy head">
-			<p class="eyebrow">05 — Integrated browser</p>
-			<h2 id="browser-title">The agent can see <span class="muted">the page too.</span></h2>
-			<p class="lede">
-				A Playwright-backed browser lives inside the editor, and the agent gets its tools — six of them,
-				on by default. Open a page, navigate, click, type, read the page's accessibility tree, take a
-				screenshot: the loop from change to check closes without leaving the editor.
-			</p>
-		</div>
-		<div class="demo">
-			<MediaSlot name="browser-tools" label="The integrated browser in Sirius showing a local page, beside the agent's tool runs: open_browser_page, click_element, read_page, screenshot_page."><BrowserArt /></MediaSlot>
-		</div>
-		<div class="copy more">
-			<ul class="points">
-				<li><Logo size={20} class="pt-icon" /><div><b>Read first, look when it helps.</b> <code>read_page</code> returns the accessibility snapshot, which any text model can use; <code>screenshot_page</code> reaches the models that accept images.</div></li>
-				<li><Logo size={20} class="pt-icon" /><div><b>Real Playwright underneath.</b> The integrated browser is driven by Playwright in-process — the same engine your end-to-end tests use — with no separate Chrome to install.</div></li>
-				<li><Logo size={20} class="pt-icon" /><div><b>Offered where it fits.</b> The browser family sits in the agent's extended tool tier, so a small local model is not handed sixteen schemas it cannot hold.</div></li>
-			</ul>
-			<ul class="chips" aria-label="The six browser tools">{tools.map((t) => <li><code class="chip">{t}</code></li>)}</ul>
-		</div>
-	</div>
-</section>
-
-<style>
-	.split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); grid-template-areas: "head demo" "more demo"; column-gap: clamp(2rem, 6vw, 5.5rem); row-gap: 1.75rem; align-items: center; }
-	.head { grid-area: head; align-self: end; }
-	.more { grid-area: more; align-self: start; }
-	.demo { grid-area: demo; }
-	.copy h2 { margin-top: 1rem; }
-	.copy .lede { margin-top: 1.25rem; font-size: var(--text-m); }
-	.points { list-style: none; padding: 0; margin: 0; display: grid; gap: 1rem; }
-	.points li { display: grid; grid-template-columns: 20px 1fr; gap: 0.85rem; align-items: start; color: var(--fg-muted); font-size: var(--text-s); line-height: 1.55; }
-	.points b { color: var(--fg); }
-	.points :global(.pt-icon) { margin-top: 0.3em; }
-	.chips { margin-top: 1.5rem; display: flex; flex-wrap: wrap; gap: 0.4rem; list-style: none; padding: 0; }
-	.chip { font-size: var(--text-xs); padding: 0.25em 0.6em; border-radius: 999px; background: var(--surface); border: 1px solid var(--border-strong); color: var(--fg-muted); }
-	@media (max-width: 900px) { .split { grid-template-columns: minmax(0, 1fr); grid-template-areas: "head" "demo" "more"; row-gap: 2.25rem; } }
-</style>
+<Feature id="browser" eyebrow="05 — Integrated browser" flip points={points}>
+	<Fragment slot="title">The agent can see <span class="muted">the page too.</span></Fragment>
+	<Fragment slot="lede">A Playwright-backed browser lives in the editor, and the agent gets six tools for it, on by default.</Fragment>
+	<MediaSlot slot="demo" name="browser-tools" label="The integrated browser in Sirius showing a local status page, beside the agent's finished tool runs: opened the page, clicked a button, read the page, captured a screenshot."><BrowserSurface /></MediaSlot>
+</Feature>

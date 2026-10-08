@@ -1,0 +1,45 @@
+---
+/**
+ * One feature section of the landing page: a mono eyebrow, a two-tone H2, a short lede, three
+ * points marked with the flat split-star mark, and a demo slot (a drawn surface inside a
+ * <MediaSlot>, or the model picker). `flip` puts the demo on the right. Body copy is kept to
+ * about sixty words a section — the lede and the three points together.
+ */
+import Logo from '../Logo.astro';
+interface Point { lead: string; html: string }
+interface Props { id: string; eyebrow: string; flip?: boolean; points: Point[] }
+const { id, eyebrow, flip = false, points } = Astro.props;
+---
+<section class="section feature" id={id} aria-labelledby={`${id}-title`}>
+	<div class:list={['container', 'split', { flip }]}>
+		<div class="copy head">
+			<p class="eyebrow">{eyebrow}</p>
+			<h2 id={`${id}-title`}><slot name="title" /></h2>
+			<p class="lede"><slot name="lede" /></p>
+		</div>
+		<div class="demo"><slot name="demo" /></div>
+		<div class="copy more">
+			<ul class="points">
+				{points.map((p) => (
+					<li><Logo size={20} class="pt-icon" /><div><b>{p.lead}</b> <Fragment set:html={p.html} /></div></li>
+				))}
+			</ul>
+			<slot name="after" />
+		</div>
+	</div>
+</section>
+
+<style>
+	.split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); grid-template-areas: "head demo" "more demo"; column-gap: clamp(2rem, 6vw, 5.5rem); row-gap: 1.75rem; align-items: center; }
+	.split.flip { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); grid-template-areas: "demo head" "demo more"; }
+	.head { grid-area: head; align-self: end; }
+	.more { grid-area: more; align-self: start; }
+	.demo { grid-area: demo; min-width: 0; }
+	.copy h2 { margin-top: 1rem; }
+	.copy .lede { margin-top: 1.25rem; font-size: var(--text-m); }
+	.points { list-style: none; padding: 0; margin: 0; display: grid; gap: 1rem; }
+	.points li { display: grid; grid-template-columns: 20px 1fr; gap: 0.85rem; align-items: start; color: var(--fg-muted); font-size: var(--text-s); line-height: 1.55; }
+	.points b { color: var(--fg); }
+	.points :global(.pt-icon) { margin-top: 0.3em; }
+	@media (max-width: 900px) { .split, .split.flip { grid-template-columns: minmax(0, 1fr); grid-template-areas: "head" "demo" "more"; row-gap: 2.25rem; } }
+</style>

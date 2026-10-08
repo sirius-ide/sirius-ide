@@ -1,42 +1,15 @@
 ---
+import Feature from './Feature.astro';
 import MediaSlot from '../MediaSlot.astro';
-import AgentArt from '../art/AgentArt.astro';
-import Logo from '../Logo.astro';
+import AgentSurface from '../surfaces/AgentSurface.astro';
+const points = [
+	{ lead: 'Diffs, not surprises.', html: 'Keep or Undo per hunk or per file, with checkpoints to step back to.' },
+	{ lead: 'Tools that fit the model.', html: 'Sized in tiers; prompted tools for local models without a tool API.' },
+	{ lead: 'Ask, Edit or Agent.', html: 'Your choice per message.' },
+];
 ---
-<section class="section feature" id="agent" aria-labelledby="agent-title">
-	<div class="container split">
-		<div class="copy head">
-			<p class="eyebrow">01 — Agent mode</p>
-			<h2 id="agent-title">An agent that works across your files. <span class="muted">You keep the last word.</span></h2>
-			<p class="lede">
-				Describe the change, not the keystrokes. In agent mode Sirius reads, searches and edits across files and
-				runs what it needs in the terminal — and every change comes back as a diff: per hunk or per file, Keep or
-				Undo, with checkpoints to step back to.
-			</p>
-		</div>
-		<div class="demo">
-			<MediaSlot name="agent-mode" label="Sirius in agent mode: a request, the agent's tool runs, and the resulting edits shown as a diff with Keep and Undo controls."><AgentArt /></MediaSlot>
-		</div>
-		<div class="copy more">
-			<ul class="points">
-				<li><Logo size={20} class="pt-icon" /><div><b>Diffs, not surprises.</b> Edits go through the editor's own chat-editing session, so you review them the way you review any diff — and roll back to a checkpoint if you change your mind.</div></li>
-				<li><Logo size={20} class="pt-icon" /><div><b>Tools that fit the model.</b> Read, search, list, diagnostics and the workbench's own terminal and task tools, offered in tiers sized to the model. Local models without a tool API still get tools, prompted.</div></li>
-				<li><Logo size={20} class="pt-icon" /><div><b>Ask, Edit or Agent.</b> The same chat answers a question, edits a selection, or takes a task — your choice per message, with any model you have configured.</div></li>
-			</ul>
-		</div>
-	</div>
-</section>
-
-<style>
-	.split { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); grid-template-areas: "demo head" "demo more"; column-gap: clamp(2rem, 6vw, 5.5rem); row-gap: 1.75rem; align-items: center; }
-	.head { grid-area: head; align-self: end; }
-	.more { grid-area: more; align-self: start; }
-	.demo { grid-area: demo; }
-	.copy h2 { margin-top: 1rem; }
-	.copy .lede { margin-top: 1.25rem; font-size: var(--text-m); }
-	.points { list-style: none; padding: 0; margin: 0; display: grid; gap: 1rem; }
-	.points li { display: grid; grid-template-columns: 20px 1fr; gap: 0.85rem; align-items: start; color: var(--fg-muted); font-size: var(--text-s); line-height: 1.55; }
-	.points b { color: var(--fg); }
-	.points :global(.pt-icon) { margin-top: 0.3em; }
-	@media (max-width: 900px) { .split { grid-template-columns: minmax(0, 1fr); grid-template-areas: "head" "demo" "more"; row-gap: 2.25rem; } }
-</style>
+<Feature id="agent" eyebrow="01 — Agent mode" flip points={points}>
+	<Fragment slot="title">An agent that works across your files. <span class="muted">You keep the last word.</span></Fragment>
+	<Fragment slot="lede">Describe the change. Sirius reads, searches and edits across files and runs what it needs in the terminal.</Fragment>
+	<MediaSlot slot="demo" name="agent-mode" label="Sirius in agent mode: a request, the agent's tool runs, and the resulting edits shown as a diff with Keep and Undo controls."><AgentSurface /></MediaSlot>
+</Feature>
