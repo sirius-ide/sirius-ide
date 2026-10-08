@@ -71,6 +71,10 @@
 			{
 				"command": "sirius.ai.importFromEditor",
 				"title": "Sirius: Import from VS Code, Cursor, or Windsurf"
+			},
+			{
+				"command": "sirius.ai.enableTabCompletion",
+				"title": "Sirius: Turn On Tab Completion"
 			}
 		],
 		"menus": {
@@ -421,7 +425,129 @@
 		],
 		"configurationDefaults": {
 			"workbench.browser.enableChatTools": true
-		}
+		},
+		"walkthroughs": [
+			{
+				"id": "gettingStarted",
+				"title": "Get started with Sirius",
+				"description": "Connect a model, meet the agent, and set Sirius up your way. No account, no telemetry.",
+				"icon": "media/walkthrough/icon.svg",
+				"steps": [
+					{
+						"id": "connectModel",
+						"title": "Connect a model",
+						"description": "Sirius works with the model you choose. Use your own key for Anthropic, Gemini, OpenAI, OpenRouter, Groq, DeepSeek, Mistral or xAI — it goes into your system keyring, never into settings.json. Or run a model on your machine: Ollama, LM Studio and llama.cpp are found on their usual ports, no key needed.\n[Set an API Key](command:sirius.ai.setApiKey)\n[Choose a Model](command:sirius.ai.selectModel)",
+						"completionEvents": [
+							"onContext:sirius.ai.modelAvailable"
+						],
+						"media": {
+							"image": {
+								"dark": "media/walkthrough/connect-dark.webp",
+								"light": "media/walkthrough/connect-light.webp",
+								"hc": "media/walkthrough/connect-dark.webp",
+								"hcLight": "media/walkthrough/connect-light.webp"
+							},
+							"altText": "The Set API Key picker listing every provider and whether a key is stored."
+						}
+					},
+					{
+						"id": "agent",
+						"title": "Ask the agent",
+						"description": "Open the chat and describe what you want. The agent reads your code, proposes edits you accept or reject file by file, and can run commands, tasks and tests to finish the job.\n[Open Chat](command:workbench.action.chat.open)",
+						"media": {
+							"image": {
+								"dark": "media/walkthrough/agent-dark.webp",
+								"light": "media/walkthrough/agent-light.webp",
+								"hc": "media/walkthrough/agent-dark.webp",
+								"hcLight": "media/walkthrough/agent-light.webp"
+							},
+							"altText": "The agent at work beside the editor: it looks through the project, writes limiter.test.ts by the project's rules, and asks before running the tests."
+						}
+					},
+					{
+						"id": "inlineChat",
+						"title": "Change code where it is",
+						"description": "Select some code and press Ctrl+I to ask for a change right there. Right-click a selection for Explain, Fix Errors, Write Tests or Refactor.\n[Learn More](https://siriuside.com/docs/inline-chat/)",
+						"completionEvents": [
+							"onCommand:inlineChat.start",
+							"onLink:https://siriuside.com/docs/inline-chat/"
+						],
+						"media": {
+							"image": {
+								"dark": "media/walkthrough/inline-dark.webp",
+								"light": "media/walkthrough/inline-light.webp",
+								"hc": "media/walkthrough/inline-dark.webp",
+								"hcLight": "media/walkthrough/inline-light.webp"
+							},
+							"altText": "Inline chat open over a selected function in the editor."
+						}
+					},
+					{
+						"id": "projectRules",
+						"title": "Teach Sirius your project",
+						"description": "Write your conventions in `AGENTS.md` at the root of your workspace (or `.siriusrules`, or `.sirius/rules.md`). Sirius reads it with every request, along with the code around your cursor.\n[Learn About Rules](https://siriuside.com/docs/rules-and-context/)",
+						"media": {
+							"image": {
+								"dark": "media/walkthrough/rules-dark.webp",
+								"light": "media/walkthrough/rules-light.webp",
+								"hc": "media/walkthrough/rules-dark.webp",
+								"hcLight": "media/walkthrough/rules-light.webp"
+							},
+							"altText": "An AGENTS.md file of project conventions open in the editor."
+						}
+					},
+					{
+						"id": "tabCompletion",
+						"title": "Tab completion, on your machine",
+						"description": "Sirius can complete code as you type, using a local code model: Ollama with a coder model, or llama.cpp. It's off until you turn it on.\n[Turn On Tab Completion](command:sirius.ai.enableTabCompletion)\n[Learn More](https://siriuside.com/docs/tab-and-next-edit/)",
+						"completionEvents": [
+							"onSettingChanged:sirius.ai.enable"
+						],
+						"media": {
+							"image": {
+								"dark": "media/walkthrough/tab-dark.webp",
+								"light": "media/walkthrough/tab-light.webp",
+								"hc": "media/walkthrough/tab-dark.webp",
+								"hcLight": "media/walkthrough/tab-light.webp"
+							},
+							"altText": "A grey Tab-completion suggestion continuing the line being typed."
+						}
+					},
+					{
+						"id": "importSettings",
+						"title": "Bring your settings",
+						"description": "Coming from VS Code, Cursor, Windsurf or VSCodium? Bring over your settings, keybindings, snippets and extensions.\n[Import from Another Editor](command:sirius.ai.importFromEditor)",
+						"media": {
+							"image": {
+								"dark": "media/walkthrough/import-dark.webp",
+								"light": "media/walkthrough/import-light.webp",
+								"hc": "media/walkthrough/import-dark.webp",
+								"hcLight": "media/walkthrough/import-light.webp"
+							},
+							"altText": "The import picker offering settings, keybindings, snippets and extensions."
+						}
+					},
+					{
+						"id": "theme",
+						"title": "Choose your theme",
+						"description": "Sirius Star Dark is ours; every theme on Open VSX works too.\n[Browse Color Themes](command:workbench.action.selectTheme)",
+						"completionEvents": [
+							"onSettingChanged:workbench.colorTheme",
+							"onCommand:workbench.action.selectTheme"
+						],
+						"media": {
+							"image": {
+								"dark": "media/walkthrough/theme-dark.webp",
+								"light": "media/walkthrough/theme-light.webp",
+								"hc": "media/walkthrough/theme-dark.webp",
+								"hcLight": "media/walkthrough/theme-light.webp"
+							},
+							"altText": "The color theme picker listing light and dark themes, Sirius Star Dark among them."
+						}
+					}
+				]
+			}
+		]
 	},
 	"scripts": {
 		"compile": "gulp compile-extension:sirius-ai",

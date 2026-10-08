@@ -15,6 +15,10 @@ import { registerEditorImporter } from './importer/editorImporter';
 import { registerProjectContextDebug } from './chat/projectContext';
 import { SiriusToolExecutor } from './tools/toolExecutor';
 import { SiriusInlineChatProvider } from './inline/inlineChatProvider';
+import { resolveFimBackend } from './inline/fimClient';
+
+/** `contributes.walkthroughs` in package.json, addressed as `<publisher>.<name>#<id>`. */
+const WALKTHROUGH_ID = 'sirius.sirius-ai#gettingStarted';
 
 let modelRouter: ModelRouter;
 
@@ -105,6 +109,31 @@ export async function activate(context: vscode.ExtensionContext) {
 		})
 	);
 
+	// Turn on Tab completion. `sirius.ai.enable` is a per-language object, which
+	// the Settings editor can only hand over as raw JSON — so the walkthrough's
+	// button lands here, and the user learns at once whether a backend exists.
+	context.subscriptions.push(
+		vscode.commands.registerCommand('sirius.ai.enableTabCompletion', async () => {
+			const config = vscode.workspace.getConfiguration('sirius.ai');
+			const current = config.inspect<Record<string, boolean>>('enable')?.globalValue ?? {};
+			await config.update('enable', { ...current, '*': true }, vscode.ConfigurationTarget.Global);
+
+			const backend = await resolveFimBackend(() => secrets.get('llamacpp'));
+			if (backend) {
+				vscode.window.showInformationMessage(`Tab completion is on, using ${backend.id}.`);
+				return;
+			}
+			const learnMore = 'Learn More';
+			const choice = await vscode.window.showWarningMessage(
+				'Tab completion is on, but no local code model is running yet. Start Ollama with a coder model, or llama-server, and Sirius picks it up.',
+				learnMore
+			);
+			if (choice === learnMore) {
+				vscode.env.openExternal(vscode.Uri.parse('https://siriuside.com/docs/tab-and-next-edit/'));
+			}
+		})
+	);
+
 	// Toggle thinking mode
 	context.subscriptions.push(
 		vscode.commands.registerCommand('sirius.ai.toggleThinking', async () => {
@@ -163,21 +192,24 @@ export async function activate(context: vscode.ExtensionContext) {
 	});
 
 	// ─── Welcome ─────────────────────────────────────────────────────────
+	// A built-in extension's walkthrough never opens by itself — upstream only
+	// auto-opens walkthroughs of extensions installed at runtime — so open it
+	// once, for new and existing users alike. In front when the window has no
+	// editors (a first start); behind the restored editors otherwise.
 
-	const hasShownWelcome = context.globalState.get('sirius.ai.welcomeShown.v2', false);
-	if (!hasShownWelcome) {
-		vscode.window.showInformationMessage(
-			'★ Sirius AI — multi-model chat with thinking, tools and agent mode. Add a provider key, or start Ollama and Sirius finds your models.',
-			'Set API Key',
-			'Select Model'
-		).then(selection => {
-			if (selection === 'Set API Key') {
-				modelRouter.setApiKey();
-			} else if (selection === 'Select Model') {
-				modelRouter.selectModel();
-			}
+	if (!context.globalState.get('sirius.ai.walkthroughShown', false)) {
+		await context.globalState.update('sirius.ai.walkthroughShown', true);
+		const inactive = vscode.window.visibleTextEditors.length > 0;
+		vscode.commands.executeCommand('workbench.action.openWalkthrough', WALKTHROUGH_ID, { inactive }).then(undefined, () => {
+			vscode.window.showInformationMessage(
+				'★ Sirius AI — add a provider key, or start Ollama and Sirius finds your models.',
+				'Set API Key'
+			).then(selection => {
+				if (selection === 'Set API Key') {
+					modelRouter.setApiKey();
+				}
+			});
 		});
-		context.globalState.update('sirius.ai.welcomeShown.v2', true);
 	}
 
 	console.log('★ Sirius AI v2 activated successfully!');

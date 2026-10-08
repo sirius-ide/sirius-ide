@@ -159,6 +159,11 @@ export class SiriusLanguageModelProvider implements vscode.LanguageModelChatProv
 			described[index] = { ...pick, isDefault: true };
 		}
 
+		// The walkthrough's "Connect a model" step completes on this: a model is
+		// reachable, through a stored key or a local runtime, whichever way the
+		// user connected it.
+		void vscode.commands.executeCommand('setContext', 'sirius.ai.modelAvailable', described.length > 0);
+
 		return described;
 	}
 
