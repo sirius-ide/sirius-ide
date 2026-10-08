@@ -15,6 +15,17 @@ export const KEYED_PROVIDERS: readonly ProviderType[] = [
 	'anthropic', 'gemini', 'openai', 'openrouter', 'groq', 'deepseek', 'mistral', 'xai'
 ];
 
+/**
+ * Local and self-hosted OpenAI-compatible servers run without a key by default,
+ * but LM Studio, llama-server (`--api-key`) and vLLM can all be started with
+ * one, and a custom endpoint is often a hosted gateway that requires one. Their
+ * key is optional: stored and sent when present, never demanded.
+ */
+export const OPTIONAL_KEY_PROVIDERS: readonly ProviderType[] = ['lmstudio', 'llamacpp', 'custom'];
+
+/** Every provider whose key may live in the keyring. */
+const STORED_KEY_PROVIDERS: readonly ProviderType[] = [...KEYED_PROVIDERS, ...OPTIONAL_KEY_PROVIDERS];
+
 /** Human-readable names, used in prompts and confirmations. */
 export const PROVIDER_LABELS: Record<ProviderType, string> = {
 	anthropic: 'Anthropic Claude',
@@ -74,7 +85,7 @@ export class SiriusSecretStore {
 
 		// Another window, or Settings Sync, may change a secret underneath us.
 		context.subscriptions.push(context.secrets.onDidChange(async e => {
-			const provider = KEYED_PROVIDERS.find(p => secretKey(p) === e.key);
+			const provider = STORED_KEY_PROVIDERS.find(p => secretKey(p) === e.key);
 			if (provider) {
 				await store.reload(provider);
 				store._onDidChange.fire(provider);
@@ -119,7 +130,7 @@ export class SiriusSecretStore {
 	// ─── Internals ───────────────────────────────────────────────────────────
 
 	private async reloadAll(): Promise<void> {
-		await Promise.all(KEYED_PROVIDERS.map(p => this.reload(p)));
+		await Promise.all(STORED_KEY_PROVIDERS.map(p => this.reload(p)));
 	}
 
 	private async reload(provider: ProviderType): Promise<void> {

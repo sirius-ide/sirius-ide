@@ -6,7 +6,7 @@
 
 import * as vscode from 'vscode';
 import { IAIProvider, SiriusModel, ChatRequest, ChatChunk, ChatMessage, ProviderType, ThinkingConfig, ThinkingEffort, ToolDefinition, SIRIUS_SYSTEM_PROMPT } from '../types';
-import { SiriusSecretStore, KEYED_PROVIDERS, PROVIDER_LABELS } from '../auth/secretStore';
+import { SiriusSecretStore, KEYED_PROVIDERS, OPTIONAL_KEY_PROVIDERS, PROVIDER_LABELS } from '../auth/secretStore';
 import { GeminiProvider } from './geminiProvider';
 import { AnthropicProvider } from './anthropicProvider';
 import { OpenAICompatibleProvider, OPENAI_COMPATIBLE_ENDPOINTS } from './openaiCompatible';
@@ -237,6 +237,13 @@ export class ModelRouter {
 			description: this.secrets.has(provider) ? '$(key) key stored' : 'no key set',
 			provider
 		}));
+		for (const provider of OPTIONAL_KEY_PROVIDERS) {
+			items.push({
+				label: PROVIDER_LABELS[provider],
+				description: this.secrets.has(provider) ? '$(key) key stored' : 'optional — only if your server requires a key',
+				provider
+			});
+		}
 		items.push({
 			label: PROVIDER_LABELS.ollama,
 			description: 'no key needed — runs locally',
