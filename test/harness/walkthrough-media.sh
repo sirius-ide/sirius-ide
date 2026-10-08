@@ -12,12 +12,12 @@
 # out-dir defaults to extensions/sirius-ai/media/walkthrough. --full keeps whole-screen PNGs
 # instead (to choose crops). The app should carry this checkout's sirius-ai
 # (test/harness/swap-sirius-ai.sh). Needs Xvfb, xdotool, ImageMagick 7 with WebP, node, and a
-# local Ollama with qwen2.5-coder:1.5b (Tab completion) and Qwen3-Coder 30B (the agent's
-# reply) — both answers are real. SIRIUS_MEDIA_MODELS names them for the filter below.
+# local Ollama with qwen2.5-coder:1.5b — the Tab suggestion is real. SIRIUS_MEDIA_MODELS names
+# the models the filter below shows.
 #
 # Nothing of the machine shows: a throwaway HOME and profile, an in-memory keyring, Ollama
-# behind test/harness/ollama-allowlist.mjs so only those two are listed, under their public
-# names, and LM Studio and llama.cpp pointed nowhere.
+# behind test/harness/ollama-allowlist.mjs so only that model is listed, and LM Studio and
+# llama.cpp pointed nowhere.
 
 set -euo pipefail
 APP=${1:?usage: $0 <app-dir> [out-dir] [--full]}
@@ -26,7 +26,7 @@ OUT=${2:-$ROOT/extensions/sirius-ai/media/walkthrough}
 FULL=0; [[ "${3:-}" == --full ]] && FULL=1
 DISP=${SIRIUS_MEDIA_DISPLAY:-:94}
 PROXY_PORT=${SIRIUS_MEDIA_OLLAMA_PORT:-11435}
-MODELS=${SIRIUS_MEDIA_MODELS:-qwen2.5-coder:1.5b,qwen3-coder:30b=qwen3coder-agent:64k}
+MODELS=${SIRIUS_MEDIA_MODELS:-qwen2.5-coder:1.5b}
 mkdir -p "$OUT"
 
 WORK=$(mktemp -d)
@@ -110,7 +110,7 @@ printf '{ "name": "aurora", "private": true }\n' > "$WS/package.json"
 node "$ROOT/test/harness/ollama-allowlist.mjs" "$PROXY_PORT" http://127.0.0.1:11434 "$MODELS" &
 PROXY=$!
 sleep 1
-# Load every model now, so the agent's reply does not wait on a cold load.
+# Load every model now, so the Tab suggestion does not wait on a cold load.
 for shown in $(tr ',' '\n' <<<"$MODELS" | cut -d= -f1); do
 	curl -s "http://127.0.0.1:$PROXY_PORT/api/generate" \
 		-d "{\"model\":\"$shown\",\"prompt\":\"hi\",\"stream\":false,\"keep_alive\":\"30m\",\"options\":{\"num_predict\":1}}" >/dev/null
@@ -140,11 +140,9 @@ for theme in dark light; do
 	"sirius.ai.lmstudio.baseUrl": "http://127.0.0.1:9/v1",
 	"sirius.ai.llamacpp.baseUrl": "",
 	"sirius.ai.defaultProvider": "ollama",
-	"sirius.ai.defaultModel": "qwen3-coder:30b",
+	"sirius.ai.defaultModel": "qwen2.5-coder:1.5b",
 	"sirius.ai.enable": { "*": true },
-	"sirius.ai.completions.model": "ollama/qwen2.5-coder:1.5b",
-	"sirius.ai.ollama.largeModelBytes": 40000000000,
-	"sirius.ai.temperature": 0.2
+	"sirius.ai.completions.model": "ollama/qwen2.5-coder:1.5b"
 }
 EOF
 	echo "== $theme"
@@ -160,12 +158,6 @@ EOF
 	palette 'Sirius: Set API Key'; sleep 2
 	shot connect $theme 420 0 600 349
 	key Escape
-
-	open_file limiter.ts
-	key ctrl+alt+i; sleep 1.5
-	typ 'Add a test for take() beside the code.'; key Return
-	sleep "${SIRIUS_MEDIA_REPLY_WAIT:-60}"
-	shot agent $theme 348 36 1092 635
 
 	open_file limiter.ts
 	key ctrl+g; typ 10; key Return
@@ -192,6 +184,14 @@ EOF
 	typ 'export function reset(key: string): void {'; key Return
 	sleep 9
 	shot tab $theme 348 250 792 460
+	key Escape
+
+	# Last, because it widens the chat (dragging its sash from 1140 to 880) and the editor
+	# scenes above crop the editor at its default width.
+	x mousemove 2281 900 mousedown 1 mousemove 2000 900 mousemove 1761 900 mouseup 1; sleep 1
+	key ctrl+alt+i; sleep 1.5
+	key ctrl+period; sleep 2
+	shot modes $theme 880 548 560 326
 	key Escape
 
 	pkill -f -- "--user-data-dir=$UD" || true

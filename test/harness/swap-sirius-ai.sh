@@ -6,7 +6,7 @@
 # Put this checkout's sirius-ai into a built or released app, so a probe runs against the
 # extension as it is now without a full product build (20+ minutes). Bundles with esbuild,
 # then writes what the real build ships (build/lib/extensions.ts): the manifest with `main`
-# at the bundle and the npm fields dropped, dist/extension.js, and media/. The release's own
+# at the bundle and the npm fields dropped, dist/extension.js, media/ and agents/. The release's own
 # copy is kept once as ../sirius-ai.orig.
 #
 #   test/harness/swap-sirius-ai.sh <app-dir>     # e.g. ~/.cache/sirius-verify/app-1.118.9/VSCode-linux-x64
@@ -28,7 +28,9 @@ DEST=$APP/resources/app/extensions/sirius-ai
 rm -rf "$DEST"
 mkdir -p "$DEST/dist"
 cp "$SRC/dist/extension.js" "$DEST/dist/"
-[[ -d "$SRC/media" ]] && cp -a "$SRC/media" "$DEST/"
+for dir in media agents; do   # what .vscodeignore lets ship beside the bundle
+	[[ -d "$SRC/$dir" ]] && cp -a "$SRC/$dir" "$DEST/"
+done
 node -e '
 	const fs = require("fs");
 	const pkg = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
