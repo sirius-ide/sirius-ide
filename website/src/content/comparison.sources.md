@@ -1,95 +1,186 @@
 # Comparison table — sources
 
-Every cell on `/#compare` that names a competitor points at an entry here (BRIEF.md §5). A
-cell with no entry is "—" on the page. Entries were collected on 2026-10-01 from the vendors'
-own pages where one could be found; the cloud VM that built the page cannot open these sites
-directly (its egress proxy blocks them), so each was read through a search engine's snippet of
-the page named. **Re-verify every entry against the live page before publishing**, and again
-whenever the table is republished — pricing and limits in this category change monthly.
+Every cell on `/#compare` that names a competitor points at an entry here (BRIEF.md §5); a
+cell with no entry is "—" on the page. Each entry is a heading, so the † link beside a cell
+lands on it. Collected 2026-10-01; **every entry re-read on the vendor's own live page on
+2026-10-08**, with the quote that backs the cell. Re-verify whenever the table is republished
+— pricing and limits in this category change monthly.
 
 Rows: bring your own model · local models · telemetry and relay · price · source · platforms ·
 agent mode · Tab completion · remote development.
 
 ## Sirius
 
-- All Sirius cells: this repository at v1.118.7 — `README.md`, `INSTALL.md`, `PRIVACY.md`,
-  `LICENSE.txt`, `extensions/sirius-ai/package.json`, `PROJECT-STATE.md` (holes 7 and 12 for
-  what is *not* yet true: macOS, the remote-extension connect).
+All Sirius cells: this repository at v1.118.7 — `README.md`, `INSTALL.md`, `PRIVACY.md`,
+`LICENSE.txt`, `extensions/sirius-ai/package.json`, `PROJECT-STATE.md` (holes 7 and 12 for
+what is *not* yet true: macOS, the remote-extension connect).
 
 ## Cursor
 
-- `cursor-byok` — https://cursor.com/help/models-and-usage/api-keys — own keys for OpenAI,
-  Anthropic, Google, Azure and AWS Bedrock; "API keys are not stored but are uploaded to
-  Cursor's servers with each request" (requests pass through Cursor; no local-model path).
-- `cursor-data-use` — https://cursor.com/data-use — Privacy Mode: with it on, code is not
-  stored by Cursor or third parties (OpenAI/Anthropic retain prompts 30 days); with it off,
-  prompts may be saved and telemetry collected. Also names Remote SSH workspaces.
-- `cursor-pricing` — https://cursor.com/pricing — Free, Pro $20/month, Pro+, Ultra, Business.
-- `cursor-downloads` — https://cursor.com/downloads — macOS, Windows, Linux builds.
-- `cursor-terms` — https://cursor.com/terms-of-service — proprietary licence terms.
+### cursor-byok
+https://cursor.com/help/models-and-usage/api-keys — own keys for OpenAI, Anthropic, Google,
+Azure and AWS Bedrock; "all requests are routed through Cursor's servers for final prompt
+building" (no local-model path).
+
+### cursor-data-use
+https://cursor.com/data-use — Privacy Mode gives zero data retention; with it off, "we may use
+and store codebase data, prompts, editor actions, code snippets… to improve our AI features and
+train our models".
+
+### cursor-pricing
+https://cursor.com/help/account-and-billing/pricing.md and https://cursor.com/pricing — Hobby
+free, Pro $20, Pro+ $60, Ultra $200, Teams from $40/user, Enterprise custom; "You can use
+Agent, Chat, and Tab completions with the Auto model."
+
+### cursor-downloads
+https://cursor.com/downloads — "available for macOS, Windows, and Linux."
+
+### cursor-terms
+https://cursor.com/terms-of-service — "Anysphere reserves all rights to the Service not
+granted in these Terms."
+
+### cursor-changelog
+https://cursor.com/changelog/page/9 (3.0, 2026-04-02) — agents "locally, in worktrees, in the
+cloud, and on remote SSH"; earlier, https://cursor.com/en-US/changelog/1-3 (2025-07-29),
+"Terminal more reliable over remote SSH".
 
 ## Devin Desktop (formerly Windsurf)
 
-- `devin-faq` — https://docs.devin.ai/desktop/devin-desktop-faq — "Devin Desktop is the new
-  name for Windsurf".
-- `devin-byok` — https://docs.windsurf.com/ (Cascade models) — bring your own Anthropic key
-  for the Claude models in Cascade, "only available for Free and Pro users at this time".
-- `devin-changelog` — https://docs.devin.ai/desktop/changelog — Devin Local is a local *agent*
-  on the same hosted models and the same credit pricing as Cascade (not local models).
-- `devin-linux` — https://docs.windsurf.com/ (setup) — Linux install, including an RPM
-  repository; macOS and Windows installers.
-- `devin-pricing` — third-party listings only (therundown.ai, nocode.mba, devtoolsreview.com,
-  2026): Free $0, Pro $20/month, Max $200/month, Teams; usage allowance, extra usage at API
-  pricing. **Verify on the vendor's pricing page before publishing.**
+### devin-faq
+https://docs.devin.ai/desktop/devin-desktop-faq — "Devin Desktop is the new name for Windsurf".
+(windsurf.com redirects to devin.ai/desktop.)
+
+### devin-local
+https://docs.devin.ai/desktop/devin-local — Devin Local "operates on your machine with access
+to your local files, tools, and environment" — a local agent on hosted models; no page offers
+self-run models.
+
+### devin-changelog
+https://docs.devin.ai/desktop/changelog — v3.9.19, 2026-09-08: "Cascade has been removed.
+Devin Local is now the only agent available in Devin Desktop."
+
+### devin-pricing
+https://devin.ai/pricing — Free $0, Pro $20, Max $200, Teams "$80/month for team plan +
+$40/mo per full dev seat"; "purchase extra usage at API pricing"; "Unlimited Tab completions"
+on every plan. (A free SWE-2 promotion runs "through October 16, 2026"; the table does not
+cite it.)
+
+### devin-install
+https://docs.devin.ai/desktop/install — macOS, Windows, Linux (tar, deb, rpm).
+
+### devin-advanced
+https://docs.devin.ai/desktop/advanced — "We currently only support SSHing into Linux-based
+remote hosts"; Dev Containers "on Mac, Windows, and Linux for both local and remote (via SSH)
+workflows".
+
+Bring-your-own-key: the only mention is a 2025 Windsurf changelog entry for the Cascade agent,
+which was removed on 2026-09-08 — so the cell is "—".
 
 ## Zed
 
-- `zed-ai-config` — https://zed.dev/docs/ai/configuration — own keys for Anthropic, OpenAI,
-  Google AI, DeepSeek, Mistral, GitHub Copilot; local models through Ollama and LM Studio.
-- `zed-pricing` — https://zed.dev/pricing — Personal $0 (2,000 accepted edit predictions,
-  unlimited use with your own keys), Pro $10/month, Business $30/seat/month.
-- `zed-telemetry` — https://zed.dev/docs/telemetry — anonymous telemetry on by default,
-  switched off in settings; edit-prediction training data only on explicit opt-in.
-- `zed-remote` — https://github.com/zed-industries/zed/blob/main/docs/src/remote-development.md
-  — SSH remoting; language servers, tasks and terminals run on the remote; Linux and Mac targets.
-- `zed-source` — https://zed.dev/ and https://github.com/zed-industries/zed — open source,
-  GPL-3.0 for the editor.
-- `zed-platforms` — https://zed.dev/ — stable releases for macOS and Linux; Windows "not
-  finished yet" at the survey date.
-- `zed-ai` — https://zed.dev/ai — the Agent Panel and Edit Prediction (Zeta).
+### zed-api-access
+https://zed.dev/docs/ai/use-api-access — own keys for Anthropic, OpenAI, Google AI, Mistral,
+DeepSeek, xAI, OpenCode, and Anthropic- or OpenAI-compatible endpoints.
+
+### zed-local
+https://zed.dev/docs/ai/use-a-local-model — llama.cpp, LM Studio, Ollama and any local
+OpenAI-compatible server.
+
+### zed-pricing
+https://zed.dev/pricing — Personal "$0 forever"; Pro "$10 per month"; Business "$30 per seat,
+per month". https://zed.dev/docs/ai/edit-prediction: "The free plan includes 2,000 Zeta
+predictions per month."
+
+### zed-telemetry
+https://zed.dev/docs/telemetry — "Client-side: Usage metrics and crash reports. You can disable
+these in settings."
+
+### zed-remote
+https://zed.dev/docs/remote-development — supported remote platforms: macOS, Linux (x86_64,
+arm64), Windows (x86_64, arm64).
+
+### zed-source
+https://github.com/zed-industries/zed — "licensed primarily under GPL-3.0-or-later, with
+Apache-2.0 components where marked."
+
+### zed-platforms
+https://zed.dev/ — "Available for macOS, Linux, and Windows."; https://zed.dev/docs/windows —
+stable builds on the download page.
+
+### zed-ai
+https://zed.dev/ai — the Agent Panel and Edit Prediction (Zeta).
 
 ## Google Antigravity
 
-- `antigravity-download` — https://codelabs.developers.google.com/getting-started-google-antigravity
-  — macOS 12+, Windows 10+ 64-bit, Linux 64-bit (glibc 2.28+, GLIBCXX 3.4.25+).
-- `antigravity-plans` — https://antigravity.google/blog/changes-to-antigravity-plans —
-  Individual $0 with weekly rate limits; Google AI Pro $20/month; Ultra $100 and $200/month;
-  unlimited tab completions.
-- `antigravity-byok` — https://discuss.ai.google.dev/t/antigravity-add-your-own-api-keys-models/137068
-  — no bring-your-own-key or bring-your-own-endpoint for the editor's agent.
-- `antigravity-local` — https://antigravity.google/docs/sdk/local-models/ — local models
-  (Ollama, LM Studio, vLLM) are supported in the Antigravity SDK, not as the editor's model.
-- `antigravity-agent` — https://developers.googleblog.com/en/build-with-google-antigravity-our-new-agentic-development-platform/
-  — agent-first editor.
+### antigravity-byok
+https://antigravity.google/docs/plans — "There is currently no support for… Bring-your-own-key
+(BYOK) or bring-your-own-endpoint for additional rate limits".
+
+### antigravity-local
+https://antigravity.google/docs/sdk/local-models/ — an external local server (Ollama, LM
+Studio, vLLM) through `LocalOpenAIAgentConfig` in the SDK; no page offers it in the editor.
+
+### antigravity-plans
+https://antigravity.google/blog/changes-to-antigravity-plans (2026-05-19) — "$20/month Google
+AI Pro", "$100/month Google AI Ultra", a top tier at "$200 per month";
+https://antigravity.google/pricing — Individual "$0/month… Basic weekly rate limits",
+"Unlimited Tab completions".
+
+### antigravity-download
+https://antigravity.google/download — macOS (Apple Silicon, Intel), Windows (x64, ARM64),
+Linux (x64, ARM64).
+
+### antigravity-agent
+https://antigravity.google/docs/ide/overview/ — "an agentic development environment built for
+the agent-first era."
 
 ## Kiro (AWS)
 
-- `kiro-faq` — https://kiro.dev/faq/ — desktop IDE for macOS, Windows and Linux; no
-  bring-your-own-key and no local models; built on Code OSS with Open VSX extensions.
-- `kiro-pricing` — https://kiro.dev/pricing/ — Free 50 credits/month; Pro $20 (1,000
-  credits), Pro+ $40, Pro Max $100, Power $200; add-on credits $0.04 each.
-- `kiro-privacy` — https://kiro.dev/docs/privacy-and-security/ — telemetry collected by
-  default, switched off in settings (`telemetry.enabled false`); none on IAM Identity Center tiers.
-- `kiro-remote` — https://builder.aws.com/content/3BHUl6M43xtQ0niutCXtw4zg4RH/kiro-best-practices-a-field-guide-for-development-teams
-  — Open VSX remote SSH extensions supported.
+### kiro-faq
+https://kiro.dev/faq/ — models chosen from Kiro's list ("You can also choose a specific model,
+including OpenAI's GPT-5.6…, Anthropic's Claude models… and open weight models"); no key or
+local-model setting documented; "Kiro is based on Code OSS"; it "turn[s] prompts into
+executable specs". https://github.com/kirodotdev/Kiro — "The Kiro product source code is not
+hosted here."
+
+### kiro-pricing
+https://kiro.dev/pricing/ — "Kiro Free tier, which includes 50 credits"; Pro $20, Pro+ $40,
+Pro Max $100, Power $200 per month.
+
+### kiro-privacy
+https://kiro.dev/docs/privacy-and-security/data-protection/ — "By default, Kiro collects usage
+data, errors, crash reports, and other metrics as well as content for service improvement from
+Kiro Free Tier users and Kiro individual subscribers"; opt out in settings; none on enterprise.
+
+### kiro-downloads
+https://kiro.dev/downloads/ — macOS (Apple Silicon, Intel), Windows (x64, ARM64), Linux (x64,
+ARM64).
+
+### kiro-remote
+https://kiro.dev/docs/privacy-and-security/ — "Kiro supports Open VSX extensions, including
+remote SSH extensions… not developed, maintained, or managed by Kiro."
 
 ## Trae (ByteDance)
 
-- `trae-models` — https://docs.trae.ai/ide/models — custom models from preset providers by
-  API key, or a custom configuration (API format, request URL, model id).
-- `trae-pricing` — third-party listings only (hokai.io, aiagentsquare.com, vibecoding.app,
-  2026): Free, Lite $3, Pro $10, Pro+ $30, Ultra $100 per month; Free includes 5,000
-  autocompletions/month. **Verify on the vendor's pricing page before publishing.**
-- `trae-platforms` — third-party listings only (aiidelist.com, vibecoding.app, 2026): macOS
-  and Windows; Linux on a waiting list. **Verify before publishing.**
-- Telemetry and local models: no vendor page found; left "—".
+### trae-models
+https://docs.trae.ai/ide/models — "add models by entering the API key", or a custom
+configuration (API format, request URL, model ID, authentication).
+
+### trae-privacy
+https://docs.trae.ai/ide/privacy-mode — chats and code snippets "may be used for analytics,
+product improvement, and model training"; with Privacy mode on, they are not.
+
+### trae-pricing
+https://www.trae.ai/pricing — Free $0, Pro $20, Pro+ $60, Ultra $200 per month; autocompletion
+"5000 / month" on Free, "Unlimited" on Pro and above.
+
+### trae-platforms
+https://www.trae.ai/download — TraeCode: "macOS 12.0+ · Windows 10, 11 · .deb / .rpm", with a
+".deb (x64)" download.
+
+### trae-agent
+https://docs.trae.ai/ide/agent — custom agents with prompts, MCP servers and built-in tools.
+
+### trae-remote
+https://docs.trae.ai/ide/ssh-remote — "Currently, only the Linux operating system is
+supported."
