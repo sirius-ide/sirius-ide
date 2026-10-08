@@ -2,6 +2,13 @@
 import Base from '../layouts/Base.astro';
 import { releases, releaseDate, formatSize, cdnUrl, fetchedAt } from '../data/release';
 import { site } from '../site.config';
+import summaryFile from '../content/changelog.summaries.json';
+
+// One or two user-facing sentences per release, written from the commits between the tags
+// (src/content/changelog.summaries.json). A tag without an entry shows its commit list alone.
+const summaries = summaryFile as Record<string, string>;
+const missing = releases.filter((r) => !summaries[r.tag]).map((r) => r.tag);
+if (missing.length) { console.warn(`changelog: no user-facing summary for ${missing.join(', ')} (src/content/changelog.summaries.json)`); }
 
 const isDocs = (s: string) => /^(docs|state|roadmap)(\(|:)/i.test(s) || /^\d+\.\d+\.\d+$/.test(s);
 // Release engineering — the pipeline, packaging and CI — is folded under its own line so a release
@@ -17,7 +24,7 @@ const built = new Intl.DateTimeFormat('en', { dateStyle: 'long', timeZone: 'UTC'
 		<div class="container head">
 			<p class="eyebrow">Changelog · {releases.length} releases · <a href="/rss.xml">RSS feed</a></p>
 			<h1>What shipped, <span class="muted">release by release.</span></h1>
-			<p class="lede">Generated from GitHub Releases when the site is built (last on {built}), so it follows every published release. "What changed" is the list of commits between one tag and the next, with documentation-only commits folded away.</p>
+			<p class="lede">Each release opens with a short summary for people who use Sirius. Below it, generated from GitHub Releases when the site is built (last on {built}), is the technical record: the commits between one tag and the next, with documentation-only commits folded away.</p>
 		</div>
 		<div class="container list">
 			{releases.map((r, i) => {
@@ -32,6 +39,7 @@ const built = new Intl.DateTimeFormat('en', { dateStyle: 'long', timeZone: 'UTC'
 							<h2><a href={`#${r.tag}`}>{r.tag}</a>{i === 0 && !r.prerelease && <span class="tag">latest</span>}{r.prerelease && <span class="tag pre">pre-release</span>}</h2>
 							<p class="meta"><time datetime={r.publishedAt}>{releaseDate(r)}</time> · <a href={r.url} rel="noopener">on GitHub</a></p>
 						</header>
+						{summaries[r.tag] && <p class="summary">{summaries[r.tag]}</p>}
 						{r.body && !compareOnly(r.body) && <pre class="notes">{r.body}</pre>}
 						{changes.length > 0 && (
 							<details class="changes" open={i === 0}>
@@ -72,6 +80,7 @@ const built = new Intl.DateTimeFormat('en', { dateStyle: 'long', timeZone: 'UTC'
 	.tag { font-family: var(--font-mono); font-size: var(--text-xs); letter-spacing: 0.08em; text-transform: uppercase; padding: 0.2em 0.6em; border-radius: 999px; border: 1px solid var(--accent); color: var(--accent-text); font-weight: 500; }
 	.tag.pre { background: var(--surface-3); color: var(--fg-muted); }
 	.meta { color: var(--fg-dim); font-size: var(--text-s); }
+	.summary { margin-top: 0.9rem; color: var(--fg); font-size: var(--text-m); line-height: 1.55; max-width: 66ch; }
 	.notes { margin-top: 1rem; white-space: pre-wrap; font-family: var(--font-sans); font-size: var(--text-s); color: var(--fg-muted); }
 	details { margin-top: 1rem; }
 	summary { cursor: pointer; font-weight: 600; color: var(--fg); font-size: var(--text-s); }

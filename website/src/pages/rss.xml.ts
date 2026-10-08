@@ -2,6 +2,9 @@ import rss from '@astrojs/rss';
 import type { APIContext } from 'astro';
 import { releases, releaseDate, formatSize } from '../data/release';
 import { site } from '../site.config';
+import summaryFile from '../content/changelog.summaries.json';
+
+const summaries = summaryFile as Record<string, string>;
 
 export function GET(context: APIContext) {
 	return rss({
@@ -16,8 +19,8 @@ export function GET(context: APIContext) {
 				title: `${site.name} ${r.tag}`,
 				pubDate: new Date(r.publishedAt),
 				link: `/changelog/#${r.tag}`,
-				description: `Released ${releaseDate(r)}. ${changes.length} changes. Assets: ${assets}.`,
-				content: `${list}<p>Assets: ${assets}.</p><p><a href="${r.url}">Release on GitHub</a></p>`,
+				description: `${summaries[r.tag] ? `${summaries[r.tag]} ` : ''}Released ${releaseDate(r)}. ${changes.length} changes. Assets: ${assets}.`,
+				content: `${summaries[r.tag] ? `<p>${summaries[r.tag]}</p>` : ''}${list}<p>Assets: ${assets}.</p><p><a href="${r.url}">Release on GitHub</a></p>`,
 			};
 		}),
 		xmlns: { atom: 'http://www.w3.org/2005/Atom' },
