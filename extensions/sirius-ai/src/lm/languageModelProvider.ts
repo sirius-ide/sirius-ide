@@ -210,8 +210,11 @@ export class SiriusLanguageModelProvider implements vscode.LanguageModelChatProv
 
 	/**
 	 * The editor's tools carry JSON Schema in `inputSchema`, which is exactly what
-	 * the providers already expect. A tool without a schema is given an empty
-	 * object one, since every provider requires the field to be present.
+	 * the providers already expect, so it goes through whole: an MCP server's
+	 * schema may put its types in `$defs` and point at them with `$ref`, and
+	 * keeping only `properties` left those references dangling. A tool without a
+	 * schema is given an empty object one, since every provider requires the
+	 * field to be present.
 	 */
 	private _toToolDefinitions(tools: readonly vscode.LanguageModelChatTool[] | undefined): ToolDefinition[] | undefined {
 		if (!tools?.length) {
@@ -219,14 +222,14 @@ export class SiriusLanguageModelProvider implements vscode.LanguageModelChatProv
 		}
 
 		return tools.map(tool => {
-			const schema = (tool.inputSchema ?? {}) as ToolDefinition['inputSchema'];
+			const schema = (tool.inputSchema ?? {}) as Partial<ToolDefinition['inputSchema']>;
 			return {
 				name: tool.name,
 				description: tool.description,
 				inputSchema: {
+					...schema,
 					type: 'object' as const,
-					properties: schema.properties ?? {},
-					...(schema.required ? { required: schema.required } : {})
+					properties: schema.properties ?? {}
 				}
 			};
 		});

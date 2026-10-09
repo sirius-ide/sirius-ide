@@ -12,7 +12,7 @@ import { TOOL_DEFINITIONS } from '../tools/toolExecutor';
 import * as path from 'path';
 import { randomBytes } from 'crypto';
 import { knownModel, siriusModels } from '../lm/vendors';
-import { EXTERNAL_BUDGET, activationResult, describeOffer, externalSources, fit, offerExternal, rememberedExpansions, serverInstructions, sourceOf } from './externalTools';
+import { EXTERNAL_BUDGET, MAX_TOOLS_PER_REQUEST, activationRefused, activationResult, describeOffer, externalSources, fit, offerExternal, promptTsxText, rememberedExpansions, serverInstructions, sourceOf } from './externalTools';
 import type { SiriusModel } from '../types';
 
 /**
@@ -296,22 +296,40 @@ const createHandler = (mode: Mode): vscode.ChatRequestHandler => async (request,
 	];
 
 	// MCP servers' and other extensions' tools: everything the picker — or the
-	// agent's file — enables, within the tier's budget. A server that does not
-	// fit is one group tool the model opens on demand; what it opened earlier in
-	// this conversation is open already (externalTools.ts).
-	const sources = agent || mode === 'agent' ? externalSources(vscode.lm.tools.filter(tool => permitted(tool.name))) : [];
-	const offer = fit(sources, extended ? EXTERNAL_BUDGET.extended : EXTERNAL_BUDGET.core, rememberedExpansions(chatContext.history));
+	// agent's file — enables, within the tier's budget. Only a tool the picker
+	// lists counts as enabled: `vscode.lm.tools` also holds tools whose `when`
+	// clause is off, and those the user cannot untick. A server that does not
+	// fit is one group tool the model opens on demand; what the model opened
+	// earlier in this conversation is open already (externalTools.ts).
+	const sources = agent || mode === 'agent' ? externalSources(vscode.lm.tools.filter(tool => choice.get(tool.name) === true)) : [];
+	const remembered = rememberedExpansions(chatContext.history);
+	const hardCap = MAX_TOOLS_PER_REQUEST - ownTools.length;
+	const offer = fit(sources, extended ? EXTERNAL_BUDGET.extended : EXTERNAL_BUDGET.core, remembered, hardCap);
 	const opened = new Set(offer.expanded.map(source => source.key));
 	const dropped = new Set(offer.dropped.map(source => source.key));
+	const openedByModel = new Set<string>();
 	const assemble = () => {
 		const external = offerExternal(sources, opened, dropped, new Set(ownTools.map(tool => tool.name)));
 		for (const name of external.skipped) {
-			debug(`[skipped] ${name}: no provider takes that tool name, or it is in use already`);
+			debug(`[skipped] ${name}: its name is in use already`);
 		}
 		const tools = [...ownTools, ...external.tools];
-		return { tools, toolNames: new Set(tools.map(tool => tool.name)), realNames: external.realNames, groups: external.groups };
+		return { tools, toolNames: new Set(tools.map(tool => tool.name)), realNames: external.realNames, groups: external.groups, closedTools: external.closedTools };
 	};
 	let offered = assemble();
+	/** Opens a closed source for the next round, unless the request could not hold it. */
+	const open = (source: { readonly key: string; readonly label: string; readonly tools: readonly unknown[] }, how: string): boolean => {
+		const external = offered.tools.length - ownTools.length;
+		if (external - 1 + source.tools.length > hardCap) {
+			debug(`[refused] opening ${source.label} (${source.tools.length} tools) would exceed ${MAX_TOOLS_PER_REQUEST} tools`);
+			return false;
+		}
+		opened.add(source.key);
+		openedByModel.add(source.key);
+		offered = assemble();
+		debug(`[opened] ${source.label}: ${source.tools.length} tools (${how})`);
+		return true;
+	};
 	if (offer.dropped.length) {
 		stream.warning(
 			`Not offered to ${model.name}: ${offer.dropped.map(source => `${source.label} (${source.tools.length} tools)`).join(', ')} — ` +
@@ -321,6 +339,8 @@ const createHandler = (mode: Mode): vscode.ChatRequestHandler => async (request,
 	const scope = agent ? `the ${agent.name} agent` : `${mode} mode`;
 	if (agent) {
 		debug(`[request] ${scope} enables ${[...choice].filter(([, enabled]) => enabled).map(([name]) => name).join(',') || 'nothing'} (of ${choice.size} known)`);
+	} else if (sources.length) {
+		debug(`[request] the picker enables ${sources.reduce((n, source) => n + source.tools.length, 0)} external tools from ${sources.length} sources`);
 	}
 	debug(`[request] mode=${mode}${agent ? ` agent=${agent.name} instructions=${agent.instructions.length}` : ''} model=${model.id} window=${model.maxInputTokens} size=${known?.sizeBytes ?? 'unknown'} tier=${extended ? 'extended' : 'core'} tools=${offered.tools.length} (${[...offered.toolNames].join(',')})${sources.length ? ` external ${describeOffer(sources, opened, dropped)}` : ''}`);
 
@@ -330,11 +350,12 @@ const createHandler = (mode: Mode): vscode.ChatRequestHandler => async (request,
 	if (images > 0) {
 		debug(`[request] images=${images} vision=${known?.supportsVision ?? 'unknown'}`);
 	}
-	// What the model opened travels with the result, so the next turn starts with it open.
-	const result = (): vscode.ChatResult => ({ metadata: { siriusExpanded: [...opened] } });
+	// What the model opened travels with the result, so the next turn starts with
+	// it open — carried forward through every turn, whichever mode answered it.
+	const result = (): vscode.ChatResult => ({ metadata: { siriusExpanded: [...new Set([...remembered, ...openedByModel])] } });
 
 	for (let round = 0; round < MAX_TOOL_ROUNDS && !token.isCancellationRequested; round++) {
-		const { tools, toolNames, realNames, groups } = offered;
+		const { tools, toolNames, realNames, groups, closedTools } = offered;
 		const response = await model.sendRequest(messages, { tools }, token);
 
 		const emitted = new TextGate(stream, toolNames);
@@ -378,12 +399,19 @@ const createHandler = (mode: Mode): vscode.ChatRequestHandler => async (request,
 		]));
 
 		const results: vscode.LanguageModelToolResultPart[] = [];
-		let reassemble = false;
 		for (const call of toolCalls) {
 			// A model can name any tool — hallucinated, or steered by a file it
 			// read. Only what this mode offered runs; otherwise Ask's read-only set
 			// was a suggestion, and `run_in_terminal` ran if a model asked for it.
-			if (!toolNames.has(call.name)) {
+			// One exception: a closed group's own tool, called straight from the
+			// group's description — the picker enabled it, so the group opens and
+			// the call runs, as if the model had opened it first.
+			const direct = toolNames.has(call.name) ? undefined : closedTools.get(call.name);
+			if (direct && !open(direct, `called ${call.name} directly`)) {
+				results.push(new vscode.LanguageModelToolResultPart(call.callId, [new vscode.LanguageModelTextPart(activationRefused(direct))]));
+				continue;
+			}
+			if (!direct && !toolNames.has(call.name)) {
 				debug(`[refused] ${call.name} is not offered in ${scope}`);
 				results.push(new vscode.LanguageModelToolResultPart(call.callId, [
 					new vscode.LanguageModelTextPart(`${call.name} is not available in ${scope}.`)
@@ -399,12 +427,11 @@ const createHandler = (mode: Mode): vscode.ChatRequestHandler => async (request,
 					results.push(new vscode.LanguageModelToolResultPart(call.callId, [new vscode.LanguageModelTextPart(text)]));
 				} else if (group) {
 					// The group's tools join the next round's list; the result names them.
-					opened.add(group.key);
-					reassemble = true;
-					debug(`[opened] ${group.label}: ${group.tools.length} tools`);
-					results.push(new vscode.LanguageModelToolResultPart(call.callId, [new vscode.LanguageModelTextPart(activationResult(group))]));
+					results.push(new vscode.LanguageModelToolResultPart(call.callId, [
+						new vscode.LanguageModelTextPart(open(group, 'opened by the model') ? activationResult(group) : activationRefused(group))
+					]));
 				} else {
-					const result = await vscode.lm.invokeTool(realNames.get(call.name) ?? call.name, {
+					const result = await vscode.lm.invokeTool(offered.realNames.get(call.name) ?? realNames.get(call.name) ?? call.name, {
 						input: call.input,
 						toolInvocationToken: request.toolInvocationToken
 					}, token);
@@ -417,9 +444,6 @@ const createHandler = (mode: Mode): vscode.ChatRequestHandler => async (request,
 			}
 		}
 		messages.push(vscode.LanguageModelChatMessage.User(results));
-		if (reassemble) {
-			offered = assemble();
-		}
 	}
 
 	if (!token.isCancellationRequested) {
@@ -853,9 +877,9 @@ async function buildMessages(chatContext: vscode.ChatContext, request: vscode.Ch
 function capContent(content: unknown[]): unknown[] {
 	return content.map(part => {
 		// A tool built for the workbench's own agent may answer in prompt-tsx; the
-		// providers speak text, so the model gets the tree as JSON rather than nothing.
+		// providers speak text, so the model gets the tree's text rather than nothing.
 		if (part instanceof vscode.LanguageModelPromptTsxPart) {
-			part = new vscode.LanguageModelTextPart(JSON.stringify(part.value));
+			part = new vscode.LanguageModelTextPart(promptTsxText(part.value));
 		}
 		if (part instanceof vscode.LanguageModelTextPart && part.value.length > MAX_TOOL_RESULT_CHARS) {
 			return new vscode.LanguageModelTextPart(part.value.slice(0, MAX_TOOL_RESULT_CHARS) + '\n[truncated]');

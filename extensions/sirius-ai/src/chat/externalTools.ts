@@ -13,8 +13,8 @@ import * as vscode from 'vscode';
  * and invoking one goes back through the editor, approval dialog included. What this module
  * adds is the budget. A model is handed a server's tools directly only while the set stays
  * small enough for it; every other server is one *group* tool the model calls to open it,
- * and what it opened stays open for the rest of the conversation (the participant returns
- * the opened keys as result metadata, and reads them back from the history).
+ * and what the model opened stays open for the rest of the conversation (the participant
+ * returns the opened keys as result metadata, and reads them back from the history).
  */
 
 export interface ExternalSource {
@@ -31,17 +31,17 @@ export interface ExternalSource {
 /** External tool schemas a model is handed without asking, by tier (chat/siriusAgent.ts). */
 export const EXTERNAL_BUDGET = { core: 8, extended: 64 } as const;
 
-/**
- * The most external tools open at once, however the model got there: OpenAI takes 128
- * tools per request, and the workbench's and Sirius's own are about thirty of those.
- */
-export const EXTERNAL_HARD_CAP = 96;
+/** Tools in one request, all told: OpenAI's limit, and the strictest of the providers. */
+export const MAX_TOOLS_PER_REQUEST = 128;
 
 const GROUP_PREFIX = 'activate_';
 const MAX_GROUP_DESCRIPTION_CHARS = 1_200;
 const MAX_SERVER_INSTRUCTIONS_CHARS = 2_000;
-/** What every provider accepts as a tool name — OpenAI's rule; the others are looser. */
-const TOOL_NAME = /^[A-Za-z0-9_-]{1,64}$/;
+/**
+ * What every provider accepts as a tool name: OpenAI's characters and length, Gemini's
+ * first character (a letter or an underscore).
+ */
+const TOOL_NAME = /^[A-Za-z_][A-Za-z0-9_-]{0,63}$/;
 
 /** The source of a tool, when it is an MCP server or another extension. */
 export function sourceOf(tool: vscode.LanguageModelToolInformation): Omit<ExternalSource, 'tools'> | undefined {
@@ -82,40 +82,44 @@ export interface Offer {
 }
 
 /**
- * Which sources to open for a request. Three rules, in order:
+ * Which sources to open for a request. `budget` is how many external tool schemas the model
+ * is handed without asking; `hardCap` is how many external entries — tools and groups — the
+ * request can hold at all. Three rules, in order:
  *
- * 1. What the model opened earlier in this conversation stays open, up to the hard cap.
- * 2. Small sources come open while the budget holds (a closed source costs one slot, an open
- *    one costs its tools); the rest stay closed groups.
- * 3. With more sources than the budget has slots, the largest closed ones are left out —
- *    the caller says so in the response.
+ * 1. With more sources than the budget has slots, the largest ones the model has not opened
+ *    are left out — the caller says so in the response.
+ * 2. What the model opened earlier in this conversation stays open, up to the hard cap.
+ * 3. Small sources come open while the budget holds (a closed source costs one slot, an open
+ *    one costs its tools); the rest stay closed. A one-tool source costs the same open or
+ *    closed, so it is always open — a group of one would only cost the model a call.
  */
-export function fit(sources: readonly ExternalSource[], budget: number, remembered: ReadonlySet<string>): Offer {
+export function fit(sources: readonly ExternalSource[], budget: number, remembered: ReadonlySet<string>, hardCap: number): Offer {
 	const bySize = sources.slice().sort((a, b) => a.tools.length - b.tools.length || a.label.localeCompare(b.label));
-	const expanded = new Set<string>();
-	let cost = sources.length;
-	let open = 0;
-	const expand = (source: ExternalSource): void => {
-		expanded.add(source.key);
-		cost += source.tools.length - 1;
-		open += source.tools.length;
-	};
-	for (const source of bySize) {
-		if (remembered.has(source.key) && open + source.tools.length <= EXTERNAL_HARD_CAP) {
-			expand(source);
-		}
-	}
-	for (const source of bySize) {
-		if (!expanded.has(source.key) && cost - 1 + source.tools.length <= budget) {
-			expand(source);
-		}
-	}
 	const dropped = new Set<string>();
-	for (const source of bySize.filter(s => !expanded.has(s.key)).reverse()) {
+	for (const source of bySize.slice().reverse()) {
 		if (sources.length - dropped.size <= budget) {
 			break;
 		}
-		dropped.add(source.key);
+		if (!remembered.has(source.key)) {
+			dropped.add(source.key);
+		}
+	}
+	const kept = bySize.filter(source => !dropped.has(source.key));
+	const expanded = new Set<string>();
+	let cost = kept.length;
+	const expand = (source: ExternalSource): void => {
+		expanded.add(source.key);
+		cost += source.tools.length - 1;
+	};
+	for (const source of kept) {
+		if (remembered.has(source.key) && cost - 1 + source.tools.length <= hardCap) {
+			expand(source);
+		}
+	}
+	for (const source of kept) {
+		if (!expanded.has(source.key) && (source.tools.length <= 1 || cost - 1 + source.tools.length <= budget)) {
+			expand(source);
+		}
 	}
 	return {
 		expanded: sources.filter(s => expanded.has(s.key)),
@@ -124,13 +128,24 @@ export function fit(sources: readonly ExternalSource[], budget: number, remember
 	};
 }
 
+/** The name a tool is offered under: its own where every provider takes it, else a safe one. */
+export function offeredName(name: string): string {
+	if (TOOL_NAME.test(name)) {
+		return name;
+	}
+	const safe = name.replace(/[^A-Za-z0-9_-]/g, '_');
+	return (/^[A-Za-z_]/.test(safe) ? safe : `_${safe}`).slice(0, 64);
+}
+
 export interface OfferedExternal {
 	readonly tools: vscode.LanguageModelChatTool[];
 	/** The name offered to the model → the registered name to invoke, where they differ. */
 	readonly realNames: ReadonlyMap<string, string>;
 	/** A group tool's name → the source it opens. */
 	readonly groups: ReadonlyMap<string, ExternalSource>;
-	/** Tools left out: a name no provider would take even renamed, or one already in use. */
+	/** A closed source's tool, by the name a model would call it → the source to open first. */
+	readonly closedTools: ReadonlyMap<string, ExternalSource>;
+	/** Tools left out: a name already in use. */
 	readonly skipped: string[];
 }
 
@@ -144,6 +159,7 @@ export function offerExternal(sources: readonly ExternalSource[], opened: Readon
 	const tools: vscode.LanguageModelChatTool[] = [];
 	const realNames = new Map<string, string>();
 	const groups = new Map<string, ExternalSource>();
+	const closedTools = new Map<string, ExternalSource>();
 	const skipped: string[] = [];
 	const names = new Set(taken);
 	const claim = (name: string): boolean => {
@@ -159,8 +175,8 @@ export function offerExternal(sources: readonly ExternalSource[], opened: Readon
 		}
 		if (opened.has(source.key)) {
 			for (const tool of source.tools) {
-				const name = TOOL_NAME.test(tool.name) ? tool.name : tool.name.replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 64);
-				if (!TOOL_NAME.test(name) || !claim(name)) {
+				const name = offeredName(tool.name);
+				if (!claim(name)) {
 					skipped.push(tool.name);
 					continue;
 				}
@@ -175,18 +191,28 @@ export function offerExternal(sources: readonly ExternalSource[], opened: Readon
 			for (let i = 2; !claim(name); i++) {
 				name = `${base}_${i}`;
 			}
-			tools.push({ name, description: groupDescription(source), inputSchema: { type: 'object', properties: {}, additionalProperties: false } });
+			tools.push({ name, description: groupDescription(source), inputSchema: { type: 'object', properties: {} } });
 			groups.set(name, source);
+			for (const tool of source.tools) {
+				closedTools.set(offeredName(tool.name), source);
+				closedTools.set(tool.name, source);
+			}
 		}
 	}
-	return { tools, realNames, groups, skipped };
+	return { tools, realNames, groups, closedTools, skipped };
 }
 
 /** What the model is told when it opens a group. */
 export function activationResult(source: ExternalSource): string {
 	const instructions = serverInstructions(source);
-	return `The ${source.label} tools are open now: ${source.tools.map(tool => tool.name).join(', ')}. Call them directly.` +
+	return `The ${source.label} tools are open now: ${source.tools.map(tool => offeredName(tool.name)).join(', ')}. Call them directly.` +
 		(instructions ? `\n\n${instructions}` : '');
+}
+
+/** What the model is told when opening a group would not fit the request. */
+export function activationRefused(source: ExternalSource): string {
+	return `${source.label} cannot be opened: its ${source.tools.length} tools would put this request over the model's limit of ` +
+		`${MAX_TOOLS_PER_REQUEST} tools. Finish with the tools that are open, or ask the user to untick servers in the tools picker.`;
 }
 
 /** An MCP server's instructions, for the preamble or the activation result. */
@@ -199,7 +225,8 @@ export function serverInstructions(source: ExternalSource): string | undefined {
 
 /**
  * The sources the model opened in this conversation, as the last Sirius response recorded
- * them in its result metadata.
+ * them in its result metadata. Every turn carries the list forward, so a turn in Ask, or one
+ * with a server stopped, does not close what the model opened.
  */
 export function rememberedExpansions(history: ReadonlyArray<vscode.ChatRequestTurn | vscode.ChatResponseTurn>): Set<string> {
 	for (let i = history.length - 1; i >= 0; i--) {
@@ -223,6 +250,33 @@ export function describeOffer(sources: readonly ExternalSource[], opened: Readon
 	return `open=[${open.join(',')}] closed=[${closed.join(',')}] dropped=[${out.join(',')}]`;
 }
 
+/**
+ * The text of a prompt-tsx tool result, for providers that speak plain text: the tree's
+ * text pieces in order, or the tree as JSON when it has none.
+ */
+export function promptTsxText(value: unknown): string {
+	const pieces: string[] = [];
+	const walk = (node: unknown): void => {
+		if (typeof node === 'string') {
+			pieces.push(node);
+		} else if (Array.isArray(node)) {
+			node.forEach(walk);
+		} else if (node && typeof node === 'object') {
+			const record = node as Record<string, unknown>;
+			if (typeof record.text === 'string') {
+				pieces.push(record.text);
+			}
+			for (const [key, child] of Object.entries(record)) {
+				if (key !== 'text' && child && typeof child === 'object') {
+					walk(child);
+				}
+			}
+		}
+	};
+	walk(value);
+	return pieces.length ? pieces.join('\n') : JSON.stringify(value);
+}
+
 function slug(label: string): string {
 	return label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 40) || 'tools';
 }
@@ -230,7 +284,7 @@ function slug(label: string): string {
 function groupDescription(source: ExternalSource): string {
 	const what = source.kind === 'mcp' ? 'MCP server' : 'extension';
 	const head = `Opens the ${source.tools.length} tools of the ${source.label} ${what} for the rest of this conversation — call this first, then call them directly. They are: `;
-	const items = source.tools.map(tool => `${tool.name} (${firstSentence(tool.description)})`);
+	const items = source.tools.map(tool => `${offeredName(tool.name)} (${firstSentence(tool.description)})`);
 	let list = '';
 	for (const [i, item] of items.entries()) {
 		if (list.length + item.length > MAX_GROUP_DESCRIPTION_CHARS) {

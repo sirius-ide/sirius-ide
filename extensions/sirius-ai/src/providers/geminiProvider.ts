@@ -168,12 +168,17 @@ export class GeminiProvider implements IAIProvider {
 			generationConfig
 		};
 
+		// `parameters` is Gemini's OpenAPI subset, which refuses `$ref`, `$defs` and
+		// `additionalProperties` — all common in an MCP server's schema.
+		// `parametersJsonSchema` takes JSON Schema as it is. A tool with no
+		// arguments (a group tool, say) declares none: an empty object schema has
+		// been refused.
 		if (request.tools?.length) {
 			payload.tools = [{
 				functionDeclarations: request.tools.map(t => ({
 					name: t.name,
 					description: t.description,
-					parameters: t.inputSchema
+					...(Object.keys(t.inputSchema.properties).length ? { parametersJsonSchema: t.inputSchema } : {})
 				}))
 			}];
 		}

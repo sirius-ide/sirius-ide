@@ -8,7 +8,9 @@
 // /v1/chat/completions answers "pong <the last user message>", streamed or not — unless the
 // message is a task it knows: one that says "echo" calls an offered mcp_*_echo tool with
 // "marco"; one that says "filler" calls the big server's mcp_*big*_filler_1 with "polo", or,
-// when only its group tool activate_*big* is offered, that first. A tool is called once per request;
+// when only its group tool activate_*big* is offered, that first; one that says "directly"
+// calls mcp_sirius-big_filler_2 by name whether or not it was offered (a model reading the
+// group's description does that). A tool is called once per request;
 // once a tool result is in the messages the answer is "pong tool <the last result>". Every
 // request is printed as one JSON line with the tool names it offered and whether any message
 // carries STUB-INSTRUCTIONS (the stub MCP server's instructions), so a probe can show which
@@ -49,11 +51,12 @@ http.createServer(async (req, res) => {
 		const last = [...messages].reverse().find(m => m.role === 'user');
 		const task = typeof last?.content === 'string' ? last.content : '';
 		const called = new Set(messages.flatMap(m => (m.tool_calls ?? []).map(c => c.function?.name)));
-		const wanted = /filler/i.test(task)
-			? [/^mcp_.*big.*_filler_1$/, /^activate_.*big/]
-			: /echo/i.test(task) ? [/^mcp_.*_echo$/] : [];
+		const wanted = /directly/i.test(task) ? []
+			: /filler/i.test(task) ? [/^mcp_.*big.*_filler_1$/, /^activate_.*big/]
+				: /echo/i.test(task) ? [/^mcp_.*_echo$/] : [];
 		const toolResult = [...messages].reverse().find(m => m.role === 'tool');
-		const next = wanted.map(pattern => tools.find(name => pattern.test(name) && !called.has(name))).find(Boolean);
+		const direct = /directly/i.test(task) && !called.has('mcp_sirius-big_filler_2') ? 'mcp_sirius-big_filler_2' : undefined;
+		const next = direct ?? wanted.map(pattern => tools.find(name => pattern.test(name) && !called.has(name))).find(Boolean);
 		if (next) {
 			const args = next.startsWith('activate_') ? {} : { text: /echo/i.test(task) ? 'marco' : 'polo' };
 			const call = { id: `call_stub_${called.size + 1}`, type: 'function', function: { name: next, arguments: JSON.stringify(args) } };

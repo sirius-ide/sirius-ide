@@ -86,10 +86,17 @@ export interface SiriusModel {
 export interface ToolDefinition {
 	name: string;
 	description: string;
+	/**
+	 * JSON Schema for the input: an object with its properties, and whatever else the
+	 * tool's author put there — `$defs` with `$ref`s into them (FastMCP, pydantic), nested
+	 * objects, `additionalProperties`. OpenAI, Anthropic, Ollama and llama.cpp take it as it
+	 * is; Gemini gets it as `parametersJsonSchema`.
+	 */
 	inputSchema: {
 		type: 'object';
 		properties: Record<string, unknown>;
 		required?: string[];
+		[key: string]: unknown;
 	};
 }
 

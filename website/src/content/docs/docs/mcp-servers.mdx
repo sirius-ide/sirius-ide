@@ -51,7 +51,8 @@ next message offers them.
 | **Ask**, **Edit** | none: they read, and Edit writes files, nothing else |
 | **Your own agent** | exactly what its file names: a whole server as `github/*`, one tool as `github/create_issue` |
 
-Untick a server, or one of its tools, in the picker and the next message goes without it.
+Untick a server, or one of its tools, in the picker and the next message goes without it;
+a tool the picker does not list — one an extension hides by setting — is never offered.
 A tool call shows in the transcript as *Running create issue (github)…*; the result goes
 back to the model like any other tool's.
 
@@ -67,9 +68,13 @@ server is *open* — while the set stays within the model's budget:
 
 Small servers come open first. A server that does not fit is *closed*: the model sees one
 tool for it, `activate_<server>`, whose description lists what the server offers. When the
-task needs one of those, the model calls it, the server's tools join the next round, and
-the server stays open for the rest of the conversation — a follow-up message starts with it
-open. Up to 96 server and extension tools can be open at once, however the model got there.
+task needs one of those, the model calls it — or calls one of the listed tools straight
+away, which opens the server the same way — the server's tools join the next round, and a
+server the model opened stays open for the rest of the conversation: a follow-up message
+starts with it open, whichever mode answered in between. A request holds 128 tools in all,
+Sirius's and the editor's included; a server that would not fit beside what is open is
+refused with a note to the model, so it can finish with what is open or ask you to untick
+the rest.
 
 A server's own instructions, if it sends any, go to the model with its tools: in the system
 prompt for a server that is open from the start, in the reply to `activate_<server>` for

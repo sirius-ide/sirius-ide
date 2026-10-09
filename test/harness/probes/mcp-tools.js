@@ -20,6 +20,10 @@
 //                 mcp_sirius-big_filler_1, the round after answers;
 //  again        — a follow-up in the same conversation starts with sirius-big open: its tools
 //                 are offered directly, no group, and filler_1 is called in round 0;
+//  direct       — in a fresh conversation the model calls mcp_sirius-big_filler_2 by name
+//                 without opening the group: the group opens and the call runs;
+//  hidden       — with mermaid-chat.enabled off, the renderer leaves the picker and is no
+//                 longer offered (vscode.lm.tools still lists it);
 //  stubber      — an agent the user wrote with tools: ['sirius-stub/*'] gets exactly the two
 //                 stub tools, no terminal, no groups (seeded from test/harness/seeds/mcp-tools);
 //  ask          — Ask keeps its read-only set: no server tool, no group;
@@ -144,6 +148,20 @@ exports.run = async function (vscode, context) {
 	check(again.request?.tools.includes(BIG_1) && !again.request.tools.includes(BIG_GROUP), `again: sirius-big should be open from the start (${again.request?.external})`);
 	check(again.rounds[0]?.calls.includes(BIG_1), `again: round 0 called ${again.rounds[0]?.calls.join(',') || 'nothing'}, not ${BIG_1}`);
 
+	// ── direct ────────────────────────────────────────────────────────────────
+	const direct = await send('agent', 'Call the big server\'s second filler tool directly.');
+	check(direct.rounds[0]?.calls.includes('mcp_sirius-big_filler_2'), `direct: round 0 called ${direct.rounds[0]?.calls.join(',') || 'nothing'}`);
+	check(direct.opened.some(line => line.includes('called mcp_sirius-big_filler_2 directly')), `direct: the group did not open on the direct call (${direct.opened.join('; ') || 'nothing opened'}; refused ${direct.refused.join('; ') || 'nothing'})`);
+	check(direct.rounds.length >= 2 && direct.rounds[1].text > 0, `direct: no answer after the call (${JSON.stringify(direct.rounds)})`);
+
+	// ── hidden ────────────────────────────────────────────────────────────────
+	check(agent.request?.tools.includes('renderMermaidDiagram'), 'hidden: the Mermaid renderer was not offered while enabled');
+	await vscode.workspace.getConfiguration().update('mermaid-chat.enabled', false, vscode.ConfigurationTarget.Global);
+	await sleep(1500);
+	const hidden = await send('agent', echoQuery);
+	check(hidden.request && !hidden.request.tools.includes('renderMermaidDiagram'), 'hidden: the Mermaid renderer is still offered with mermaid-chat.enabled off');
+	check(vscode.lm.tools.some(t => t.name === 'renderMermaidDiagram'), 'hidden: (premise) vscode.lm.tools no longer lists the renderer, so the check proves nothing');
+
 	// ── stubber ───────────────────────────────────────────────────────────────
 	let stubberSeen = null;
 	if (seeded) {
@@ -217,6 +235,8 @@ exports.run = async function (vscode, context) {
 		agent,
 		big,
 		again,
+		direct,
+		hidden: hidden.request?.external ?? null,
 		stubber: stubberSeen ?? 'skipped — run through mcp-tools.sh (SIRIUS_PROBE_SEED=test/harness/seeds/mcp-tools)',
 		ask,
 		core,
