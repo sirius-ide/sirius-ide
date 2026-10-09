@@ -1,0 +1,97 @@
+---
+title: MCP servers and extension tools
+description: How an MCP server's tools, and the tools other extensions contribute, reach the model — in Agent and in your own agents, within a budget sized to the model.
+sidebar:
+  order: 11
+---
+
+An [MCP](https://modelcontextprotocol.io) server gives the model tools — GitHub issues, a
+database, a browser, your own scripts. The editor already knows how to add, start and list
+servers, and how to ask before a tool runs; Sirius hands their tools to the model you
+picked, in **Agent** and in [your own agents](/docs/chat-edit-agent/#your-own-agents).
+Tools that other extensions contribute travel the same way.
+
+## Adding a server
+
+Any of the editor's own ways works:
+
+- <kbd>F1</kbd> → **MCP: Add Server…** — a command (stdio), an npm, pip or Docker package,
+  or an HTTP endpoint, saved to your user profile or to the workspace;
+- the **MCP SERVERS** section of the Extensions view, which lists what is installed, with
+  Start, Stop, Restart and Show Output on each;
+- `mcp.json` by hand — <kbd>F1</kbd> → **MCP: Open User Configuration** for your profile, or
+  `.vscode/mcp.json` in a project (the editor asks before it starts a server a project
+  brought along):
+
+```json
+{
+  "servers": {
+    "github": {
+      "type": "http",
+      "url": "https://api.githubcopilot.com/mcp/"
+    },
+    "time": {
+      "type": "stdio",
+      "command": "uvx",
+      "args": ["mcp-server-time"]
+    }
+  }
+}
+```
+
+A server starts when you send a message, if it is not running yet (`chat.mcp.autostart`),
+and its tools appear in the chat's tools picker under the server's name — ticked, so the
+next message offers them.
+
+## What the model gets
+
+| Mode | Server and extension tools |
+| --- | --- |
+| **Agent** | every tool of every server left ticked in the tools picker, and every tool another extension contributes — within the budget below |
+| **Ask**, **Edit** | none: they read, and Edit writes files, nothing else |
+| **Your own agent** | exactly what its file names: a whole server as `github/*`, one tool as `github/create_issue` |
+
+Untick a server, or one of its tools, in the picker and the next message goes without it.
+A tool call shows in the transcript as *Running create issue (github)…*; the result goes
+back to the model like any other tool's.
+
+## Open and closed servers
+
+A model is not handed every schema at once. Sirius offers a server's tools directly — the
+server is *open* — while the set stays within the model's budget:
+
+| Tier | Server and extension tools offered without asking |
+| --- | --- |
+| **Core** — small local models | 8 |
+| **Extended** — hosted models, local models of 4 GB or more | 64 |
+
+Small servers come open first. A server that does not fit is *closed*: the model sees one
+tool for it, `activate_<server>`, whose description lists what the server offers. When the
+task needs one of those, the model calls it, the server's tools join the next round, and
+the server stays open for the rest of the conversation — a follow-up message starts with it
+open. Up to 96 server and extension tools can be open at once, however the model got there.
+
+A server's own instructions, if it sends any, go to the model with its tools: in the system
+prompt for a server that is open from the start, in the reply to `activate_<server>` for
+one the model opens.
+
+Only when there are more servers than the budget has slots for — nine servers on a small
+local model — are the largest closed ones left out, and the response says which. The
+*Sirius AI* output channel's `[request]` line shows what was open, closed and left out for
+every message.
+
+## Approval
+
+A tool that may change something asks before it runs, through the editor's own dialog, with
+its allow-once and allow-always choices; a tool its server marks read-only runs without
+asking. `chat.tools.global.autoApprove` turns the dialog off for everything, which is the
+editor's setting to make, not Sirius's.
+
+## What Sirius does not pass
+
+Only tools. A server's prompts and resources are not read by Sirius.
+
+:::note[Changed in 1.118.13: server and extension tools reach the model]
+Earlier releases offered the model only Sirius's own tools and the editor's — a server you
+added was started and listed, and never offered, in any mode or agent.
+:::

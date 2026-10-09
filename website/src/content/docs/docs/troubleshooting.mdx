@@ -82,6 +82,15 @@ exists. Read it, then use edit_file to change it"** — `create_file` never over
 from `.siriusrules`, `.sirius/rules.md` and `AGENTS.md`, capped at 8,000 characters in total
 — see [Rules and context](/docs/rules-and-context/).
 
+**An MCP server's tools are not offered.** Look at the *Sirius AI* output channel's
+`[request]` line for the message: `external open=[…] closed=[…] dropped=[…]`. A server
+under *closed* is one `activate_<server>` tool the model opens when it needs it — see
+[MCP servers](/docs/mcp-servers/); one under *dropped* did not fit a small model's budget;
+a server missing altogether is unticked in the tools picker, not started (the Extensions
+view's **MCP SERVERS** section shows it), or you are in Ask or Edit, which take no server
+tools. A model that keeps calling tools "as text" is a small one over its budget: pick a
+larger model, or untick servers the task does not need.
+
 ## Keys
 
 **Keys vanish after a restart (Linux).** No OS keyring was available, so the editor kept the

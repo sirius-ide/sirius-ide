@@ -85,7 +85,7 @@ export default defineConfig({
 			sidebar: [
 				{ label: 'Start here', items: [{ slug: 'docs' }, { slug: 'docs/install' }, { slug: 'docs/getting-started' }] },
 				{ label: 'Models', items: [{ slug: 'docs/providers' }, { slug: 'docs/local-models' }] },
-				{ label: 'Working with Sirius', items: [{ slug: 'docs/chat-edit-agent' }, { slug: 'docs/inline-chat' }, { slug: 'docs/tab-and-next-edit' }, { slug: 'docs/rules-and-context' }, { slug: 'docs/image-input' }, { slug: 'docs/browser' }, { slug: 'docs/git-assist' }] },
+				{ label: 'Working with Sirius', items: [{ slug: 'docs/chat-edit-agent' }, { slug: 'docs/inline-chat' }, { slug: 'docs/tab-and-next-edit' }, { slug: 'docs/rules-and-context' }, { slug: 'docs/image-input' }, { slug: 'docs/browser' }, { slug: 'docs/mcp-servers' }, { slug: 'docs/git-assist' }] },
 				{ label: 'Set-up', items: [{ slug: 'docs/import' }, { slug: 'docs/remote-server' }, { slug: 'docs/updates' }, { slug: 'docs/privacy-and-keys' }] },
 				{ label: 'Help', items: [{ slug: 'docs/troubleshooting' }, { slug: 'docs/faq' }] },
 				{ label: 'Reference', items: [{ slug: 'docs/reference/settings' }, { slug: 'docs/reference/commands' }, { slug: 'docs/reference/keyboard-shortcuts' }] },

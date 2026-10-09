@@ -73,6 +73,18 @@ extended if its context window is at least 32,000 tokens. Hosted models get exte
 Commands the agent wants to run in the terminal go through the editor's own approval
 flow — the prompt you see is the workbench's, with its allow-once and allow-always choices.
 
+**MCP servers and other extensions' tools.** Agent also offers every tool of every MCP
+server left ticked in the tools picker, and the tools other extensions contribute, within a
+budget sized to the model: small servers are open, a server that does not fit is one
+`activate_<server>` tool the model calls to open it, and what it opened stays open for the
+conversation. [MCP servers and extension tools](/docs/mcp-servers/) has the budget and the
+set-up.
+
+:::note[Changed in 1.118.13: MCP servers' tools]
+Earlier releases offered only Sirius's and the editor's tools; a server you added was
+never offered, in any mode or agent.
+:::
+
 ## Edits come back as diffs
 
 `editFile` and `createFile` stream their changes into the editor's chat-editing
@@ -134,7 +146,9 @@ Review the code you are pointed at. Lead with the riskiest problem.
 
 It appears in the mode picker beside Agent, Ask and Edit. Sirius gives it exactly the tools
 it lists — never more than Agent would have — and follows its instructions. Sirius's tools
-are the six above; the editor's are listed in the chat's tools picker. A `.github/agents`
+are the six above; the editor's are listed in the chat's tools picker; an MCP server's go in
+as `github/*` for the whole server or `github/create_issue` for one tool
+([MCP servers](/docs/mcp-servers/)). A `.github/agents`
 folder you create while Sirius is running is picked up at the next start. **Configure Custom
 Agents…** at the bottom of the picker lists them, opens one to edit, and shows or hides each
 in the picker.
