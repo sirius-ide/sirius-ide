@@ -5,7 +5,7 @@
 #
 # siriuside.com on Cloudflare Pages, in the house pattern (see deploy.sh): idempotent, every
 # resource addressed by its exact name, the token read from ~/.secrets/cloudflare-sirius.env.
-# Run from the owner's machine; the cloud never runs this (PROJECT-STATE section 13).
+# Run from the owner's machine; CI never runs this.
 #
 #   build/cloudflare/deploy-website.sh build      # npm ci + npm run build + npm test in website/
 #   build/cloudflare/deploy-website.sh project    # create the Pages project if it does not exist
@@ -171,7 +171,7 @@ step_redirects() {
 }
 
 # Cloudflare turned Web Analytics on for every free zone (October 2025) and injects its beacon
-# into HTML at the edge; the site's CSP blocks it, so it only logs an error. BRIEF.md keeps
+# into HTML at the edge; the site's CSP blocks it, so it only logs an error. The site keeps
 # analytics off unless the owner opts in, so one Configuration Rule switches RUM off for the
 # whole zone. PUT replaces the zone's config-settings phase — Sirius's own zone. Needs
 # "Config Rules: Edit".
@@ -195,7 +195,7 @@ step_verify() {
 	for u in "https://www.$DOMAIN/download/" "https://$ALT_DOMAIN/docs/" "https://www.$ALT_DOMAIN/"; do
 		printf '  %-48s ' "$u"; curl -sS -o /dev/null -w '%{http_code} → %{redirect_url}\n' --max-time 20 "$u" || true
 	done
-	echo "  then: Lighthouse from a real device, every link, both schemes (BRIEF.md section 8)."
+	echo "  then: Lighthouse from a real device, every link, both schemes."
 }
 
 case "$STEP" in

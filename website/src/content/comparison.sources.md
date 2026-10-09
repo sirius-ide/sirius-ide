@@ -1,6 +1,6 @@
 # Comparison table — sources
 
-Every cell on `/#compare` that names a competitor points at an entry here (BRIEF.md §5); a
+Every cell on `/#compare` that names a competitor points at an entry here; a
 cell with no entry is "—" on the page. Each entry is a heading, so the † link beside a cell
 lands on it. Collected 2026-10-01; **every entry re-read on the vendor's own live page on
 2026-10-08**, with the quote that backs the cell. Re-verify whenever the table is republished
@@ -12,8 +12,9 @@ agent mode · Tab completion · remote development.
 ## Sirius
 
 All Sirius cells: this repository at v1.118.7 — `README.md`, `INSTALL.md`, `PRIVACY.md`,
-`LICENSE.txt`, `extensions/sirius-ai/package.json`, `PROJECT-STATE.md` (holes 7 and 12 for
-what is *not* yet true: macOS, the remote-extension connect).
+`LICENSE.txt`, `extensions/sirius-ai/package.json`; macOS is not built yet
+([issue #9](https://github.com/sirius-ide/sirius-ide/issues/9)); the remote-extension connect is
+proven since 1.118.13 ([Remote server](https://siriuside.com/docs/remote-server/)).
 
 ## Cursor
 

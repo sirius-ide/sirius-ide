@@ -1,8 +1,563 @@
 {
-	"fetchedAt": "2026-10-08T07:17:28.866Z",
+	"fetchedAt": "2026-10-09T21:00:31.652Z",
 	"owner": "sirius-ide",
 	"repo": "sirius-ide",
 	"releases": [
+		{
+			"tag": "v1.118.13",
+			"version": "1.118.13",
+			"name": "v1.118.13",
+			"prerelease": false,
+			"publishedAt": "2026-10-09T20:13:18Z",
+			"url": "https://github.com/sirius-ide/sirius-ide/releases/tag/v1.118.13",
+			"body": "**Full Changelog**: https://github.com/sirius-ide/sirius-ide/compare/v1.118.12...v1.118.13",
+			"assets": [
+				{
+					"name": "commit.txt",
+					"size": 41,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.13/commit.txt",
+					"sha256": null
+				},
+				{
+					"name": "sirius-1.118.13-1791576444.el8.aarch64.rpm",
+					"size": 160215949,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.13/sirius-1.118.13-1791576444.el8.aarch64.rpm",
+					"sha256": null
+				},
+				{
+					"name": "sirius-1.118.13-1791576450.el8.x86_64.rpm",
+					"size": 163819577,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.13/sirius-1.118.13-1791576450.el8.x86_64.rpm",
+					"sha256": null
+				},
+				{
+					"name": "sirius-ide-bin-1.118.13-1-x86_64.pkg.tar.zst",
+					"size": 153549151,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.13/sirius-ide-bin-1.118.13-1-x86_64.pkg.tar.zst",
+					"sha256": "e7b025afabd99f470cf78bc342e55601df9252073e482c4715c40038419dfac4"
+				},
+				{
+					"name": "sirius-linux-arm64.tar.gz",
+					"size": 158831030,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.13/sirius-linux-arm64.tar.gz",
+					"sha256": "1ce5a7e137bc6960dc6f531275a149befa1e0ca09850ee28d1cfa605638c4737"
+				},
+				{
+					"name": "sirius-linux-x64.tar.gz",
+					"size": 162629133,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.13/sirius-linux-x64.tar.gz",
+					"sha256": "25aba4e014dfcd4906359e62822b48ed22ee1e5918907677b8bfa2559fc2b7ca"
+				},
+				{
+					"name": "sirius-server-linux-arm64.tar.gz",
+					"size": 81285510,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.13/sirius-server-linux-arm64.tar.gz",
+					"sha256": "83dbbc615e1147d25e10b9acf908e54baa2c240051e9562ccda18396c8df6c0f"
+				},
+				{
+					"name": "sirius-server-linux-x64.tar.gz",
+					"size": 83535561,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.13/sirius-server-linux-x64.tar.gz",
+					"sha256": "b4281f4794b3bfbb30f2aaaf86eb369364ea6cc20da5b1e87c8c52a8f9b00860"
+				},
+				{
+					"name": "sirius-win32-x64-setup.exe",
+					"size": 129240412,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.13/sirius-win32-x64-setup.exe",
+					"sha256": "9cff4bd95a20999e0afe2c455c7a0eecd9c3a6e70fab53016ae6718c57823353"
+				},
+				{
+					"name": "sirius_1.118.13-1791576354_arm64.deb",
+					"size": 106392936,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.13/sirius_1.118.13-1791576354_arm64.deb",
+					"sha256": null
+				},
+				{
+					"name": "sirius_1.118.13-1791576358_amd64.deb",
+					"size": 114775348,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.13/sirius_1.118.13-1791576358_amd64.deb",
+					"sha256": null
+				}
+			],
+			"commits": [
+				{
+					"sha": "ee4b8a4",
+					"subject": "1.118.13"
+				},
+				{
+					"sha": "818bd31",
+					"subject": "website: the v1.118.13 line for the changelog"
+				},
+				{
+					"sha": "82d0421",
+					"subject": "harness: the remote server used through a real remote extension — Open Remote - SSH from a Sirius client into an sshd container, the released server fetched by the host, started and connected, the window opened on its home; the docs' caution and the landing section replaced by what is proven"
+				},
+				{
+					"sha": "eb5cbbb",
+					"subject": "harness: Tab completion proven against a real llama-server — the official image with --api-key, the keyless /infill refused, the server added in Manage Models answering chat and /infill, the suggestion accepted into the file; the docs' \"not exercised\" notes replaced"
+				},
+				{
+					"sha": "c076508",
+					"subject": "sirius-ai: the review's findings taken — only picker-listed tools count, opening past 128 tools is refused, only what the model opened is remembered and carried through every turn, a direct call opens its group, one-tool sources stay open, schemas go through whole and Gemini gets JSON Schema"
+				},
+				{
+					"sha": "dd65f31",
+					"subject": "docs: MCP servers and extension tools — the website page, the Chat page's note and agent-file syntax, a Troubleshooting entry, the landing card; hole 16 closed in the state doc, and the internal edit tool corrected"
+				},
+				{
+					"sha": "a18c022",
+					"subject": "sirius-ai: MCP servers' and other extensions' tools reach the model — open within the tier's budget, the rest as activate_<server> groups the model opens and keeps open"
+				},
+				{
+					"sha": "07b44e8",
+					"subject": "harness: hole 16 reproduced — an MCP server's tools reach vscode.lm.tools and the picker, and the participant offers none of them"
+				}
+			]
+		},
+		{
+			"tag": "v1.118.12",
+			"version": "1.118.12",
+			"name": "v1.118.12",
+			"prerelease": false,
+			"publishedAt": "2026-10-09T03:51:32Z",
+			"url": "https://github.com/sirius-ide/sirius-ide/releases/tag/v1.118.12",
+			"body": "**Full Changelog**: https://github.com/sirius-ide/sirius-ide/compare/v1.118.11...v1.118.12",
+			"assets": [
+				{
+					"name": "commit.txt",
+					"size": 41,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.12/commit.txt",
+					"sha256": null
+				},
+				{
+					"name": "sirius-1.118.12-1791517562.el8.x86_64.rpm",
+					"size": 163812814,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.12/sirius-1.118.12-1791517562.el8.x86_64.rpm",
+					"sha256": null
+				},
+				{
+					"name": "sirius-1.118.12-1791517588.el8.aarch64.rpm",
+					"size": 160211596,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.12/sirius-1.118.12-1791517588.el8.aarch64.rpm",
+					"sha256": null
+				},
+				{
+					"name": "sirius-ide-bin-1.118.12-1-x86_64.pkg.tar.zst",
+					"size": 153541856,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.12/sirius-ide-bin-1.118.12-1-x86_64.pkg.tar.zst",
+					"sha256": "211b93e2aec21f99917a6b08158452069a01c23d804d2791d1d87edae0877c7e"
+				},
+				{
+					"name": "sirius-linux-arm64.tar.gz",
+					"size": 158830311,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.12/sirius-linux-arm64.tar.gz",
+					"sha256": "ada904de78943937b7fc13cd6ce9bc6d75f84adb0d610893eac26e1f3b0e8ca8"
+				},
+				{
+					"name": "sirius-linux-x64.tar.gz",
+					"size": 162626987,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.12/sirius-linux-x64.tar.gz",
+					"sha256": "de18f6a65545254405fc225a96cfb4f7746193e0a97d1664e61810eaa827a6be"
+				},
+				{
+					"name": "sirius-server-linux-arm64.tar.gz",
+					"size": 81277026,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.12/sirius-server-linux-arm64.tar.gz",
+					"sha256": "67017ab2682facf0db5ce46118bcbfea17189c665308e7b9375b2a43f1958b4c"
+				},
+				{
+					"name": "sirius-server-linux-x64.tar.gz",
+					"size": 83534776,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.12/sirius-server-linux-x64.tar.gz",
+					"sha256": "80e864a56d24c0c0eff7d65006c14c3bd4131c85680788c97e35abac5418759b"
+				},
+				{
+					"name": "sirius-win32-x64-setup.exe",
+					"size": 129237281,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.12/sirius-win32-x64-setup.exe",
+					"sha256": "505827b4941cd78fd8d23b77b0b8b689c5813e43e9e9d69e8359ff3942577e8c"
+				},
+				{
+					"name": "sirius_1.118.12-1791517479_amd64.deb",
+					"size": 114764572,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.12/sirius_1.118.12-1791517479_amd64.deb",
+					"sha256": null
+				},
+				{
+					"name": "sirius_1.118.12-1791517503_arm64.deb",
+					"size": 106396508,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.12/sirius_1.118.12-1791517503_arm64.deb",
+					"sha256": null
+				}
+			],
+			"commits": [
+				{
+					"sha": "556c16a",
+					"subject": "1.118.12"
+				},
+				{
+					"sha": "4bb19ae",
+					"subject": "website: the v1.118.12 line for the changelog"
+				},
+				{
+					"sha": "432a271",
+					"subject": "docs: providers and keys in Manage Models, proven on the CI build — the three gates, the vendors, the gotchas; holes 10 and 15 closed; the picker's Manage Models… sits under Other Models"
+				},
+				{
+					"sha": "4e26f3d",
+					"subject": "sirius-ai: the walkthrough's Connect a model step pictures the Language Models screen with Add Models… open — taken from the CI build, since only a patched build enables the button"
+				},
+				{
+					"sha": "0ddf6f7",
+					"subject": "website: providers are added in Manage Models — Providers and keys, Getting started, Local models, Privacy and keys, Troubleshooting (red rows); a Changed in 1.118.12 note"
+				},
+				{
+					"sha": "3f1e525",
+					"subject": "harness: provider-settings.js against an OpenAI stub that knows one key (migration, models, a request, a rejected key, local Ollama), run.sh's SIRIUS_PROBE_SETTINGS, and the probes find models by their sirius-* vendor"
+				},
+				{
+					"sha": "9f10423",
+					"subject": "sirius-ai: each provider is a vendor in the editor's Language Models — added with its key (kept in the keyring) in Manage Models, checked with one free request (a rejected key or a dead server is a red row), addable twice, hideable — local servers still found unconfigured; keys and a custom endpoint move there on first start; the status bar names the model a request would use"
+				},
+				{
+					"sha": "07f3501",
+					"subject": "chat: Manage Language Models opens in a product without a chat entitlement flow — the command, the model picker's Manage Models…, and Add Models… were gated on Copilot plans"
+				}
+			]
+		},
+		{
+			"tag": "v1.118.11",
+			"version": "1.118.11",
+			"name": "v1.118.11",
+			"prerelease": false,
+			"publishedAt": "2026-10-08T23:42:25Z",
+			"url": "https://github.com/sirius-ide/sirius-ide/releases/tag/v1.118.11",
+			"body": "**Full Changelog**: https://github.com/sirius-ide/sirius-ide/compare/v1.118.10...v1.118.11",
+			"assets": [
+				{
+					"name": "commit.txt",
+					"size": 41,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.11/commit.txt",
+					"sha256": null
+				},
+				{
+					"name": "sirius-1.118.11-1791502652.el8.x86_64.rpm",
+					"size": 163836056,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.11/sirius-1.118.11-1791502652.el8.x86_64.rpm",
+					"sha256": null
+				},
+				{
+					"name": "sirius-1.118.11-1791502672.el8.aarch64.rpm",
+					"size": 160230237,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.11/sirius-1.118.11-1791502672.el8.aarch64.rpm",
+					"sha256": null
+				},
+				{
+					"name": "sirius-ide-bin-1.118.11-1-x86_64.pkg.tar.zst",
+					"size": 153558209,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.11/sirius-ide-bin-1.118.11-1-x86_64.pkg.tar.zst",
+					"sha256": "cc0be20182c07a5fb001bbe6b59c4e5e903ae524941fdf7a4c0bbb6514b63168"
+				},
+				{
+					"name": "sirius-linux-arm64.tar.gz",
+					"size": 158849201,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.11/sirius-linux-arm64.tar.gz",
+					"sha256": "5086bb5345c0ca2be6318e0449b6cded71b53ad0dbd13098a9a9f7dc00112f92"
+				},
+				{
+					"name": "sirius-linux-x64.tar.gz",
+					"size": 162630203,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.11/sirius-linux-x64.tar.gz",
+					"sha256": "89fa20a4392faefd9f50e39b6d6f29fef4c8487360b5c3c513fcbd3b6a793902"
+				},
+				{
+					"name": "sirius-server-linux-arm64.tar.gz",
+					"size": 81282456,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.11/sirius-server-linux-arm64.tar.gz",
+					"sha256": "a3af68d4a7d2371738c24e22e13372dbd8e4fe791ee075d994d176b62a560ff9"
+				},
+				{
+					"name": "sirius-server-linux-x64.tar.gz",
+					"size": 83539407,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.11/sirius-server-linux-x64.tar.gz",
+					"sha256": "317ecf782a2934322c697774bc2cab2806371cb4a812e367adbd0dea8d0372f8"
+				},
+				{
+					"name": "sirius-win32-x64-setup.exe",
+					"size": 129265198,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.11/sirius-win32-x64-setup.exe",
+					"sha256": "e200fea0f474fe5b9ae64f84e577a9927d4b2dadb267de942be24f61fd2d59a7"
+				},
+				{
+					"name": "sirius_1.118.11-1791502562_amd64.deb",
+					"size": 114786872,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.11/sirius_1.118.11-1791502562_amd64.deb",
+					"sha256": null
+				},
+				{
+					"name": "sirius_1.118.11-1791502581_arm64.deb",
+					"size": 106432980,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.11/sirius_1.118.11-1791502581_arm64.deb",
+					"sha256": null
+				}
+			],
+			"commits": [
+				{
+					"sha": "1fe2a93",
+					"subject": "1.118.11"
+				},
+				{
+					"sha": "a046da7",
+					"subject": "website: the v1.118.11 line for the changelog"
+				},
+				{
+					"sha": "d9d0fab",
+					"subject": "website: Chat, edit and agent — the picker's Agent, Ask and Edit, the handoffs, your own agents, two Changed in 1.118.11 notes; Getting started names the picker"
+				},
+				{
+					"sha": "9c40241",
+					"subject": "harness: chat-modes.js (each agent through the real chat; its tools and instructions read back), a project agent seeded by run.sh's SIRIUS_PROBE_SEED, swap-sirius-ai.sh ships agents/, and walkthrough-media.sh pictures the mode picker"
+				},
+				{
+					"sha": "38951e2",
+					"subject": "sirius-ai: Ask and Edit in the chat's mode picker — two agents it ships, the way upstream expects — and every custom agent, theirs or the user's, gets exactly its tools and its instructions (it got all of Agent's and lost its instructions); the walkthrough's step 2 is Ask, Edit or Agent again, pictured by the picker"
+				}
+			]
+		},
+		{
+			"tag": "v1.118.10",
+			"version": "1.118.10",
+			"name": "v1.118.10",
+			"prerelease": false,
+			"publishedAt": "2026-10-08T20:30:19Z",
+			"url": "https://github.com/sirius-ide/sirius-ide/releases/tag/v1.118.10",
+			"body": "**Full Changelog**: https://github.com/sirius-ide/sirius-ide/compare/v1.118.9...v1.118.10",
+			"assets": [
+				{
+					"name": "commit.txt",
+					"size": 41,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.10/commit.txt",
+					"sha256": null
+				},
+				{
+					"name": "sirius-1.118.10-1791490935.el8.x86_64.rpm",
+					"size": 164124828,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.10/sirius-1.118.10-1791490935.el8.x86_64.rpm",
+					"sha256": null
+				},
+				{
+					"name": "sirius-1.118.10-1791491049.el8.aarch64.rpm",
+					"size": 160523335,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.10/sirius-1.118.10-1791491049.el8.aarch64.rpm",
+					"sha256": null
+				},
+				{
+					"name": "sirius-ide-bin-1.118.10-1-x86_64.pkg.tar.zst",
+					"size": 153774465,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.10/sirius-ide-bin-1.118.10-1-x86_64.pkg.tar.zst",
+					"sha256": "7c745a3f73d785dc140d231536e8f449e2f9d5cfff80fb4e6c8ce82c27d3160e"
+				},
+				{
+					"name": "sirius-linux-arm64.tar.gz",
+					"size": 159145180,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.10/sirius-linux-arm64.tar.gz",
+					"sha256": "d267cf4d3017b425d624aea8fc653d545c5c12e857231be3026f4d3848a58f1e"
+				},
+				{
+					"name": "sirius-linux-x64.tar.gz",
+					"size": 162935351,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.10/sirius-linux-x64.tar.gz",
+					"sha256": "6585ae97d8f1c35df5808601e487f1297f272bf1b0f03812d5182fcf0ba6e66f"
+				},
+				{
+					"name": "sirius-server-linux-arm64.tar.gz",
+					"size": 81600145,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.10/sirius-server-linux-arm64.tar.gz",
+					"sha256": "886509f12c97c82c62ab7ba6add085d9567fd161f4e3cb80a0553b84af924d10"
+				},
+				{
+					"name": "sirius-server-linux-x64.tar.gz",
+					"size": 83833823,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.10/sirius-server-linux-x64.tar.gz",
+					"sha256": "7e798c5211010d37371d830cbc145b66ed051f2595cd29916856e8eb074094a8"
+				},
+				{
+					"name": "sirius-win32-x64-setup.exe",
+					"size": 129552997,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.10/sirius-win32-x64-setup.exe",
+					"sha256": "a0bf97e91d2125d595d40193c008cf63ead9dd31bf8934b5960fd3ec2f2db3df"
+				},
+				{
+					"name": "sirius_1.118.10-1791490846_amd64.deb",
+					"size": 115274028,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.10/sirius_1.118.10-1791490846_amd64.deb",
+					"sha256": null
+				},
+				{
+					"name": "sirius_1.118.10-1791490961_arm64.deb",
+					"size": 106693828,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.10/sirius_1.118.10-1791490961_arm64.deb",
+					"sha256": null
+				}
+			],
+			"commits": [
+				{
+					"sha": "214327a",
+					"subject": "1.118.10"
+				},
+				{
+					"sha": "a2ed6a7",
+					"subject": "website: the v1.118.10 line for the changelog"
+				},
+				{
+					"sha": "0f80130",
+					"subject": "website: Getting started opens with the walkthrough (Changed in 1.118.10), opens the chat with Ctrl+Alt+I, and says the chat starts in Agent — Ask and Edit are not offered yet"
+				},
+				{
+					"sha": "429e13f",
+					"subject": "harness: first-launch.sh — a true first start (throwaway HOME and profile, no --skip-welcome) screenshotted, with no model reachable or a local one"
+				},
+				{
+					"sha": "26bad63",
+					"subject": "sirius-ai: the walkthrough's description fits its three lines — it was cut off at \"No account, no…\""
+				},
+				{
+					"sha": "6aa748b",
+					"subject": "harness: a walkthrough probe, swap-sirius-ai.sh (this checkout's extension into an app, no full build), and walkthrough-media.sh, which retakes the walkthrough's pictures from the app behind an Ollama filter that shows only public models"
+				},
+				{
+					"sha": "ac94f5f",
+					"subject": "sirius-ai: \"Get started with Sirius\" — a seven-step walkthrough that opens once on first start (new and existing users), with pictures taken from the app; \"Sirius: Turn On Tab Completion\"; sirius.ai.modelAvailable completes the model step however the model was connected"
+				},
+				{
+					"sha": "63ec135",
+					"subject": "hygiene: WebP is a binary format like TIFF and PNG — the walkthrough's pictures are WebP"
+				},
+				{
+					"sha": "60b0b48",
+					"subject": "welcome: no GitHub sign-in overlay in a product without a chat entitlement flow, and upstream's \"Get started with VS Code\" (Copilot) and \"Learn the Fundamentals\" hidden — sirius-ai's walkthrough replaces them"
+				},
+				{
+					"sha": "771e35d",
+					"subject": "fix: Install from VSIX's reload message and the issue reporter's source list named a productService that was not in scope — both threw at runtime; the build does not type-check, so they shipped"
+				},
+				{
+					"sha": "c3a4f78",
+					"subject": "website: rebuild after every tag's release run — a release CI publishes with GITHUB_TOKEN starts no workflow, so release: published never fired"
+				}
+			]
+		},
+		{
+			"tag": "v1.118.9",
+			"version": "1.118.9",
+			"name": "v1.118.9",
+			"prerelease": false,
+			"publishedAt": "2026-10-08T09:54:25Z",
+			"url": "https://github.com/sirius-ide/sirius-ide/releases/tag/v1.118.9",
+			"body": "**Full Changelog**: https://github.com/sirius-ide/sirius-ide/compare/v1.118.8...v1.118.9",
+			"assets": [
+				{
+					"name": "commit.txt",
+					"size": 41,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.9/commit.txt",
+					"sha256": null
+				},
+				{
+					"name": "sirius-1.118.9-1791452897.el8.x86_64.rpm",
+					"size": 163072802,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.9/sirius-1.118.9-1791452897.el8.x86_64.rpm",
+					"sha256": null
+				},
+				{
+					"name": "sirius-1.118.9-1791452921.el8.aarch64.rpm",
+					"size": 159465221,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.9/sirius-1.118.9-1791452921.el8.aarch64.rpm",
+					"sha256": null
+				},
+				{
+					"name": "sirius-ide-bin-1.118.9-1-x86_64.pkg.tar.zst",
+					"size": 152786638,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.9/sirius-ide-bin-1.118.9-1-x86_64.pkg.tar.zst",
+					"sha256": "ab07f7589ccb7887ab507e448e56fd285177082440b61728d95e0d58445e2bce"
+				},
+				{
+					"name": "sirius-linux-arm64.tar.gz",
+					"size": 158088971,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.9/sirius-linux-arm64.tar.gz",
+					"sha256": "0e1926a3e992ec78b2acd2f4dc619a9a00cae9de3688a47ad406bb3e22463efa"
+				},
+				{
+					"name": "sirius-linux-x64.tar.gz",
+					"size": 161870407,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.9/sirius-linux-x64.tar.gz",
+					"sha256": "98b7c53a3344f356e34fe7b7ea7a091fa08ea6990835d3218cbd122299dc3337"
+				},
+				{
+					"name": "sirius-server-linux-arm64.tar.gz",
+					"size": 80519501,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.9/sirius-server-linux-arm64.tar.gz",
+					"sha256": "70c0982ab244d8049c340b173744b98053baf55e93549be78d0c2725d9229387"
+				},
+				{
+					"name": "sirius-server-linux-x64.tar.gz",
+					"size": 82776334,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.9/sirius-server-linux-x64.tar.gz",
+					"sha256": "f22c7ba191a5807bd447be573729d691425b65d4c7d94de541831792dc0ee20d"
+				},
+				{
+					"name": "sirius-win32-x64-setup.exe",
+					"size": 128488596,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.9/sirius-win32-x64-setup.exe",
+					"sha256": "bd5ddf236aea38656c0898ccf1e92198482e44b10a39e3591927942642213b26"
+				},
+				{
+					"name": "sirius_1.118.9-1791452811_amd64.deb",
+					"size": 113891628,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.9/sirius_1.118.9-1791452811_amd64.deb",
+					"sha256": null
+				},
+				{
+					"name": "sirius_1.118.9-1791452834_arm64.deb",
+					"size": 105630176,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.9/sirius_1.118.9-1791452834_arm64.deb",
+					"sha256": null
+				}
+			],
+			"commits": [
+				{
+					"sha": "44857a6",
+					"subject": "1.118.9"
+				},
+				{
+					"sha": "f6e741e",
+					"subject": "website: the v1.118.9 line for the changelog"
+				},
+				{
+					"sha": "2ba6c8d",
+					"subject": "product.json: Download, Documentation, License and Privacy open siriuside.com — the site is live"
+				},
+				{
+					"sha": "41af476",
+					"subject": "cloudflare: an analytics step switches off the Web Analytics beacon Cloudflare injects on free zones, and verify looks for it with a browser User-Agent"
+				},
+				{
+					"sha": "b416fc2",
+					"subject": "cloudflare: the dashboard now calls the redirect permission Single Redirect — the recipe and the script's hint say so"
+				},
+				{
+					"sha": "b5418cf",
+					"subject": "website: the release snapshot lists v1.118.8"
+				},
+				{
+					"sha": "58db7c1",
+					"subject": "docs: v1.118.8 is live and verified from outside, the site staged at sirius-website-mub.pages.dev — the state, the roadmap, and a verifier that discards a dropped download"
+				},
+				{
+					"sha": "ffca9db",
+					"subject": "cloudflare: the website's DNS points at the project's real pages.dev host, read from the API — the plain name belongs to someone else"
+				}
+			]
+		},
 		{
 			"tag": "v1.118.8",
 			"version": "1.118.8",

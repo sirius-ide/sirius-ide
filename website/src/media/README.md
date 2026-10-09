@@ -17,6 +17,6 @@ then the section shows its drawn stand-in — the product's own surface rebuilt 
 | `remote-server.mp4` | `/`, section 08 | 1600×1000, ≤ 1 MB, ≤ 15 s | `remote-server.jpg` | Unpacking `sirius-server-linux-x64.tar.gz` on a host, starting `bin/sirius-server`, `/version` answering the release commit |
 
 Encode with H.264 (`-pix_fmt yuv420p`, `-movflags +faststart`), no audio track; keep each
-under the 1 MB hero-media budget from BRIEF.md §1. Posters are JPEGs at the same size, ≤ 120 KB.
+under the 1 MB hero-media budget (`lighthouserc.cjs`). Posters are JPEGs at the same size, ≤ 120 KB.
 Add a `.webm` beside the `.mp4` if you want AV1/VP9 for smaller transfer; the component lists
 both sources when both exist.

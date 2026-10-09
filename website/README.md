@@ -1,8 +1,8 @@
 # siriuside.com
 
 The Sirius IDE website: Astro + Starlight, static output, served from Cloudflare Pages.
-The specification is [BRIEF.md](BRIEF.md); the design decisions are
-[design/DIRECTION.md](design/DIRECTION.md); the state of the work is PROJECT-STATE.md §13.
+Performance budgets live in `lighthouserc.cjs` and `scripts/postbuild.mjs`; the design
+tokens in `src/styles/tokens.css`.
 
 ```bash
 cd website

@@ -11,7 +11,7 @@ const GITHUB_BLOB = 'https://github.com/sirius-ide/sirius-ide/blob/sirius/';
 
 /**
  * Relative links inside the repository's documents point at other repository files
- * (ROADMAP.md → PROJECT-STATE.md); on the site they go to GitHub. Absolute links and
+ * (one document linking another); on the site they go to GitHub. Absolute links and
  * in-page anchors are left alone.
  */
 export function rewriteRepoLinks(html: string): string {

@@ -1,6 +1,6 @@
 // After `astro build`: write dist/_headers with a Content-Security-Policy whose script-src
 // allows exactly the inline scripts the built pages carry (by hash) and nothing from another
-// origin; then check the output against BRIEF.md §1 — nothing loaded from another origin, and
+// origin; then check the output against the budgets — nothing loaded from another origin, and
 // the landing page's JavaScript under 60 KB compressed.
 import { createHash } from 'node:crypto';
 import { readFile, writeFile, readdir, stat, copyFile, access } from 'node:fs/promises';

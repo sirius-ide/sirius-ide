@@ -19,10 +19,10 @@
 #
 # Downloads (~1.3 GB) land in ${SIRIUS_VERIFY_DIR:-~/.cache/sirius-verify}/rel-<X.Y.Z>
 # and are reused on a rerun. Needs gh, curl, jq, bsdtar, rpm, rpm2cpio, objdump, file.
-# Exits non-zero when any check fails. PROJECT-STATE section 12, step 5.
+# Exits non-zero when any check fails.
 #
 # On a network whose resolver hands out a Cloudflare range it cannot route (the
-# owner's, through 8.8.8.8 — PROJECT-STATE section 11), resolve through Cloudflare instead:
+# owner's, through 8.8.8.8), resolve through Cloudflare instead:
 #   SIRIUS_CURL_OPTS='--doh-url https://1.1.1.1/dns-query' build/sirius/verify-release.sh …
 
 set -uo pipefail

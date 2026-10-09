@@ -5,7 +5,7 @@
 #
 # Add a package to the [sirius] pacman repository served from R2 at
 # dl.siriuside.com/arch/x86_64 — the step that used to be done by hand after
-# every tag (PROJECT-STATE.md hole 4). Needs pacman's repo-add and vercmp (any
+# every tag. Needs pacman's repo-add and vercmp (any
 # Arch system, or Ubuntu's pacman-package-manager package, which is what the
 # release workflow uses) and, for a real publish, the AWS CLI for R2.
 #

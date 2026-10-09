@@ -112,7 +112,7 @@ export const rows: Row[] = [
 	{
 		label: 'Remote development',
 		cells: [
-			{ text: 'Server ships with every release (x64, arm64); a remote-extension connect is not yet proven — we say so.' },
+			{ text: 'Server ships with every release (x64, arm64); connect with Open Remote - SSH from Open VSX — proven end to end.' },
 			{ text: 'Remote SSH.', source: 'cursor-changelog' },
 			{ text: 'SSH remoting to Linux hosts; Dev Containers.', source: 'devin-advanced' },
 			{ text: 'SSH remoting; macOS, Linux and Windows targets.', source: 'zed-remote' },

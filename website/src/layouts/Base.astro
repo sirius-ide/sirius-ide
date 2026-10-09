@@ -19,7 +19,7 @@ const fullTitle = title === site.name ? `${site.name} — ${site.tagline}` : `${
 const ogUrl = new URL(ogImage, Astro.site ?? site.url).href;
 
 // Before first paint: which OS is this, and did the visitor choose a theme? Sets two
-// data attributes the CSS reads. The served HTML names no OS (BRIEF.md §4); without
+// data attributes the CSS reads. The served HTML names no OS; without
 // JavaScript everything still renders, with the neutral labels.
 const boot = `(function(){try{var d=document.documentElement,n=navigator,p=((n.userAgentData&&n.userAgentData.platform)||n.platform||'').toLowerCase(),u=(n.userAgent||'').toLowerCase(),o='other';if(/android|iphone|ipad|ipod/.test(u)||/iphone|ipad|ipod|android/.test(p)){o='mobile'}else if(/win/.test(p)||/windows/.test(u)){o='windows'}else if(/mac/.test(p)||/mac os/.test(u)){o='macos'}else if(/linux|x11|cros|bsd/.test(p)||/linux|cros|bsd/.test(u)){o='linux'}try{var s=localStorage.getItem('sirius-os');if(s==='linux'||s==='windows'||s==='macos'){o=s}}catch(e){}d.dataset.os=o;var t=localStorage.getItem('starlight-theme');if(t==='light'||t==='dark'){d.dataset.theme=t}}catch(e){}})();`;
 ---

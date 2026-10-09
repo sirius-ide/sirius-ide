@@ -70,7 +70,7 @@ Sirius; otherwise this is the working set.
 `deploy-website.sh` builds `website/`, creates the Pages project `sirius-website`, uploads
 `website/dist`, attaches `siriuside.com`, writes the DNS records and the two Single
 Redirects, switches off the Web Analytics beacon Cloudflare injects on free zones, and
-verifies — step by step or `all` (PROJECT-STATE §13 has the sequence). It uses the same
+verifies — step by step or `all`. It uses the same
 token and the same rules. CI deploys on its own through
 `.github/workflows/sirius-website.yml`, which needs a **second, narrow token**: Account →
 Cloudflare Pages: Edit and nothing else, stored as the repository secret

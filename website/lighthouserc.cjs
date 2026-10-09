@@ -1,5 +1,5 @@
 // Lighthouse CI: Lighthouse's default mobile emulation and simulated throttling, three runs per page, and the
-// budgets from BRIEF.md §1 as hard assertions (resource-summary sizes, scores, LCP, CLS). `npm run lighthouse` runs it against dist/.
+// site's budgets as hard assertions (resource-summary sizes, scores, LCP, CLS). `npm run lighthouse` runs it against dist/.
 const pages = ['/', '/download/', '/docs/', '/docs/install/', '/changelog/', '/roadmap/', '/privacy/', '/license/', '/security/'];
 // Every page, the docs included, holds the brief's budget as written.
 const common = {

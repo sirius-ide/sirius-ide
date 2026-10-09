@@ -111,9 +111,8 @@ next-edit prediction, project rules, image input to every provider, size-aware t
 tiers, the integrated browser on by default, and prompted tools for local models with no
 native tool API.
 
-**A full, current audit of what is done, what is live, what is verified and what is
-still open lives in [PROJECT-STATE.md](PROJECT-STATE.md).** It is the authoritative
-status document; this roadmap is the feature plan.
+**This roadmap is the feature plan.** What has shipped, release by release, is on the
+[changelog](https://siriuside.com/changelog/).
 
 The open items, highest value first (2026-10-01; items 1–5 shipped in v1.118.6, item 6 in v1.118.7):
 

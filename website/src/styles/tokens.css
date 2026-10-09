@@ -2,7 +2,7 @@
  * Design tokens — the product's colours, not a separate brand.
  * Dark is the default and the hero experience; light is designed, not inverted.
  * Values trace to extensions/theme-sirius-star/themes/sirius-star-dark.json (dark) and to
- * website/design/DIRECTION.md (light), and every text/background pair clears WCAG AA 4.5:1.
+ * the light palette chosen for the site, and every text/background pair clears WCAG AA 4.5:1.
  *
  * House rule (owner, 2026-10-01): no gradients anywhere — no gradient functions, no glows, no
  * soft shadows. Depth comes from flat planes and 1px rings.

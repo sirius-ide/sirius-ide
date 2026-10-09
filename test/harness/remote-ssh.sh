@@ -11,7 +11,7 @@
 # screenshot of the remote window (<result>.png) once the probe reports the connection.
 #
 # The extension uses proposed APIs (`resolvers`); Sirius lets an installed extension use the
-# proposals it declares (PROJECT-STATE §4), so no product.json entry or --enable-proposed-api is needed.
+# proposals it declares, so no product.json entry or --enable-proposed-api is needed.
 #
 #   test/harness/remote-ssh.sh <app-dir> [result.json]
 #

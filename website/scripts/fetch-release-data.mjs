@@ -2,7 +2,7 @@
 // time: every release with its assets (name, size, download URL and the sha256 from the
 // .sha256 sidecar) and the commit subjects between it and the previous release. Written to
 // src/data/releases.json, which is committed: when GitHub cannot be reached the snapshot
-// stands and the build goes on — a GitHub hiccup must never break a deploy (BRIEF.md §6).
+// stands and the build goes on — a GitHub hiccup must never break a deploy.
 // Set GITHUB_TOKEN to lift the anonymous rate limit (CI does).
 import { readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
