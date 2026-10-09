@@ -12,6 +12,8 @@
 # workbench only discovers at startup, such as a project's .github/agents.
 # SIRIUS_PROBE_SETTINGS=<file> becomes the profile's settings.json — what an earlier version left.
 # SIRIUS_PROBE_USER=<dir> is copied into the profile's User directory first — for mcp.json and the like.
+# SIRIUS_PROBE_EXTENSIONS=<dir> is used as the extensions directory instead of an empty one — for a
+# probe that needs an installed extension (`bin/sirius --extensions-dir <dir> --install-extension x.vsix`).
 
 set -euo pipefail
 APP=${1:?app dir, e.g. ~/Projects/VSCode-linux-x64}
@@ -40,7 +42,7 @@ sleep 2
 # probe window opened on the owner's screen instead of in Xvfb: drop the variable
 # and pin the X11 backend so the run stays headless.
 env -u WAYLAND_DISPLAY SIRIUS_PROBE_SCRIPT="$PROBE" SIRIUS_PROBE_OUT="$OUT" SIRIUS_AGENT_DEBUG=1 DISPLAY=:97 \
-	"$APP/bin/sirius" --ozone-platform=x11 --user-data-dir="$WORK/user" --extensions-dir="$WORK/empty" \
+	"$APP/bin/sirius" --ozone-platform=x11 --user-data-dir="$WORK/user" --extensions-dir="${SIRIUS_PROBE_EXTENSIONS:-$WORK/empty}" \
 	--no-sandbox --disable-gpu --disable-workspace-trust --use-inmemory-secretstorage \
 	--skip-welcome --skip-release-notes --disable-updates "$WORK/ws" >/dev/null 2>&1 &
 

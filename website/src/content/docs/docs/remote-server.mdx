@@ -40,16 +40,32 @@ editor.
 
 The editor's `product.json` points `serverDownloadUrlTemplate` at these tarballs, so a
 remote extension that follows the convention — Open Remote - SSH from Open VSX is the
-usual one — can fetch the server matching your editor on first connect. Sirius ships **no**
+usual one — fetches the server matching your editor on first connect. Sirius ships **no**
 remote extension of its own: the built-in set is git, GitHub, GitHub authentication and
 tunnel forwarding.
 
-:::caution
-A remote-extension connect against a Sirius server has not been exercised end to end for
-1.118.7 — the server tarballs are built, installed and started by the release pipeline, and
-`/version` is checked, but no session has been opened through an extension yet. The
-[comparison table](/#compare) says the same. If you try it, please
-[report](https://github.com/sirius-ide/sirius-ide/issues) what you find.
+To work on a machine over SSH:
+
+1. Install **Open Remote - SSH** (`jeanp413.open-remote-ssh`) from the Extensions view.
+2. Put the host in `~/.ssh/config` (or the file named by `remote.SSH.configFile`) — `Host`,
+   `HostName`, `User`, `Port`, `IdentityFile`. The extension reads the key file itself; an
+   agent is used when one is running.
+3. **F1 → Remote-SSH: Connect to Host…** and pick the host. On first connect the extension
+   downloads `sirius-server-<os>-<arch>.tar.gz` for your editor's version **on the host**
+   (it needs `curl` or `wget`, `tar` and `bash` there, and a route to GitHub), unpacks it
+   under `~/.sirius-server/bin/<commit>/`, starts it on a local port and tunnels to it. The
+   window title and the status bar then show `[SSH: <host>]`, and the Explorer lists the
+   host's files.
+
+The server's log on the host is `~/.sirius-server/.<commit>.log`; the client's is
+**Remote-SSH: Show Log**. The server and the editor must come from the same release — the
+extension's default `remote.SSH.serverVersion: match` sees to that.
+
+:::note
+The connect is proven end to end against the released 1.118.12 server: an Ubuntu 24.04 host
+over SSH, Open Remote - SSH 0.4.0, the server fetched from the release by the host, started,
+and the window opened on the host's home folder. Open Remote - SSH uses proposed editor APIs;
+Sirius lets an installed extension use the ones it declares, so it activates as installed.
 :::
 
 Tunnels (`sirius tunnel`) are not available: the release builds no tunnel binary.
