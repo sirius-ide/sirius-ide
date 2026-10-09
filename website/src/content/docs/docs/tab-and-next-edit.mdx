@@ -63,7 +63,9 @@ language.
 | `sirius.ai.inlineCompletions` | `false` | Deprecated: `true` still turns completion on everywhere |
 
 :::note
-The llama.cpp path is covered by the harness from 1.118.8: a probe drives Tab completion
-against a stub llama-server and checks the request reaches `/infill` at the server root.
-The Ollama path has been used by hand; next-edit prediction is not covered by a probe.
+The llama.cpp path is proven against a real `llama-server` (the official llama.cpp image,
+started with `--api-key`): the harness adds it in Manage Models, triggers a completion in a
+file and checks the server's answer is what the editor accepted — and that without the key
+the server refuses the request and nothing is suggested. The Ollama path has been used by
+hand; next-edit prediction is not covered by a probe.
 :::

@@ -79,15 +79,12 @@ llama.cpp — never on a hosted provider.
 - `ollama/<model>` — a specific Ollama model, for example `ollama/qwen2.5-coder:7b`.
 - `llamacpp` — the server at `sirius.ai.llamacpp.baseUrl`. Completions use llama-server's
   own `/infill` endpoint at the server root, so the same `…/v1` base the chat uses works
-  (in 1.118.7 the request went to `…/v1/infill`, which llama-server does not serve).
+  (in 1.118.7 the request went to `…/v1/infill`, which llama-server does not serve). A
+  server started with `--api-key` takes the key you gave it in **Manage Models**; without
+  one it refuses completions, and nothing is suggested.
 
 Good choices are the models built for FIM: `qwen2.5-coder`, `codestral`, `starcoder2`,
 `codegemma`, `codellama:code`. A chat model picked up by the name rule but lacking FIM
 support simply produces nothing — see [Troubleshooting](/docs/troubleshooting/). Turn the
 feature on per language with `sirius.ai.enable`; [Tab completion and next-edit](/docs/tab-and-next-edit/)
 has the details.
-
-:::note
-Tab completion against llama.cpp is written but was not exercised against a live
-`llama-server` for 1.118.7. Ollama is the proven path.
-:::
