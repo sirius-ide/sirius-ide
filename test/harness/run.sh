@@ -10,6 +10,7 @@
 # The probe module must export run(vscode) returning a JSON-serialisable value.
 # SIRIUS_PROBE_SEED=<dir> copies that directory into the workspace before launch — for files the
 # workbench only discovers at startup, such as a project's .github/agents.
+# SIRIUS_PROBE_SETTINGS=<file> becomes the profile's settings.json — what an earlier version left.
 
 set -euo pipefail
 APP=${1:?app dir, e.g. ~/Projects/VSCode-linux-x64}
@@ -27,6 +28,7 @@ rm -f "$OUT"
 mkdir -p "$WORK/user/User" "$WORK/ws" "$WORK/empty"
 cp -r "$HERE/probe-ext" "$APP/resources/app/extensions/sirius-probe"
 [ -n "${SIRIUS_PROBE_SEED:-}" ] && cp -a "$SIRIUS_PROBE_SEED/." "$WORK/ws/"
+[ -n "${SIRIUS_PROBE_SETTINGS:-}" ] && cp "$SIRIUS_PROBE_SETTINGS" "$WORK/user/User/settings.json"
 
 reap; pgrep -x Xvfb >/dev/null && pkill -x Xvfb || true; sleep 1
 Xvfb :97 -screen 0 1400x900x24 >/dev/null 2>&1 & XP=$!

@@ -31,7 +31,7 @@ exports.run = async function (vscode) {
 	let chatModelIds = [];
 	let selectError = null;
 	try {
-		chatModelIds = (await vscode.lm.selectChatModels({ vendor: 'sirius' })).map(m => m.id);
+		chatModelIds = (await vscode.lm.selectChatModels()).filter(m => m.vendor.startsWith('sirius-')).map(m => `${m.vendor.replace(/^sirius-/, '')}/${m.id}`);
 	} catch (error) {
 		selectError = String(error && error.message || error);
 	}

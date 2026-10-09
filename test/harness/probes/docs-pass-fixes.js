@@ -200,11 +200,11 @@ exports.run = async function (vscode, context) {
 	});
 
 	// ── commitModel: the commit message runs on sirius.ai.defaultModel ───────
-	const models = await vscode.lm.selectChatModels({ vendor: 'sirius' });
+	const models = (await vscode.lm.selectChatModels()).filter(m => m.vendor.startsWith('sirius-'));
 	await section(result, 'commitModel', async () => {
 		const tiers = await vscode.commands.executeCommand('sirius.ai.debug.toolTier');
 		const small = tiers.filter(t => t.id.startsWith('ollama/') && t.sizeBytes && t.sizeBytes < 8e9).sort((a, b) => a.sizeBytes - b.sizeBytes);
-		const target = small.find(t => t.id !== models[0]?.id);
+		const target = small.find(t => t.modelId !== models[0]?.id);
 		if (!target) {
 			result.commitModel = { skipped: 'no small Ollama model other than the first', models: models.map(m => m.id) };
 		} else {
@@ -240,7 +240,7 @@ exports.run = async function (vscode, context) {
 	// ── vision + thinking through the Sirius participant ─────────────────────
 	const tiers = await vscode.commands.executeCommand('sirius.ai.debug.toolTier');
 	const preferred = 'ollama/hf.co/HauhauCS/Qwen3.5-9B-Uncensored-HauhauCS-Aggressive:Q4_K_M';
-	const agentModel = models.find(m => m.id === preferred)?.id;
+	const agentModel = models.find(m => `${m.vendor.replace(/^sirius-/, '')}/${m.id}` === preferred)?.id;
 	result.agentModel = agentModel ?? null;
 	if (!agentModel) {
 		result.vision = result.createFile = { skipped: `${preferred} is not available`, models: models.map(m => m.id), tiers };
@@ -259,13 +259,13 @@ exports.run = async function (vscode, context) {
 			isPartialQuery: true,
 			attachFiles: [vscode.Uri.file(path.join(ws, 'swatch.png'))],
 			mode: 'ask',
-			modelSelector: { vendor: 'sirius', id: agentModel }
+			modelSelector: { vendor: 'sirius-ollama', id: agentModel }
 		});
 		await sleep(3000);
 		await vscode.commands.executeCommand('workbench.action.chat.open', {
 			query: 'What single colour fills the attached image? Answer with one word.',
 			mode: 'ask',
-			modelSelector: { vendor: 'sirius', id: agentModel },
+			modelSelector: { vendor: 'sirius-ollama', id: agentModel },
 			blockOnResponse: true
 		});
 		const text = await transcript(vscode);
@@ -293,7 +293,7 @@ exports.run = async function (vscode, context) {
 		await vscode.commands.executeCommand('workbench.action.chat.open', {
 			query: 'Create a new file at notes/hello.txt whose entire content is: hello from sirius. Use the create_file tool once, then stop.',
 			mode: 'agent',
-			modelSelector: { vendor: 'sirius', id: agentModel },
+			modelSelector: { vendor: 'sirius-ollama', id: agentModel },
 			blockOnResponse: true
 		});
 		await sleep(1500);

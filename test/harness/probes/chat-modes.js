@@ -72,8 +72,8 @@ exports.run = async function (vscode, context) {
 	const contributed = (await vscode.commands.executeCommand('_listExtensionPromptFiles') ?? [])
 		.map(file => ({ type: file.type, extensionId: file.extensionId, path: vscode.Uri.from(file.uri).path }));
 
-	const models = await vscode.lm.selectChatModels({ vendor: 'sirius' });
-	const model = models.find(m => m.id === 'ollama/qwen2.5-coder:1.5b') ?? models[0];
+	const models = (await vscode.lm.selectChatModels()).filter(m => m.vendor.startsWith('sirius-'));
+	const model = models.find(m => m.vendor === 'sirius-ollama' && m.id === 'qwen2.5-coder:1.5b') ?? models[0];
 	if (!model) {
 		return { ok: false, failures: ['no Sirius model to send through'] };
 	}
@@ -92,7 +92,7 @@ exports.run = async function (vscode, context) {
 		const before = siriusLog(context).length;
 		await vscode.commands.executeCommand('workbench.action.chat.open', {
 			query: 'Say hello in one word.',
-			modelSelector: { vendor: 'sirius', id: model.id },
+			modelSelector: { vendor: model.vendor, id: model.id },
 			blockOnResponse: true
 		});
 		await sleep(1500);
@@ -128,5 +128,5 @@ exports.run = async function (vscode, context) {
 	const rendererNotes = fs.existsSync(windowLog)
 		? fs.readFileSync(windowLog, 'utf8').split('\n').filter(line => /agent|prompt|mode/i.test(line) && /warn|error|fail/i.test(line)).slice(0, 20)
 		: [`no ${windowLog}`];
-	return { ok: failures.length === 0, failures, model: model.id, userAgent: seeded ? 'checked' : 'skipped — run with SIRIUS_PROBE_SEED=test/harness/seeds/chat-modes', diagnostics, contributed, agentIds: agents, seen, rendererNotes };
+	return { ok: failures.length === 0, failures, model: `${model.vendor}/${model.id}`, userAgent: seeded ? 'checked' : 'skipped — run with SIRIUS_PROBE_SEED=test/harness/seeds/chat-modes', diagnostics, contributed, agentIds: agents, seen, rendererNotes };
 };

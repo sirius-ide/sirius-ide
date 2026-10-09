@@ -1,0 +1,4 @@
+{
+	"sirius.ai.openai.apiKey": "good-key",
+	"sirius.ai.openai.baseUrl": "http://127.0.0.1:11991/v1"
+}

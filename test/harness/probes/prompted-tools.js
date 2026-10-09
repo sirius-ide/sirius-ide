@@ -16,13 +16,13 @@
 // out of the envelope rather than landing after the closing brace.
 
 exports.run = async function (vscode) {
-	const all = await vscode.lm.selectChatModels({ vendor: 'sirius' });
+	const all = (await vscode.lm.selectChatModels()).filter(m => m.vendor.startsWith('sirius-'));
 	const tiers = await vscode.commands.executeCommand('sirius.ai.debug.toolTier');
 	// The smallest no-tools model: the provider refuses to load anything over
 	// sirius.ai.ollama.largeModelBytes (12 GB) because doing so has frozen this
 	// machine before, and the first such model on the probe machine is 15.7 GB.
 	const noTools = tiers.filter(t => t.supportsTools === false && t.sizeBytes).sort((a, b) => a.sizeBytes - b.sizeBytes);
-	const target = noTools[0] && all.find(m => m.id === noTools[0].id);
+	const target = noTools[0] && all.find(m => m.vendor === noTools[0].vendor && m.id === noTools[0].modelId);
 	if (!target) {
 		return { skipped: 'no model with supportsTools === false is available', noTools: noTools.map(t => t.id), models: all.map(m => m.id) };
 	}
