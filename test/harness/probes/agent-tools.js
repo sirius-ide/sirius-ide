@@ -5,9 +5,12 @@
 
 // Reports what the agent can actually reach at runtime, so the tool tiers in
 // chat/siriusAgent.ts are checked against `vscode.lm.tools` rather than against
-// the names in upstream's source. A tool that is registered core-agents-only
-// (as editFileTool and setArtifacts are) never appears here, and a tier would
-// then be offering nothing — this is the probe that catches that.
+// the names in upstream's source. A tool that is not exposed to extensions
+// (setArtifacts, for one) never appears here, and a tier would then be offering
+// nothing — this is the probe that catches that. This probe runs as a plain
+// extension: sirius-ai, with chatParticipantPrivate, additionally sees
+// vscode_editFile_internal, vscode_fetchWebPage_internal and
+// vscode_searchExtensions_internal (mcp-tools.js reports that view).
 //
 // Also: reads the browser gate on a FRESH profile (sirius-ai contributes the
 // default, so the family should be present before anything is flipped); asks

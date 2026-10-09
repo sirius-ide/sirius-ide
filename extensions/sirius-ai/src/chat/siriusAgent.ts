@@ -12,6 +12,7 @@ import { TOOL_DEFINITIONS } from '../tools/toolExecutor';
 import * as path from 'path';
 import { randomBytes } from 'crypto';
 import { knownModel, siriusModels } from '../lm/vendors';
+import { EXTERNAL_BUDGET, activationResult, describeOffer, externalSources, fit, offerExternal, rememberedExpansions, serverInstructions, sourceOf } from './externalTools';
 import type { SiriusModel } from '../types';
 
 /**
@@ -20,13 +21,14 @@ import type { SiriusModel } from '../types';
  * is Sirius's: an agentic loop over the user's selected model.
  *
  * Tool design notes, learned the hard way:
- * - vscode.lm.tools exposes ~29 tools including internal plumbing; offering
- *   them all overwhelms small local models into writing tool-call JSON as
- *   prose. The model gets a curated set instead.
- * - The workbench's own edit tool is core-agents-only (absent from
- *   vscode.lm.tools), so file edits are local tools here, applied through
- *   stream.textEdit — which feeds the editing session's diff, checkpoint and
- *   accept/reject flow.
+ * - vscode.lm.tools exposes ~29 workbench tools including internal plumbing;
+ *   offering them all overwhelms small local models into writing tool-call
+ *   JSON as prose. The model gets a curated set instead — and an MCP server's
+ *   or another extension's tools within a budget (externalTools.ts).
+ * - The workbench's own edit tool is built for its own agent: it is visible to
+ *   this extension only through chatParticipantPrivate and untried here, so
+ *   file edits are local tools, applied through stream.textEdit — which feeds
+ *   the editing session's diff, checkpoint and accept/reject flow.
  */
 
 type Mode = 'ask' | 'edit' | 'agent';
@@ -94,11 +96,14 @@ const MAX_TOOL_RESULT_CHARS = 24_000;
  * loop; ours ends when a round makes no calls), `terminal_selection` (needs a
  * focused terminal mid-run), and the `vscode_get_*_confirmation` plumbing.
  *
- * Unreachable, so not listed: `setArtifacts` and `setArtifactRules` are
- * core-agents-only like the edit tool — registered with the tools service but
- * never exposed through `vscode.lm.tools`, as test/harness/probes/agent-tools.js
- * shows. Listing them here would filter to nothing and quietly promise a
- * capability the model never receives.
+ * Not listed either: `setArtifacts` and `setArtifactRules` are in no
+ * extension's `vscode.lm.tools` (test/harness/probes/mcp-tools.js reports this
+ * extension's own view), and `vscode_editFile_internal`,
+ * `vscode_fetchWebPage_internal` and `vscode_searchExtensions_internal` are
+ * visible here only through chatParticipantPrivate, built for the workbench's
+ * own agent and untried from an extension. Listing a name that is not there
+ * would filter to nothing and quietly promise a capability the model never
+ * receives.
  */
 const CORE_NATIVE = new Set([
 	'run_in_terminal',
@@ -274,7 +279,8 @@ const createHandler = (mode: Mode): vscode.ChatRequestHandler => async (request,
 	// `request.tools` but does not enforce it, so this is the only place an
 	// agent's `tools:` means anything. Sirius's own registered tools are all
 	// read-only; they are matched by the names this extension registered, so
-	// another extension's `sirius_*` tool is not swept in.
+	// another extension's `sirius_*` tool is not swept in here — it is an
+	// external tool like any other, below.
 	const agent = customAgent(request);
 	const known = knownModel(model);
 	const extended = isExtendedTier(known, model.maxInputTokens);
@@ -282,27 +288,53 @@ const createHandler = (mode: Mode): vscode.ChatRequestHandler => async (request,
 	const choice = new Map(Array.from(request.tools ?? [], ([tool, enabled]) => [tool.name, enabled] as const));
 	const permitted = (name: string): boolean => agent ? choice.get(name) === true : choice.get(name) !== false;
 	const localTools = mode === 'ask' && !agent ? [] : createLocalTools(stream).filter(tool => permitted(EDIT_TOOLS[tool.name]));
-	const tools: vscode.LanguageModelChatTool[] = [
+	const ownTools: vscode.LanguageModelChatTool[] = [
 		...vscode.lm.tools
-			.filter(tool => (SIRIUS_TOOLS.has(tool.name) || allowlist.has(tool.name)) && permitted(tool.name))
+			.filter(tool => !sourceOf(tool) && (SIRIUS_TOOLS.has(tool.name) || allowlist.has(tool.name)) && permitted(tool.name))
 			.map(tool => ({ name: tool.name, description: tool.description, inputSchema: tool.inputSchema })),
 		...localTools.map(tool => ({ name: tool.name, description: tool.description, inputSchema: tool.inputSchema }))
 	];
-	const toolNames = new Set(tools.map(tool => tool.name));
+
+	// MCP servers' and other extensions' tools: everything the picker — or the
+	// agent's file — enables, within the tier's budget. A server that does not
+	// fit is one group tool the model opens on demand; what it opened earlier in
+	// this conversation is open already (externalTools.ts).
+	const sources = agent || mode === 'agent' ? externalSources(vscode.lm.tools.filter(tool => permitted(tool.name))) : [];
+	const offer = fit(sources, extended ? EXTERNAL_BUDGET.extended : EXTERNAL_BUDGET.core, rememberedExpansions(chatContext.history));
+	const opened = new Set(offer.expanded.map(source => source.key));
+	const dropped = new Set(offer.dropped.map(source => source.key));
+	const assemble = () => {
+		const external = offerExternal(sources, opened, dropped, new Set(ownTools.map(tool => tool.name)));
+		for (const name of external.skipped) {
+			debug(`[skipped] ${name}: no provider takes that tool name, or it is in use already`);
+		}
+		const tools = [...ownTools, ...external.tools];
+		return { tools, toolNames: new Set(tools.map(tool => tool.name)), realNames: external.realNames, groups: external.groups };
+	};
+	let offered = assemble();
+	if (offer.dropped.length) {
+		stream.warning(
+			`Not offered to ${model.name}: ${offer.dropped.map(source => `${source.label} (${source.tools.length} tools)`).join(', ')} — ` +
+			'more servers than this model\'s tool set holds. Untick what the task does not need in the tools picker.'
+		);
+	}
 	const scope = agent ? `the ${agent.name} agent` : `${mode} mode`;
 	if (agent) {
 		debug(`[request] ${scope} enables ${[...choice].filter(([, enabled]) => enabled).map(([name]) => name).join(',') || 'nothing'} (of ${choice.size} known)`);
 	}
-	debug(`[request] mode=${mode}${agent ? ` agent=${agent.name} instructions=${agent.instructions.length}` : ''} model=${model.id} window=${model.maxInputTokens} size=${known?.sizeBytes ?? 'unknown'} tier=${extended ? 'extended' : 'core'} tools=${tools.length} (${[...toolNames].join(',')})`);
+	debug(`[request] mode=${mode}${agent ? ` agent=${agent.name} instructions=${agent.instructions.length}` : ''} model=${model.id} window=${model.maxInputTokens} size=${known?.sizeBytes ?? 'unknown'} tier=${extended ? 'extended' : 'core'} tools=${offered.tools.length} (${[...offered.toolNames].join(',')})${sources.length ? ` external ${describeOffer(sources, opened, dropped)}` : ''}`);
 
-	const messages = await buildMessages(chatContext, request, mode, model.maxInputTokens);
+	const messages = await buildMessages(chatContext, request, mode, model.maxInputTokens, offer.expanded.map(serverInstructions).filter((text): text is string => !!text));
 	const prompt = messages[messages.length - 1].content;
 	const images = prompt.filter(part => part instanceof vscode.LanguageModelDataPart).length;
 	if (images > 0) {
 		debug(`[request] images=${images} vision=${known?.supportsVision ?? 'unknown'}`);
 	}
+	// What the model opened travels with the result, so the next turn starts with it open.
+	const result = (): vscode.ChatResult => ({ metadata: { siriusExpanded: [...opened] } });
 
 	for (let round = 0; round < MAX_TOOL_ROUNDS && !token.isCancellationRequested; round++) {
+		const { tools, toolNames, realNames, groups } = offered;
 		const response = await model.sendRequest(messages, { tools }, token);
 
 		const emitted = new TextGate(stream, toolNames);
@@ -311,7 +343,7 @@ const createHandler = (mode: Mode): vscode.ChatRequestHandler => async (request,
 
 		for await (const part of response.stream) {
 			if (token.isCancellationRequested) {
-				return {};
+				return result();
 			}
 			if (part instanceof vscode.LanguageModelTextPart) {
 				emitted.push(part.value);
@@ -337,7 +369,7 @@ const createHandler = (mode: Mode): vscode.ChatRequestHandler => async (request,
 		debug(`[round ${round}] text=${emitted.total} thinking=${thinking} calls=${toolCalls.map(c => c.name).join(',') || 'none'}`);
 
 		if (toolCalls.length === 0) {
-			return {};
+			return result();
 		}
 
 		messages.push(vscode.LanguageModelChatMessage.Assistant([
@@ -346,6 +378,7 @@ const createHandler = (mode: Mode): vscode.ChatRequestHandler => async (request,
 		]));
 
 		const results: vscode.LanguageModelToolResultPart[] = [];
+		let reassemble = false;
 		for (const call of toolCalls) {
 			// A model can name any tool — hallucinated, or steered by a file it
 			// read. Only what this mode offered runs; otherwise Ask's read-only set
@@ -357,14 +390,21 @@ const createHandler = (mode: Mode): vscode.ChatRequestHandler => async (request,
 				]));
 				continue;
 			}
-			stream.progress(`Running ${call.name.replace(/^sirius_/, '').replace(/_/g, ' ')}…`);
 			const local = localTools.find(tool => tool.name === call.name);
+			const group = groups.get(call.name);
+			stream.progress(`${group ? 'Opening' : 'Running'} ${progressLabel(call.name, group?.label)}…`);
 			try {
 				if (local) {
 					const text = await local.run(call.input as Record<string, unknown>);
 					results.push(new vscode.LanguageModelToolResultPart(call.callId, [new vscode.LanguageModelTextPart(text)]));
+				} else if (group) {
+					// The group's tools join the next round's list; the result names them.
+					opened.add(group.key);
+					reassemble = true;
+					debug(`[opened] ${group.label}: ${group.tools.length} tools`);
+					results.push(new vscode.LanguageModelToolResultPart(call.callId, [new vscode.LanguageModelTextPart(activationResult(group))]));
 				} else {
-					const result = await vscode.lm.invokeTool(call.name, {
+					const result = await vscode.lm.invokeTool(realNames.get(call.name) ?? call.name, {
 						input: call.input,
 						toolInvocationToken: request.toolInvocationToken
 					}, token);
@@ -377,13 +417,28 @@ const createHandler = (mode: Mode): vscode.ChatRequestHandler => async (request,
 			}
 		}
 		messages.push(vscode.LanguageModelChatMessage.User(results));
+		if (reassemble) {
+			offered = assemble();
+		}
 	}
 
 	if (!token.isCancellationRequested) {
 		stream.markdown('\n\nStopping here — this task took more tool rounds than expected. Say "continue" to keep going.');
 	}
-	return {};
+	return result();
 };
+
+/** "read file", "echo (sirius-stub)", "the GitHub tools" — what the progress line shows. */
+function progressLabel(name: string, groupLabel: string | undefined): string {
+	if (groupLabel) {
+		return `the ${groupLabel} tools`;
+	}
+	const mcp = /^mcp_([^_]+)_(.+)$/.exec(name);
+	if (mcp) {
+		return `${mcp[2].replace(/_/g, ' ')} (${mcp[1]})`;
+	}
+	return name.replace(/^sirius_/, '').replace(/_/g, ' ');
+}
 
 /**
  * Buffers a round's text so a small model's tool call written as prose — bare
@@ -661,7 +716,7 @@ const INSTRUCTION_REFERENCE = /^vscode\.(instructions\.file|prompt\.file)/;
 /** A rough characters-per-token figure, for sizing what fits rather than counting it. */
 const CHARS_PER_TOKEN = 4;
 
-async function buildMessages(chatContext: vscode.ChatContext, request: vscode.ChatRequest, mode: Mode, maxInputTokens: number): Promise<vscode.LanguageModelChatMessage[]> {
+async function buildMessages(chatContext: vscode.ChatContext, request: vscode.ChatRequest, mode: Mode, maxInputTokens: number, serverInstructions: readonly string[]): Promise<vscode.LanguageModelChatMessage[]> {
 	const rules = loadProjectRules();
 	const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 	const ruleFiles = new Set(root ? rules.sources.map(source => path.join(root, source)) : []);
@@ -707,10 +762,14 @@ async function buildMessages(chatContext: vscode.ChatContext, request: vscode.Ch
 	const base = agent
 		? `${PREAMBLE} You are running as the "${agent.name}" agent: follow its instructions, and use only the tools it allows.\n${agent.instructions.trim().slice(0, MAX_AGENT_INSTRUCTIONS_CHARS)}`
 		: MODE_RULES[mode] ? `${PREAMBLE} ${MODE_RULES[mode]}` : PREAMBLE;
+	// An MCP server's instructions come with its tools: in the preamble for a
+	// server that is open from the start, in the group's result for one the
+	// model opens later. Capped as a whole like an agent's instructions.
 	const preamble = [
 		base,
 		rules.text ? `Project instructions (from ${rules.sources.join(', ')}) — follow these:\n${rules.text}` : '',
-		...instructions
+		...instructions,
+		serverInstructions.join('\n\n').slice(0, MAX_AGENT_INSTRUCTIONS_CHARS)
 	].filter(Boolean).join('\n\n');
 
 	const messages: vscode.LanguageModelChatMessage[] = [
@@ -793,6 +852,11 @@ async function buildMessages(chatContext: vscode.ChatContext, request: vscode.Ch
 
 function capContent(content: unknown[]): unknown[] {
 	return content.map(part => {
+		// A tool built for the workbench's own agent may answer in prompt-tsx; the
+		// providers speak text, so the model gets the tree as JSON rather than nothing.
+		if (part instanceof vscode.LanguageModelPromptTsxPart) {
+			part = new vscode.LanguageModelTextPart(JSON.stringify(part.value));
+		}
 		if (part instanceof vscode.LanguageModelTextPart && part.value.length > MAX_TOOL_RESULT_CHARS) {
 			return new vscode.LanguageModelTextPart(part.value.slice(0, MAX_TOOL_RESULT_CHARS) + '\n[truncated]');
 		}

@@ -10,10 +10,20 @@
 //
 //   { "servers": { "sirius-stub": { "type": "stdio", "command": "node",
 //                                   "args": ["test/harness/mcp-stub.mjs"] } } }
+//
+// `--tools N` makes it a server of N filler tools instead (filler_1 … filler_N, each answering
+// "filler:<n>:<text>"), for a server bigger than a model's budget.
 
 import readline from 'node:readline';
 
-const TOOLS = [
+const fillers = Number(process.argv[process.argv.indexOf('--tools') + 1] || 0);
+
+const TOOLS = process.argv.includes('--tools') ? Array.from({ length: fillers }, (_, i) => ({
+	name: `filler_${i + 1}`,
+	description: `Filler tool ${i + 1}. Returns "filler:${i + 1}:<text>".`,
+	inputSchema: { type: 'object', properties: { text: { type: 'string' } }, required: ['text'] },
+	annotations: { readOnlyHint: true }
+})) : [
 	{
 		name: 'echo',
 		description: 'Returns the text it is given, as "echo:<text>".',
@@ -61,7 +71,8 @@ readline.createInterface({ input: process.stdin }).on('line', line => {
 				fail(id, -32602, `unknown tool ${params?.name}`);
 				return;
 			}
-			reply(id, { content: [{ type: 'text', text: `${tool.name}:${params?.arguments?.text ?? ''}` }] });
+			const filler = /^filler_(\d+)$/.exec(tool.name);
+			reply(id, { content: [{ type: 'text', text: `${filler ? `filler:${filler[1]}` : tool.name}:${params?.arguments?.text ?? ''}` }] });
 			return;
 		}
 		default:
