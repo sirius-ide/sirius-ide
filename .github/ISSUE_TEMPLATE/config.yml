@@ -1,8 +1,11 @@
 blank_issues_enabled: false
 contact_links:
-  - name: Question
-    url: https://stackoverflow.com/questions/tagged/visual-studio-code
-    about: Please ask and answer questions here.
-  - name: Extension Development
-    url: https://github.com/microsoft/vscode-discussions/discussions
-    about: Please use this for extension development questions and ideas.
+  - name: Security vulnerability
+    url: https://github.com/sirius-ide/sirius-ide/security/advisories/new
+    about: Report a vulnerability privately. Please do not open a public issue for it.
+  - name: Documentation and troubleshooting
+    url: https://siriuside.com/docs/troubleshooting/
+    about: The docs answer most setup questions — providers, keys, local models, Tab completion, the remote server.
+  - name: Download and install
+    url: https://siriuside.com/download/
+    about: Packages for Linux (deb, rpm, tarball, Arch) and Windows, and how updates work.

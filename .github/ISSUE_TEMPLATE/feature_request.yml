@@ -1,0 +1,29 @@
+name: Feature request
+description: Something Sirius should do, or do differently.
+title: "Feature: "
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Describe the problem before the solution — what you were trying to do, and what got in the way.
+        Check the [roadmap](https://siriuside.com/roadmap/) first; it may already be planned.
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What were you doing, and what did Sirius make hard or impossible?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you would like
+      description: The behaviour you have in mind. If another editor does it well, name it.
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Anything else
+      description: Platform, model provider, workspace size — whatever shapes the request.

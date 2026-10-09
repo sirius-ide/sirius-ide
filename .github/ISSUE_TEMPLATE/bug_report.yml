@@ -1,0 +1,64 @@
+name: Bug report
+description: Something in Sirius does not work as documented.
+title: "Bug: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. For a security vulnerability, do **not** file an issue —
+        use [private reporting](https://github.com/sirius-ide/sirius-ide/security/advisories/new).
+  - type: input
+    id: version
+    attributes:
+      label: Sirius version
+      description: "Help → About, or `sirius --version` in a terminal."
+      placeholder: "1.118.13"
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform and install method
+      options:
+        - Linux — .deb
+        - Linux — .rpm
+        - Linux — tarball
+        - Arch Linux — pacman repository
+        - Windows — installer
+        - Remote server (sirius-server)
+        - Other (say which below)
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Numbered steps from a fresh start. Name the model provider if the chat, the agent or Tab completion is involved.
+      placeholder: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected, and what happened instead
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or screenshots
+      description: "Help → Toggle Developer Tools → Console, or Output → Sirius AI. Remove API keys and anything private before pasting."
+      render: text
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before filing
+      options:
+        - label: I searched the existing issues and the [troubleshooting page](https://siriuside.com/docs/troubleshooting/).
+          required: true
+        - label: This is not a security vulnerability (those go through private reporting).
+          required: true

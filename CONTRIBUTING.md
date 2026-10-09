@@ -1,99 +1,48 @@
-# Contributing to VS Code
+# Contributing to Sirius IDE
 
-Welcome, and thank you for your interest in contributing to VS Code!
+Thank you for taking the time. Sirius is developed by Clicksora, L.L.C. and ships under its
+own licence (see [LICENSE.txt](LICENSE.txt)); it is a derivative of the MIT-licensed
+Code - OSS. Here is how to help, and what we can and cannot take.
 
-There are several ways in which you can contribute, beyond writing code. The goal of this document is to provide a high-level overview of how you can get involved.
+## Bug reports
 
-## Asking Questions
+Open an [issue](https://github.com/sirius-ide/sirius-ide/issues/new/choose) with the bug
+report form: the Sirius version (**Help → About**), your platform and how you installed it,
+numbered steps to reproduce, and what you expected. If the chat, the agent or Tab completion
+is involved, name the model provider. Check the
+[troubleshooting page](https://siriuside.com/docs/troubleshooting/) first — it answers the
+common setup problems.
 
+## Feature requests
 
-Have a question? Instead of opening an issue, please ask on [Stack Overflow](https://stackoverflow.com/questions/tagged/visual-studio-code) using the tag `visual-studio-code`.
+Use the feature request form. Describe the problem before the solution: what you were doing
+and what got in the way. The [roadmap](https://siriuside.com/roadmap/) shows what is already
+planned.
 
-The active community will be eager to assist you. Your well-worded question will serve as a resource to others searching for help.
+## Security vulnerabilities
 
-## Providing Feedback
+**Never in a public issue.** Report them privately through
+[GitHub's security advisories](https://github.com/sirius-ide/sirius-ide/security/advisories/new);
+[SECURITY.md](SECURITY.md) has the details and the scope.
 
-Your comments and feedback are welcome, and the development team is available via a handful of different channels.
+## Pull requests
 
-See the [Feedback Channels](https://github.com/microsoft/vscode/wiki/Feedback-Channels) wiki page for details on how to share your thoughts.
+Sirius does not accept pull requests at this time. The code is proprietary, every release is
+built and signed from this repository by CI, and each change is reviewed and tested by the
+maintainer before it ships — so outside code cannot be merged without a contributor
+agreement and a review process that do not exist yet. A pull request opened without prior
+agreement is closed without review.
 
-## Reporting Issues
+If you have a change in mind, open an issue describing the problem and your proposed fix. If
+it is something we want, we will say so and discuss how it lands. This may change in a
+future release; when it does, this file will say how.
 
-Have you identified a reproducible problem in VS Code? Do you have a feature request? We want to hear about it! Here's how you can report your issue as effectively as possible.
+## Documentation
 
-### Identify Where to Report
+Mistakes and gaps in the [documentation](https://siriuside.com/docs/) are bugs: file them as
+such, with the page and the sentence.
 
-The VS Code project is distributed across multiple repositories. Try to file the issue against the correct repository. Check the list of [Related Projects](https://github.com/microsoft/vscode/wiki/Related-Projects) if you aren't sure which repo is correct.
+## Building from source
 
-Can you recreate the issue even after [disabling all extensions](https://code.visualstudio.com/docs/editor/extension-gallery#_disable-an-extension)? If you find the issue is caused by an extension you have installed, please file an issue on the extension's repo directly.
-
-### Look For an Existing Issue
-
-Before you create a new issue, please do a search in [open issues](https://github.com/microsoft/vscode/issues) to see if the issue or feature request has already been filed.
-
-Be sure to scan through the [most popular](https://github.com/microsoft/vscode/issues?q=is%3Aopen+is%3Aissue+label%3Afeature-request+sort%3Areactions-%2B1-desc) feature requests.
-
-If you find your issue already exists, make relevant comments and add your [reaction](https://github.com/blog/2119-add-reactions-to-pull-requests-issues-and-comments). Use a reaction in place of a "+1" comment:
-
-* 👍 - upvote
-* 👎 - downvote
-
-If you cannot find an existing issue that describes your bug or feature, create a new issue using the guidelines below.
-
-### Writing Good Bug Reports and Feature Requests
-
-File a single issue per problem and feature request. Do not enumerate multiple bugs or feature requests in the same issue.
-
-Do not add your issue as a comment to an existing issue unless it's for the identical input. Many issues look similar but have different causes.
-
-The more information you can provide, the more likely someone will be successful at reproducing the issue and finding a fix.
-
-The built-in tool for reporting an issue, which you can access by using `Report Issue` in VS Code's Help menu, can help streamline this process by automatically providing the version of VS Code, all your installed extensions, and your system info. Additionally, the tool will search among existing issues to see if a similar issue already exists.
-
-Please include the following with each issue:
-
-* Version of VS Code
-* Your operating system
-* List of extensions that you have installed
-* Reproducible steps (1... 2... 3...) that cause the issue
-* What you expected to see, versus what you actually saw
-* Images, animations, or a link to a video showing the issue occurring
-* A code snippet that demonstrates the issue or a link to a code repository the developers can easily pull down to recreate the issue locally
-  * **Note:** Because the developers need to copy and paste the code snippet, including a code snippet as a media file (i.e. .gif) is not sufficient.
-* Errors from the Dev Tools Console (open from the menu: Help > Toggle Developer Tools)
-
-### Creating Pull Requests
-
-* Please refer to the article on [creating pull requests](https://github.com/microsoft/vscode/wiki/How-to-Contribute#pull-requests) and contributing to this project.
-
-### Final Checklist
-
-Please remember to do the following:
-
-* [ ] Search the issue repository to ensure your report is a new issue
-* [ ] Recreate the issue after disabling all extensions
-* [ ] Simplify your code around the issue to better isolate the problem
-
-Don't feel bad if the developers can't reproduce the issue right away. They will simply ask for more information!
-
-### Follow Your Issue
-
-Once submitted, your report will go into the [issue tracking](https://github.com/microsoft/vscode/wiki/Issue-Tracking) workflow. Be sure to understand what will happen next, so you know what to expect and how to continue to assist throughout the process.
-
-## Automated Issue Management
-
-We use GitHub Actions to help us manage issues. These Actions and their descriptions can be [viewed here](https://github.com/microsoft/vscode-github-triage-actions). Some examples of what these Actions do are:
-
-* Automatically close any issue marked `info-needed` if there has been no response in the past 7 days.
-* Automatically lock issues 45 days after they are closed.
-* Automatically implement the VS Code [feature request pipeline](https://github.com/microsoft/vscode/wiki/Issues-Triaging#managing-feature-requests).
-
-If you believe the bot got something wrong, please open a new issue and let us know.
-
-## Contributing Fixes
-
-If you are interested in writing code to fix issues, please see [How to Contribute](https://github.com/microsoft/vscode/wiki/How-to-Contribute) in the wiki.
-
-## Thank You
-
-Your contributions to open source, large or small, make great projects like this possible. Thank you for taking the time to contribute.
+The [README](README.md#building-from-source) covers it. Sirius builds like VS Code, with the
+same prerequisites; the one hard rule is the Node version in `.nvmrc`.
