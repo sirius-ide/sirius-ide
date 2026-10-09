@@ -39,6 +39,7 @@ import { IContextKey, IContextKeyService } from '../../../../../platform/context
 import { CONTEXT_MODELS_SEARCH_FOCUS } from '../../common/constants.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import Severity from '../../../../../base/common/severity.js';
+import product from '../../../../../platform/product/common/product.js';
 
 const $ = DOM.$;
 
@@ -1312,7 +1313,8 @@ export class ChatModelsWidget extends Disposable {
 
 		const entitlement = this.chatEntitlementService.entitlement;
 		const isManagedEntitlement = entitlement === ChatEntitlement.Business || entitlement === ChatEntitlement.Enterprise;
-		const supportsAddingModels = this.chatEntitlementService.isInternal
+		const supportsAddingModels = !product.defaultChatAgent?.entitlementUrl // no entitlement flow: the product's own providers
+			|| this.chatEntitlementService.isInternal
 			|| (isManagedEntitlement && this.chatEntitlementService.clientByokEnabled)
 			|| (entitlement !== ChatEntitlement.Unknown
 				&& entitlement !== ChatEntitlement.Available

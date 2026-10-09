@@ -26,10 +26,12 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { registerIcon } from '../../../../../platform/theme/common/iconRegistry.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
+import product from '../../../../../platform/product/common/product.js';
 
 const languageModelsOpenSettingsIcon = registerIcon('language-models-open-settings', Codicon.goToFile, localize('languageModelsOpenSettings', 'Icon for open language models settings commands.'));
 
-const LANGUAGE_MODELS_ENTITLEMENT_PRECONDITION = ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.or(
+// A product with no chat entitlement flow has no plans to check: its own providers are managed here.
+const LANGUAGE_MODELS_ENTITLEMENT_PRECONDITION = ContextKeyExpr.and(ChatContextKeys.enabled, !product.defaultChatAgent?.entitlementUrl ? undefined : ContextKeyExpr.or(
 	ChatContextKeys.Entitlement.planFree,
 	ChatContextKeys.Entitlement.planEdu,
 	ChatContextKeys.Entitlement.planPro,
