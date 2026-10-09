@@ -155,9 +155,13 @@ EOF
 	key ctrl+k w   # the walkthrough opens itself on a first start; the scenes want a clean editor
 
 	# Crops share one shape (about 1.72:1), so the page does not jump between steps.
-	palette 'Sirius: Set API Key'; sleep 2
-	shot connect $theme 420 0 600 349
-	key Escape
+	# The Language Models editor with its Add Models… list open — the editor's own screen for
+	# providers and keys. Needs a build with the three Manage Models patches (§4), or the
+	# button is greyed out.
+	palette 'Sirius: Manage Models'; sleep 3
+	x mousemove 2426 332 click 1; sleep 2   # Add Models… (1213,166 in logical pixels)
+	shot connect $theme 150 104 1250 420
+	key Escape; key Escape
 
 	open_file limiter.ts
 	key ctrl+g; typ 10; key Return
