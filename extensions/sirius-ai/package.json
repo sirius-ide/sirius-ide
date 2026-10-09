@@ -17,8 +17,7 @@
 		"onChatParticipant:sirius.default",
 		"onChatParticipant:sirius.edit",
 		"onChatParticipant:sirius.agent",
-		"onStartupFinished",
-		"onLanguageModelChatProvider:sirius"
+		"onStartupFinished"
 	],
 	"main": "./out/extension.js",
 	"contributes": {
@@ -27,6 +26,10 @@
 				"command": "sirius.ai.openChat",
 				"title": "Sirius: Open AI Chat",
 				"icon": "$(star-full)"
+			},
+			{
+				"command": "sirius.ai.manageModels",
+				"title": "Sirius: Manage Models"
 			},
 			{
 				"command": "sirius.ai.setApiKey",
@@ -167,7 +170,7 @@
 					"scope": "machine",
 					"type": "string",
 					"default": "http://localhost:11434",
-					"description": "Ollama server endpoint"
+					"markdownDescription": "Where Sirius looks for Ollama when nothing is configured — chat models and Tab completion. Another Ollama host can be added in **Manage Models**."
 				},
 				"sirius.ai.thinking.enabled": {
 					"type": "boolean",
@@ -230,25 +233,27 @@
 					"scope": "machine",
 					"type": "string",
 					"default": "https://api.openai.com/v1",
-					"description": "Override the OpenAI endpoint — e.g. an Azure deployment or a corporate proxy."
+					"description": "Override the OpenAI endpoint — e.g. an Azure deployment or a corporate proxy.",
+					"markdownDeprecationMessage": "Set in **Manage Models**: OpenAI's Base URL is part of the provider now. An earlier value moved there on the first start of 1.118.12."
 				},
 				"sirius.ai.lmstudio.baseUrl": {
 					"scope": "machine",
 					"type": "string",
 					"default": "http://localhost:1234/v1",
-					"description": "LM Studio local server endpoint."
+					"markdownDescription": "Where Sirius looks for LM Studio when nothing is configured. Another server can be added in **Manage Models**."
 				},
 				"sirius.ai.llamacpp.baseUrl": {
 					"scope": "machine",
 					"type": "string",
 					"default": "http://localhost:8080/v1",
-					"description": "llama.cpp or vLLM OpenAI-compatible endpoint."
+					"markdownDescription": "Where Sirius looks for llama-server or vLLM when nothing is configured — chat models and Tab completion. Another server can be added in **Manage Models**."
 				},
 				"sirius.ai.custom.baseUrl": {
 					"scope": "machine",
 					"type": "string",
 					"default": "",
-					"description": "Base URL of any other OpenAI-compatible service, including the /v1 suffix."
+					"description": "Base URL of any other OpenAI-compatible service, including the /v1 suffix.",
+					"markdownDeprecationMessage": "Add the server in **Manage Models** (OpenAI-compatible, custom), where it can have a name and a key. An earlier value moved there on the first start of 1.118.12."
 				},
 				"sirius.ai.completions.model": {
 					"type": "string",
@@ -274,8 +279,243 @@
 		},
 		"languageModelChatProviders": [
 			{
-				"vendor": "sirius",
-				"displayName": "Sirius AI"
+				"vendor": "sirius-anthropic",
+				"displayName": "Anthropic",
+				"configuration": {
+					"type": "object",
+					"properties": {
+						"apiKey": {
+							"type": "string",
+							"secret": true,
+							"title": "API Key",
+							"description": "Your Anthropic API key. Stored in the system keyring, never in settings.json."
+						}
+					},
+					"required": [
+						"apiKey"
+					]
+				}
+			},
+			{
+				"vendor": "sirius-gemini",
+				"displayName": "Google Gemini",
+				"configuration": {
+					"type": "object",
+					"properties": {
+						"apiKey": {
+							"type": "string",
+							"secret": true,
+							"title": "API Key",
+							"description": "Your Google Gemini API key. Stored in the system keyring, never in settings.json."
+						}
+					},
+					"required": [
+						"apiKey"
+					]
+				}
+			},
+			{
+				"vendor": "sirius-openai",
+				"displayName": "OpenAI",
+				"configuration": {
+					"type": "object",
+					"properties": {
+						"apiKey": {
+							"type": "string",
+							"secret": true,
+							"title": "API Key",
+							"description": "Your OpenAI API key. Stored in the system keyring, never in settings.json."
+						},
+						"url": {
+							"type": "string",
+							"title": "Base URL",
+							"default": "https://api.openai.com/v1",
+							"description": "Change only for an OpenAI-compatible gateway or proxy."
+						}
+					},
+					"required": [
+						"apiKey"
+					]
+				}
+			},
+			{
+				"vendor": "sirius-openrouter",
+				"displayName": "OpenRouter",
+				"configuration": {
+					"type": "object",
+					"properties": {
+						"apiKey": {
+							"type": "string",
+							"secret": true,
+							"title": "API Key",
+							"description": "Your OpenRouter API key. Stored in the system keyring, never in settings.json."
+						}
+					},
+					"required": [
+						"apiKey"
+					]
+				}
+			},
+			{
+				"vendor": "sirius-groq",
+				"displayName": "Groq",
+				"configuration": {
+					"type": "object",
+					"properties": {
+						"apiKey": {
+							"type": "string",
+							"secret": true,
+							"title": "API Key",
+							"description": "Your Groq API key. Stored in the system keyring, never in settings.json."
+						}
+					},
+					"required": [
+						"apiKey"
+					]
+				}
+			},
+			{
+				"vendor": "sirius-deepseek",
+				"displayName": "DeepSeek",
+				"configuration": {
+					"type": "object",
+					"properties": {
+						"apiKey": {
+							"type": "string",
+							"secret": true,
+							"title": "API Key",
+							"description": "Your DeepSeek API key. Stored in the system keyring, never in settings.json."
+						}
+					},
+					"required": [
+						"apiKey"
+					]
+				}
+			},
+			{
+				"vendor": "sirius-mistral",
+				"displayName": "Mistral",
+				"configuration": {
+					"type": "object",
+					"properties": {
+						"apiKey": {
+							"type": "string",
+							"secret": true,
+							"title": "API Key",
+							"description": "Your Mistral API key. Stored in the system keyring, never in settings.json."
+						}
+					},
+					"required": [
+						"apiKey"
+					]
+				}
+			},
+			{
+				"vendor": "sirius-xai",
+				"displayName": "xAI",
+				"configuration": {
+					"type": "object",
+					"properties": {
+						"apiKey": {
+							"type": "string",
+							"secret": true,
+							"title": "API Key",
+							"description": "Your xAI API key. Stored in the system keyring, never in settings.json."
+						}
+					},
+					"required": [
+						"apiKey"
+					]
+				}
+			},
+			{
+				"vendor": "sirius-ollama",
+				"displayName": "Ollama",
+				"configuration": {
+					"type": "object",
+					"properties": {
+						"url": {
+							"type": "string",
+							"title": "Server URL",
+							"default": "http://localhost:11434",
+							"description": "Another Ollama host. The local one is found without adding anything."
+						}
+					},
+					"required": [
+						"url"
+					]
+				}
+			},
+			{
+				"vendor": "sirius-lmstudio",
+				"displayName": "LM Studio",
+				"configuration": {
+					"type": "object",
+					"properties": {
+						"url": {
+							"type": "string",
+							"title": "Server URL",
+							"default": "http://localhost:1234/v1",
+							"description": "Another LM Studio server. The local one is found without adding anything."
+						},
+						"apiKey": {
+							"type": "string",
+							"secret": true,
+							"title": "API Key",
+							"description": "Only if the server requires one. Stored in the system keyring, never in settings.json."
+						}
+					},
+					"required": [
+						"url"
+					]
+				}
+			},
+			{
+				"vendor": "sirius-llamacpp",
+				"displayName": "llama.cpp / vLLM",
+				"configuration": {
+					"type": "object",
+					"properties": {
+						"url": {
+							"type": "string",
+							"title": "Server URL",
+							"default": "http://localhost:8080/v1",
+							"description": "Another llama-server or vLLM. The local one is found without adding anything."
+						},
+						"apiKey": {
+							"type": "string",
+							"secret": true,
+							"title": "API Key",
+							"description": "Only if the server was started with --api-key. Stored in the system keyring, never in settings.json."
+						}
+					},
+					"required": [
+						"url"
+					]
+				}
+			},
+			{
+				"vendor": "sirius-custom",
+				"displayName": "OpenAI-compatible (custom)",
+				"configuration": {
+					"type": "object",
+					"properties": {
+						"url": {
+							"type": "string",
+							"title": "Base URL",
+							"description": "The server's OpenAI-compatible base URL, including /v1."
+						},
+						"apiKey": {
+							"type": "string",
+							"secret": true,
+							"title": "API Key",
+							"description": "Only if the server requires one. Stored in the system keyring, never in settings.json."
+						}
+					},
+					"required": [
+						"url"
+					]
+				}
 			}
 		],
 		"languageModelTools": [
@@ -499,7 +739,7 @@
 					{
 						"id": "connectModel",
 						"title": "Connect a model",
-						"description": "Sirius works with the model you choose. Use your own key for Anthropic, Gemini, OpenAI, OpenRouter, Groq, DeepSeek, Mistral or xAI — it goes into your system keyring, never into settings.json. Or run a model on your machine: Ollama, LM Studio and llama.cpp are found on their usual ports, no key needed.\n[Set an API Key](command:sirius.ai.setApiKey)\n[Choose a Model](command:sirius.ai.selectModel)",
+						"description": "Sirius works with the model you choose. In **Manage Models**, add Anthropic, Gemini, OpenAI, OpenRouter, Groq, DeepSeek, Mistral or xAI with your own key — it goes into your system keyring, never into settings.json. Ollama, LM Studio and llama.cpp on their usual ports are found without adding anything.\n[Manage Models](command:sirius.ai.manageModels)\n[Choose a Model](command:sirius.ai.selectModel)",
 						"completionEvents": [
 							"onContext:sirius.ai.modelAvailable"
 						],
@@ -510,7 +750,7 @@
 								"hc": "media/walkthrough/connect-dark.webp",
 								"hcLight": "media/walkthrough/connect-light.webp"
 							},
-							"altText": "The Set API Key picker listing every provider and whether a key is stored."
+							"altText": "The Language Models editor: the providers to add, and the models each one offers."
 						}
 					},
 					{

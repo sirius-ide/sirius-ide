@@ -6,6 +6,7 @@
 
 import * as vscode from 'vscode';
 import { IAIProvider, SiriusModel, ChatRequest, ChatChunk, ChatMessage, ImagePart, ProviderType, ToolCallRequest, ToolDefinition, StopReason } from '../types';
+import { ConnectionCheck, checkEndpoint } from './connection';
 
 /** A tool call as Ollama reports it. Ollama assigns no id, so we synthesise one. */
 interface OllamaToolCall {
@@ -38,8 +39,13 @@ export class OllamaProvider implements IAIProvider {
 	readonly name = 'Ollama (Local)';
 	readonly models: SiriusModel[] = []; // Dynamically populated
 
+	/** @param endpointOverride a configured Ollama on another host; else `sirius.ai.ollama.endpoint`. */
+	constructor(private readonly endpointOverride?: string) { }
+
 	private getEndpoint(): string {
-		return vscode.workspace.getConfiguration('sirius.ai.ollama').get<string>('endpoint', 'http://localhost:11434');
+		const endpoint = this.endpointOverride?.trim()
+			|| vscode.workspace.getConfiguration('sirius.ai.ollama').get<string>('endpoint', 'http://localhost:11434');
+		return endpoint.replace(/\/+$/, '');
 	}
 
 	isConfigured(): boolean {
@@ -47,14 +53,8 @@ export class OllamaProvider implements IAIProvider {
 		return true;
 	}
 
-	async validateConnection(): Promise<boolean> {
-		try {
-			const endpoint = this.getEndpoint();
-			const response = await fetch(`${endpoint}/api/tags`);
-			return response.ok;
-		} catch {
-			return false;
-		}
+	checkConnection(): Promise<ConnectionCheck> {
+		return checkEndpoint(`${this.getEndpoint()}/api/tags`, {}, 'Ollama');
 	}
 
 	/** On-disk size per model name, from the last listing. */

@@ -6,22 +6,18 @@
 
 import * as vscode from 'vscode';
 
+import { providerOf, siriusModels } from './vendors';
+
 /**
- * The model a request with no explicit choice should use: `sirius.ai.defaultModel`,
- * else the first model of `sirius.ai.defaultProvider`, else the first Sirius
- * model — the order the language-model bridge uses to mark the chat panel's
- * default. `selectChatModels` alone returns models in provider order, so taking
- * its first entry ignored the user's setting.
+ * The model a request with no explicit choice should use: `sirius.ai.defaultModel` of
+ * `sirius.ai.defaultProvider`, else that provider's first model, else the first Sirius
+ * model in provider order — the same rule each vendor uses to mark the chat's default.
  */
 export async function selectDefaultModel(): Promise<vscode.LanguageModelChat | undefined> {
-	const models = await vscode.lm.selectChatModels({ vendor: 'sirius' });
+	const models = await siriusModels();
 	const config = vscode.workspace.getConfiguration('sirius.ai');
 	const wantedModel = config.get<string>('defaultModel', '');
 	const wantedProvider = config.get<string>('defaultProvider', '');
-	// The exact provider/model first: OpenRouter, for one, serves the same model
-	// names under its own prefix (`openrouter/anthropic/claude-…`).
-	return (wantedModel && wantedProvider ? models.find(m => m.id === `${wantedProvider}/${wantedModel}`) : undefined)
-		?? (wantedModel ? models.find(m => m.id.endsWith(`/${wantedModel}`)) : undefined)
-		?? (wantedProvider ? models.find(m => m.id.startsWith(`${wantedProvider}/`)) : undefined)
-		?? models[0];
+	const ofProvider = models.filter(model => providerOf(model.vendor) === wantedProvider);
+	return ofProvider.find(model => model.id === wantedModel) ?? ofProvider[0] ?? models[0];
 }

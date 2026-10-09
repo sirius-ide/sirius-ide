@@ -11,7 +11,7 @@ import { resolveWorkspacePath } from '../tools/workspacePath';
 import { TOOL_DEFINITIONS } from '../tools/toolExecutor';
 import * as path from 'path';
 import { randomBytes } from 'crypto';
-import type { SiriusLanguageModelProvider } from '../lm/languageModelProvider';
+import { knownModel, siriusModels } from '../lm/vendors';
 import type { SiriusModel } from '../types';
 
 /**
@@ -159,7 +159,6 @@ function isExtendedTier(known: SiriusModel | undefined, maxInputTokens: number):
 }
 
 /** Set at registration; the bridge is the only thing that knows a discovered model's size. */
-let lmProvider: SiriusLanguageModelProvider | undefined;
 
 const PREAMBLE =
 	'You are Sirius, the AI engineer inside Sirius IDE. Answer directly and concisely in markdown. ' +
@@ -173,15 +172,15 @@ const PREAMBLE =
 // name existed.
 const output = vscode.window.createOutputChannel('Sirius AI');
 
-function debug(line: string): void {
+/** A line in the "Sirius AI" output channel — also for other parts of the extension. */
+export function debug(line: string): void {
 	output.appendLine(line);
 	if (process.env.SIRIUS_AGENT_DEBUG) {
 		console.log(`[sirius-agent] ${line}`);
 	}
 }
 
-export function registerSiriusAgent(context: vscode.ExtensionContext, lm: SiriusLanguageModelProvider): void {
-	lmProvider = lm;
+export function registerSiriusAgent(context: vscode.ExtensionContext): void {
 	for (const { id, mode } of PARTICIPANTS) {
 		const participant = vscode.chat.createChatParticipant(id, createHandler(mode));
 		participant.iconPath = new vscode.ThemeIcon('sparkle');
@@ -201,11 +200,14 @@ export function registerSiriusAgent(context: vscode.ExtensionContext, lm: Sirius
 	// The tier decision is otherwise only visible in the output channel, so
 	// expose it: test/harness/probes/agent-tools.js asserts on this.
 	context.subscriptions.push(vscode.commands.registerCommand('sirius.ai.debug.toolTier', async () => {
-		const models = await vscode.lm.selectChatModels({ vendor: 'sirius' });
+		const models = await siriusModels();
 		return models.map(m => {
-			const known = lm.getKnownModel(m.id);
+			const known = knownModel(m);
 			return {
-				id: m.id,
+				// `provider/model`, as logs and probes have always named a model.
+				id: `${m.vendor.replace(/^sirius-/, '')}/${m.id}`,
+				vendor: m.vendor,
+				modelId: m.id,
 				maxInputTokens: m.maxInputTokens,
 				sizeBytes: known?.sizeBytes,
 				supportsTools: known?.supportsTools,
@@ -222,7 +224,7 @@ export function registerSiriusAgent(context: vscode.ExtensionContext, lm: Sirius
 	// not exist.
 	context.subscriptions.push(vscode.commands.registerCommand('sirius.ai.debug.extensionState', async () => {
 		const config = vscode.workspace.getConfiguration('sirius.ai');
-		const models = await vscode.lm.selectChatModels({ vendor: 'sirius' });
+		const models = await siriusModels();
 		const state = {
 			at: new Date().toISOString(),
 			extension: vscode.extensions.getExtension('sirius.sirius-ai')?.packageJSON?.version,
@@ -235,7 +237,7 @@ export function registerSiriusAgent(context: vscode.ExtensionContext, lm: Sirius
 				browserTools: vscode.workspace.getConfiguration().get('workbench.browser.enableChatTools')
 			},
 			models: models.map(m => {
-				const known = lm.getKnownModel(m.id);
+				const known = knownModel(m);
 				return {
 					id: m.id,
 					window: m.maxInputTokens,
@@ -259,8 +261,8 @@ const createHandler = (mode: Mode): vscode.ChatRequestHandler => async (request,
 	}
 	if (!model) {
 		stream.markdown(
-			'No model is available yet. Add a provider key with **Sirius: Set API Key** ' +
-			'(Ctrl+Shift+P), or start [Ollama](https://ollama.com) and pull a model — Sirius finds it automatically.'
+			'No model is available yet. Add a provider and its key in **Manage Models** (the gear at the bottom of the ' +
+			'model picker, or **Sirius: Manage Models**), or start [Ollama](https://ollama.com) and pull a model — Sirius finds it automatically.'
 		);
 		return {};
 	}
@@ -274,7 +276,7 @@ const createHandler = (mode: Mode): vscode.ChatRequestHandler => async (request,
 	// read-only; they are matched by the names this extension registered, so
 	// another extension's `sirius_*` tool is not swept in.
 	const agent = customAgent(request);
-	const known = lmProvider?.getKnownModel(model.id);
+	const known = knownModel(model);
 	const extended = isExtendedTier(known, model.maxInputTokens);
 	const allowlist = agent || mode === 'agent' ? (extended ? EXTENDED_NATIVE : CORE_NATIVE) : new Set<string>();
 	const choice = new Map(Array.from(request.tools ?? [], ([tool, enabled]) => [tool.name, enabled] as const));

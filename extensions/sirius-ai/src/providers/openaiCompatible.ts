@@ -7,9 +7,9 @@
 import * as vscode from 'vscode';
 import {
 	IAIProvider, SiriusModel, ChatRequest, ChatChunk, ChatMessage, ImagePart,
-	ProviderType, StopReason, ToolCallRequest
+	ProviderType, StopReason, ToolCallRequest, KeySource
 } from '../types';
-import { SiriusSecretStore } from '../auth/secretStore';
+import { ConnectionCheck, checkEndpoint } from './connection';
 
 /**
  * Describes one service that speaks the OpenAI chat-completions shape.
@@ -169,9 +169,11 @@ export class OpenAICompatibleProvider implements IAIProvider {
 	/** Filled by discovery; falls back to the configured ids. */
 	private _models: SiriusModel[] = [];
 
+	/** @param baseUrlOverride a configured endpoint; else `sirius.ai.<id>.baseUrl`, else the table's default. */
 	constructor(
 		private readonly config: OpenAICompatibleConfig,
-		private readonly secrets: SiriusSecretStore
+		private readonly secrets: KeySource,
+		private readonly baseUrlOverride?: string
 	) {
 		this._models = (config.fallbackModelIds ?? []).map(id => this._describe(id));
 	}
@@ -183,7 +185,7 @@ export class OpenAICompatibleProvider implements IAIProvider {
 	// ─── Configuration ───────────────────────────────────────────────────────
 
 	private _baseUrl(): string {
-		const configured = vscode.workspace
+		const configured = this.baseUrlOverride?.trim() || vscode.workspace
 			.getConfiguration(`sirius.ai.${this.config.id}`)
 			.get<string>('baseUrl', '')
 			.trim();
@@ -210,13 +212,8 @@ export class OpenAICompatibleProvider implements IAIProvider {
 		return !this.config.requiresKey || this.secrets.has(this.config.id);
 	}
 
-	async validateConnection(): Promise<boolean> {
-		try {
-			const response = await fetch(`${this._baseUrl()}/models`, { headers: this._headers() });
-			return response.ok;
-		} catch {
-			return false;
-		}
+	checkConnection(): Promise<ConnectionCheck> {
+		return checkEndpoint(`${this._baseUrl()}/models`, this._headers(), this.config.name);
 	}
 
 	// ─── Chat ────────────────────────────────────────────────────────────────
@@ -229,7 +226,7 @@ export class OpenAICompatibleProvider implements IAIProvider {
 		}
 		if (this.config.requiresKey && !this.secrets.has(this.config.id)) {
 			const where = this.config.keyUrl ? ` Get one at ${this.config.keyUrl}.` : '';
-			yield { content: `⚠️ No ${this.config.name} API key set. Run **Sirius: Set API Key**.${where}`, done: true, stopReason: 'error' };
+			yield { content: `⚠️ No ${this.config.name} API key set. Add one in **Manage Models** (or **Sirius: Set API Key**).${where}`, done: true, stopReason: 'error' };
 			return;
 		}
 
@@ -490,7 +487,7 @@ export class OpenAICompatibleProvider implements IAIProvider {
 		switch (response.status) {
 			case 401:
 			case 403:
-				return `⚠️ ${this.config.name} rejected the API key. Run **Sirius: Set API Key** to enter a new one.`;
+				return `⚠️ ${this.config.name} rejected the API key. Change it in **Manage Models** — Configure on the provider's row.`;
 			case 404:
 				return `⚠️ ${this.config.name} does not recognise that model or endpoint. (${message})`;
 			case 429: {

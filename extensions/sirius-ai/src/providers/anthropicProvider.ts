@@ -4,8 +4,8 @@
  *  Licensed under the MIT License.
  *--------------------------------------------------------------------------------------------*/
 
-import { SiriusSecretStore } from '../auth/secretStore';
-import { IAIProvider, SiriusModel, ChatRequest, ChatChunk, ChatMessage, ImagePart, ProviderType, ThinkingEffort, ToolCallRequest, StopReason } from '../types';
+import { IAIProvider, KeySource, SiriusModel, ChatRequest, ChatChunk, ChatMessage, ImagePart, ProviderType, ThinkingEffort, ToolCallRequest, StopReason } from '../types';
+import { ConnectionCheck, checkEndpoint } from './connection';
 
 /** A content block in a response: text, thinking, or a tool call. */
 interface AnthropicContentBlock {
@@ -138,7 +138,7 @@ export class AnthropicProvider implements IAIProvider {
 		}
 	];
 
-	constructor(private readonly secrets: SiriusSecretStore) { }
+	constructor(private readonly secrets: KeySource) { }
 
 	private getApiKey(): string {
 		return this.secrets.get('anthropic');
@@ -148,32 +148,18 @@ export class AnthropicProvider implements IAIProvider {
 		return this.getApiKey().length > 0;
 	}
 
-	async validateConnection(): Promise<boolean> {
-		try {
-			const apiKey = this.getApiKey();
-			const response = await fetch('https://api.anthropic.com/v1/messages', {
-				method: 'POST',
-				headers: {
-					'x-api-key': apiKey,
-					'anthropic-version': '2023-06-01',
-					'content-type': 'application/json'
-				},
-				body: JSON.stringify({
-					model: 'claude-haiku-4-5',
-					max_tokens: 10,
-					messages: [{ role: 'user', content: 'Hi' }]
-				})
-			});
-			return response.ok;
-		} catch {
-			return false;
-		}
+	checkConnection(): Promise<ConnectionCheck> {
+		// Listing models costs nothing; the check used to spend a real completion.
+		return checkEndpoint('https://api.anthropic.com/v1/models', {
+			'x-api-key': this.getApiKey(),
+			'anthropic-version': '2023-06-01'
+		}, 'Anthropic');
 	}
 
 	async *chat(request: ChatRequest): AsyncIterable<ChatChunk> {
 		const apiKey = this.getApiKey();
 		if (!apiKey) {
-			yield { content: '⚠️ Anthropic API key not configured. Run **Sirius: Set API Key** from the command palette.', done: true };
+			yield { content: '⚠️ No Anthropic API key. Add Anthropic in **Manage Models** (or **Sirius: Set API Key**).', done: true };
 			return;
 		}
 
@@ -322,7 +308,7 @@ export class AnthropicProvider implements IAIProvider {
 		switch (response.status) {
 			case 401:
 			case 403:
-				return '⚠️ Anthropic rejected the API key. Run **Sirius: Set API Key** to enter a new one.';
+				return '⚠️ Anthropic rejected the API key. Change it in **Manage Models** — Configure on the provider\'s row.';
 			case 404:
 				return `⚠️ Anthropic does not recognise that model. Pick another with **Sirius: Select AI Model**. (${message})`;
 			case 429: {

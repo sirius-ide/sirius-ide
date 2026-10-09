@@ -5,8 +5,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { IAIProvider, SiriusModel, ChatRequest, ChatChunk, ChatMessage, ProviderType, ThinkingConfig, ThinkingEffort, ToolDefinition, SIRIUS_SYSTEM_PROMPT } from '../types';
-import { SiriusSecretStore, KEYED_PROVIDERS, OPTIONAL_KEY_PROVIDERS, PROVIDER_LABELS } from '../auth/secretStore';
+import { IAIProvider, KeySource, SiriusModel, ChatRequest, ChatChunk, ChatMessage, ProviderType, ThinkingConfig, ThinkingEffort, ToolDefinition, SIRIUS_SYSTEM_PROMPT } from '../types';
+import { KEYED_PROVIDERS, PROVIDER_LABELS } from '../auth/secretStore';
+import { ProviderConnection, knownModel, providerOf, siriusModels, vendorOf } from '../lm/vendors';
+import { selectDefaultModel } from '../lm/defaultModel';
+
+/** The editor's Language Models editor; Sirius links to it wherever providers are set up. */
+export const MANAGE_MODELS_COMMAND = 'workbench.action.chat.manage';
+
+/** Providers whose endpoint is asked for when one is added; the value is the usual one. */
+const DEFAULT_URLS: Partial<Record<ProviderType, string>> = {
+	ollama: 'http://localhost:11434',
+	lmstudio: 'http://localhost:1234/v1',
+	llamacpp: 'http://localhost:8080/v1',
+	custom: ''
+};
 import { GeminiProvider } from './geminiProvider';
 import { AnthropicProvider } from './anthropicProvider';
 import { OpenAICompatibleProvider, OPENAI_COMPATIBLE_ENDPOINTS } from './openaiCompatible';
@@ -30,91 +43,45 @@ export const PROVIDER_COLORS: Record<ProviderType, string> = {
 	custom: '#9ca3af'       // Slate
 };
 
+/** A key for exactly one provider — what one configured provider group carries. */
+class ConnectionKeys implements KeySource {
+	constructor(private readonly provider: ProviderType, private readonly key = '') { }
+	get(provider: ProviderType): string {
+		return provider === this.provider ? this.key : '';
+	}
+	has(provider: ProviderType): boolean {
+		return this.get(provider).length > 0;
+	}
+}
+
 /**
- * Central router that manages all AI providers and routes requests
- * to the appropriate provider based on user configuration.
+ * Builds provider instances and sends requests through them, and runs the two Sirius
+ * commands for choosing a model and adding a key. Which providers are set up is no longer
+ * kept here: each is a vendor in the editor's Language Models, and its key and endpoint
+ * arrive with the request (lm/languageModelProvider.ts).
  */
 export class ModelRouter {
-	private providers: Map<ProviderType, IAIProvider>;
-	private _onModelChanged = new vscode.EventEmitter<SiriusModel>();
+	private _onModelChanged = new vscode.EventEmitter<vscode.LanguageModelChat>();
 	readonly onModelChanged = this._onModelChanged.event;
 
-	constructor(private readonly secrets: SiriusSecretStore) {
-		this.providers = new Map();
-		this.providers.set('anthropic', new AnthropicProvider(secrets));
-		this.providers.set('gemini', new GeminiProvider(secrets));
-		this.providers.set('ollama', new OllamaProvider());
-
-		// Everything OpenAI-shaped comes from one adapter and one table.
-		for (const endpoint of OPENAI_COMPATIBLE_ENDPOINTS) {
-			this.providers.set(endpoint.id, new OpenAICompatibleProvider(endpoint, secrets));
-		}
-	}
-
-	// ─── Provider Access ─────────────────────────────────────────────────────
-
-	getAllProviders(): IAIProvider[] {
-		return Array.from(this.providers.values());
-	}
-
-	getProvider(id: ProviderType): IAIProvider | undefined {
-		return this.providers.get(id);
-	}
-
-	getDefaultProvider(): IAIProvider {
-		const config = vscode.workspace.getConfiguration('sirius.ai');
-		const providerId = config.get<ProviderType>('defaultProvider', 'gemini');
-		return this.providers.get(providerId) || this.providers.get('gemini')!;
-	}
-
-	// ─── Model Access ────────────────────────────────────────────────────────
-
-	getDefaultModel(): SiriusModel {
-		const config = vscode.workspace.getConfiguration('sirius.ai');
-		const modelId = config.get<string>('defaultModel', 'claude-opus-5');
-
-		return this.findModel(modelId)
-			?? this.getDefaultProvider().models[0]
-			// Providers that discover their models start empty, so fall back to
-			// anything statically known rather than returning undefined.
-			?? this.getAllModels()[0];
-	}
-
-	findModel(modelId: string): SiriusModel | undefined {
-		for (const provider of this.providers.values()) {
-			const model = provider.models.find(m => m.id === modelId);
-			if (model) { return model; }
-		}
-		return undefined;
-	}
-
-	getProviderForModel(modelId: string): IAIProvider | undefined {
-		for (const provider of this.providers.values()) {
-			if (provider.models.some(m => m.id === modelId)) {
-				return provider;
+	/**
+	 * A provider instance for one connection: a configured provider group (its key, its
+	 * endpoint), or — with none — a local server at its usual endpoint.
+	 */
+	createProvider(id: ProviderType, connection?: ProviderConnection): IAIProvider {
+		const keys = new ConnectionKeys(id, connection?.apiKey);
+		switch (id) {
+			case 'anthropic': return new AnthropicProvider(keys);
+			case 'gemini': return new GeminiProvider(keys);
+			case 'ollama': return new OllamaProvider(connection?.url);
+			default: {
+				const endpoint = OPENAI_COMPATIBLE_ENDPOINTS.find(candidate => candidate.id === id);
+				if (!endpoint) {
+					throw new Error(`Unknown provider: ${id}`);
+				}
+				return new OpenAICompatibleProvider(endpoint, keys, connection?.url);
 			}
 		}
-		return undefined;
-	}
-
-	getAllModels(): SiriusModel[] {
-		const allModels: SiriusModel[] = [];
-		for (const provider of this.providers.values()) {
-			allModels.push(...provider.models);
-		}
-		return allModels;
-	}
-
-	getModelsGroupedByProvider(): Map<string, SiriusModel[]> {
-		const grouped = new Map<string, SiriusModel[]>();
-		for (const provider of this.providers.values()) {
-			grouped.set(provider.name, provider.models);
-		}
-		return grouped;
-	}
-
-	getConfiguredProviders(): IAIProvider[] {
-		return this.getAllProviders().filter(p => p.isConfigured());
 	}
 
 	// ─── Thinking Config ─────────────────────────────────────────────────────
@@ -150,211 +117,138 @@ export class ModelRouter {
 
 	// ─── Model Selection UI ──────────────────────────────────────────────────
 
-	async selectModel(): Promise<SiriusModel | undefined> {
-		const items: (vscode.QuickPickItem & { model?: SiriusModel })[] = [];
-
-		for (const provider of this.providers.values()) {
-			// Provider header
-			items.push({
-				label: provider.name,
-				kind: vscode.QuickPickItemKind.Separator
-			});
-
-			const isConfigured = provider.isConfigured();
-
-			// Image-generation models cannot chat; picking one as the default sent
-			// every request to a model that cannot answer.
-			for (const model of provider.models.filter(m => !m.supportsImageGen)) {
-				const currentModel = this.getDefaultModel();
-				const isActive = currentModel.id === model.id;
-				const badges: string[] = [];
-				if (model.supportsThinking) { badges.push('🧠'); }
-				if (model.supportsVision) { badges.push('👁️'); }
-
-				items.push({
-					label: `${isActive ? '$(star-full) ' : ''}${model.name} ${badges.join('')}`,
-					description: isConfigured ? model.id : '(API key not set)',
-					detail: model.description,
-					model
-				});
+	/**
+	 * Sirius: Select AI Model — the default for commit messages, for a chat that names no
+	 * model, and for the status bar. Every model the editor has from Sirius, by provider.
+	 */
+	async selectModel(): Promise<vscode.LanguageModelChat | undefined> {
+		const models = await siriusModels();
+		if (models.length === 0) {
+			const manage = 'Manage Models';
+			if (await vscode.window.showInformationMessage('No model yet: add a provider and its key, or start Ollama.', manage) === manage) {
+				await vscode.commands.executeCommand(MANAGE_MODELS_COMMAND);
 			}
+			return undefined;
 		}
-
-		// Ask every configured provider what it actually serves. Local runtimes and
-		// gateways both change underneath us, so a static list goes stale fast.
-		const configured = this.getConfiguredProviders();
-		const discovered = await Promise.all(
-			configured.map(async provider => {
-				try {
-					return { provider, models: await provider.getAvailableModels() };
-				} catch {
-					return { provider, models: [] as SiriusModel[] };
-				}
-			})
-		);
-
-		for (const { provider, models } of discovered) {
-			const fresh = models.filter(m => !provider.models.some(known => known.id === m.id));
-			if (fresh.length === 0) { continue; }
-
-			items.push({ label: `${provider.name} — detected`, kind: vscode.QuickPickItemKind.Separator });
-			for (const model of fresh) {
-				items.push({
-					label: model.name,
-					description: model.id,
-					detail: model.description,
-					model
-				});
+		const current = await selectDefaultModel();
+		type ModelPick = vscode.QuickPickItem & { model?: vscode.LanguageModelChat };
+		const items: ModelPick[] = [];
+		let group: ProviderType | undefined;
+		for (const model of models) {
+			const provider = providerOf(model.vendor)!;
+			if (provider !== group) {
+				items.push({ label: PROVIDER_LABELS[provider], kind: vscode.QuickPickItemKind.Separator });
+				group = provider;
 			}
+			const known = knownModel(model);
+			const badges = `${known?.supportsThinking ? '🧠' : ''}${known?.supportsVision ? '👁️' : ''}`;
+			const isCurrent = current?.vendor === model.vendor && current.id === model.id;
+			items.push({ label: `${isCurrent ? '$(star-full) ' : ''}${model.name} ${badges}`.trim(), description: model.id, detail: known?.description, model });
 		}
-
-		const selected = await vscode.window.showQuickPick(items, {
-			title: '✨ Select AI Model',
-			placeHolder: 'Choose a model from any provider... (🧠=Thinking 👁️=Vision)',
-			matchOnDescription: true,
-			matchOnDetail: true
-		});
-
-		if (selected?.model) {
-			const config = vscode.workspace.getConfiguration('sirius.ai');
-			await config.update('defaultProvider', selected.model.provider, vscode.ConfigurationTarget.Global);
-			await config.update('defaultModel', selected.model.id, vscode.ConfigurationTarget.Global);
-			this._onModelChanged.fire(selected.model);
-
-			vscode.window.showInformationMessage(`✨ Sirius AI now using ${selected.model.name}`);
-			return selected.model;
+		const selected = await vscode.window.showQuickPick(items, { title: 'Select AI Model', placeHolder: 'The default for commit messages and the status bar' });
+		if (!selected?.model) {
+			return undefined;
 		}
-		return undefined;
+		const config = vscode.workspace.getConfiguration('sirius.ai');
+		await config.update('defaultProvider', providerOf(selected.model.vendor), vscode.ConfigurationTarget.Global);
+		await config.update('defaultModel', selected.model.id, vscode.ConfigurationTarget.Global);
+		this._onModelChanged.fire(selected.model);
+		return selected.model;
 	}
 
 	// ─── API Key Setup ───────────────────────────────────────────────────────
 
+	/**
+	 * Sirius: Set API Key — adds a provider to the editor's Language Models, its key going
+	 * to the system keyring there. Changing or removing one is the Language Models
+	 * editor's Configure and Delete, so a provider already added opens it.
+	 */
 	async setApiKey(): Promise<void> {
-		type ProviderPick = vscode.QuickPickItem & { provider: ProviderType };
-
-		const items: ProviderPick[] = KEYED_PROVIDERS.map(provider => ({
-			label: PROVIDER_LABELS[provider],
-			description: this.secrets.has(provider) ? '$(key) key stored' : 'no key set',
-			provider
-		}));
-		for (const provider of OPTIONAL_KEY_PROVIDERS) {
-			items.push({
-				label: PROVIDER_LABELS[provider],
-				description: this.secrets.has(provider) ? '$(key) key stored' : 'optional — only if your server requires a key',
-				provider
-			});
-		}
-		items.push({
-			label: PROVIDER_LABELS.ollama,
-			description: 'no key needed — runs locally',
-			provider: 'ollama'
-		});
-
-		const selected = await vscode.window.showQuickPick(items, {
-			title: '🔑 Set API Key',
-			placeHolder: 'Choose a provider to configure...'
-		});
-		if (!selected) { return; }
-
-		if (selected.provider === 'ollama') {
-			const config = vscode.workspace.getConfiguration('sirius.ai.ollama');
-			const endpoint = await vscode.window.showInputBox({
-				title: 'Ollama Endpoint',
-				value: config.get<string>('endpoint', 'http://localhost:11434'),
-				prompt: 'Enter your Ollama server endpoint',
-				ignoreFocusOut: true
-			});
-			if (endpoint) {
-				await config.update('endpoint', endpoint, vscode.ConfigurationTarget.Global);
-				vscode.window.showInformationMessage('✅ Ollama endpoint configured.');
-			}
+		type ProviderPick = vscode.QuickPickItem & { provider?: ProviderType };
+		const items: ProviderPick[] = [
+			...KEYED_PROVIDERS.map(provider => ({ label: PROVIDER_LABELS[provider], description: 'API key', provider })),
+			...(['lmstudio', 'llamacpp', 'custom'] as const).map(provider => ({ label: PROVIDER_LABELS[provider], description: 'endpoint, and a key if your server needs one', provider })),
+			{ label: PROVIDER_LABELS.ollama, description: 'another Ollama host — the local one is found automatically', provider: 'ollama' as ProviderType },
+			{ label: '', kind: vscode.QuickPickItemKind.Separator },
+			{ label: '$(gear) Manage Models…', description: 'change or remove a provider, hide models' }
+		];
+		const selected = await vscode.window.showQuickPick(items, { title: 'Set API Key', placeHolder: 'Add a provider' });
+		if (!selected) {
 			return;
 		}
-
+		if (!selected.provider) {
+			await vscode.commands.executeCommand(MANAGE_MODELS_COMMAND);
+			return;
+		}
 		const provider = selected.provider;
 		const label = PROVIDER_LABELS[provider];
+		const configuration: Record<string, string> = {};
 
-		if (this.secrets.has(provider)) {
-			const action = await vscode.window.showQuickPick(
-				[
-					{ label: 'Replace key', detail: `Enter a new ${label} key` },
-					{ label: 'Remove key', detail: `Delete the ${label} key from the system keyring` }
-				],
-				{ title: `${label} — a key is already stored`, placeHolder: 'What would you like to do?' }
-			);
-
-			if (!action) { return; }
-			if (action.label === 'Remove key') {
-				await this.secrets.delete(provider);
-				vscode.window.showInformationMessage(`Removed the ${label} key from the system keyring.`);
+		const defaultUrl = DEFAULT_URLS[provider];
+		if (defaultUrl !== undefined) {
+			const url = await vscode.window.showInputBox({ title: `${label} — endpoint`, value: defaultUrl, prompt: 'The server\'s base URL', ignoreFocusOut: true });
+			if (!url?.trim()) {
 				return;
+			}
+			configuration.url = url.trim();
+		}
+		if (provider !== 'ollama') {
+			const required = KEYED_PROVIDERS.includes(provider);
+			const apiKey = await vscode.window.showInputBox({
+				title: `${label} API Key`,
+				password: true,
+				prompt: required ? 'Stored in the system keyring — never written to settings.json' : 'Optional — leave empty if your server needs none. Stored in the system keyring.',
+				ignoreFocusOut: true
+			});
+			if (apiKey === undefined || (required && !apiKey.trim())) {
+				return;
+			}
+			if (apiKey.trim()) {
+				configuration.apiKey = apiKey.trim();
 			}
 		}
 
-		const apiKey = await vscode.window.showInputBox({
-			title: `${label} API Key`,
-			password: true,
-			prompt: 'Stored in the system keyring — never written to settings.json',
-			ignoreFocusOut: true
-		});
-		if (!apiKey?.trim()) { return; }
-
-		await this.secrets.set(provider, apiKey);
-		vscode.window.showInformationMessage(`✅ ${label} key saved to the system keyring.`);
+		try {
+			await vscode.commands.executeCommand('lm.addLanguageModelsProviderGroup', { vendor: vendorOf(provider), name: label, ...configuration });
+			vscode.window.showInformationMessage(`${label} added — its models are in the chat's model picker.`);
+		} catch (error) {
+			const manage = 'Manage Models';
+			const already = /already exists/i.test(String(error));
+			const message = already
+				? `${label} is already set up. Change its key or endpoint, or remove it, in Manage Models.`
+				: `Could not add ${label}: ${error instanceof Error ? error.message : String(error)}`;
+			if (await vscode.window.showWarningMessage(message, manage) === manage) {
+				await vscode.commands.executeCommand(MANAGE_MODELS_COMMAND);
+			}
+		}
 	}
 
 	// ─── Chat Routing ────────────────────────────────────────────────────────
 
-	async *chat(
-		messages: ChatMessage[],
-		modelId?: string,
-		tools?: ToolDefinition[]
-	): AsyncIterable<ChatChunk> {
-		const config = vscode.workspace.getConfiguration('sirius.ai');
-		const targetModelId = modelId || config.get<string>('defaultModel', 'claude-opus-5');
-
-		// A model discovered at runtime has no statically known provider, so fall
-		// back to Ollama, which is the only provider that serves unlisted ids.
-		const provider = this.getProviderForModel(targetModelId) ?? this.providers.get('ollama')!;
-
-		yield* this._send(provider, targetModelId, messages, tools);
-	}
-
-	/**
-	 * Send to an explicitly chosen provider.
-	 *
-	 * The language-model bridge namespaces ids as `provider/model` to keep them
-	 * unique across twelve providers, so it resolves the provider itself rather
-	 * than searching for a model id that may be served by several of them.
-	 */
-	async *chatWithProvider(
-		providerId: ProviderType,
-		modelId: string,
+	/** Send through one provider instance, to a model discovery described. */
+	async *chatWithModel(
+		provider: IAIProvider,
+		model: SiriusModel,
 		messages: ChatMessage[],
 		tools?: ToolDefinition[]
 	): AsyncIterable<ChatChunk> {
-		const provider = this.providers.get(providerId);
-		if (!provider) {
-			yield { content: `⚠️ Unknown provider: ${providerId}`, done: true, stopReason: 'error' };
-			return;
-		}
-
-		yield* this._send(provider, modelId, messages, tools);
+		yield* this._send(provider, model, messages, tools);
 	}
 
 	private async *_send(
 		provider: IAIProvider,
-		modelId: string,
+		model: SiriusModel,
 		messages: ChatMessage[],
 		tools?: ToolDefinition[]
 	): AsyncIterable<ChatChunk> {
 		const config = vscode.workspace.getConfiguration('sirius.ai');
+		const modelId = model.id;
 
-		// Thinking is only requested where the model actually supports it.
-		const model = provider.models.find(m => m.id === modelId) ?? this.findModel(modelId);
+		// Thinking is only requested where the model actually supports it — what
+		// discovery learnt, which the static lists never knew for a local model.
 		const thinkingConfig = this.getThinkingConfig();
 		const thinking: ThinkingConfig | undefined =
-			model?.supportsThinking && thinkingConfig.enabled ? thinkingConfig : undefined;
+			model.supportsThinking && thinkingConfig.enabled ? thinkingConfig : undefined;
 
 		const request: ChatRequest = {
 			messages,

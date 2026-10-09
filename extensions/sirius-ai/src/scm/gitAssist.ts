@@ -65,7 +65,7 @@ async function generateCommitMessage(...args: unknown[]): Promise<void> {
 
 	const model = await selectDefaultModel();
 	if (!model) {
-		vscode.window.showWarningMessage('Sirius: no model available — add a provider key with "Sirius: Set API Key", or start Ollama.');
+		vscode.window.showWarningMessage('Sirius: no model available — add a provider in "Sirius: Manage Models", or start Ollama.');
 		return;
 	}
 

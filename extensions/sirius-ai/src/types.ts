@@ -4,6 +4,8 @@
  *  Licensed under the MIT License.
  *--------------------------------------------------------------------------------------------*/
 
+import type { ConnectionCheck } from './providers/connection';
+
 // ─── Thinking / Effort ───────────────────────────────────────────────────────
 
 /**
@@ -248,6 +250,15 @@ export interface ContextBlock {
 /**
  * Interface that all AI providers must implement
  */
+/**
+ * Where a provider instance finds its key: one configured provider in the Language Models
+ * editor (its key from the system keyring), or nothing for a local server.
+ */
+export interface KeySource {
+	get(provider: ProviderType): string;
+	has(provider: ProviderType): boolean;
+}
+
 export interface IAIProvider {
 	readonly id: ProviderType;
 	readonly name: string;
@@ -259,9 +270,9 @@ export interface IAIProvider {
 	isConfigured(): boolean;
 
 	/**
-	 * Validate the API key / connection
+	 * Check the key and the endpoint with one cheap request, and say what went wrong.
 	 */
-	validateConnection(): Promise<boolean>;
+	checkConnection(): Promise<ConnectionCheck>;
 
 	/**
 	 * Send a chat request and get streaming response

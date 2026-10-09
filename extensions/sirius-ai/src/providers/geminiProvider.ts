@@ -4,8 +4,8 @@
  *  Licensed under the MIT License.
  *--------------------------------------------------------------------------------------------*/
 
-import { SiriusSecretStore } from '../auth/secretStore';
-import { IAIProvider, SiriusModel, ChatRequest, ChatChunk, ChatMessage, ImagePart, ProviderType, ImageGenRequest, ImageGenResult, StopReason, ToolCallRequest } from '../types';
+import { IAIProvider, KeySource, SiriusModel, ChatRequest, ChatChunk, ChatMessage, ImagePart, ProviderType, ImageGenRequest, ImageGenResult, StopReason, ToolCallRequest } from '../types';
+import { ConnectionCheck, checkEndpoint } from './connection';
 
 /**
  * The key travels in the `x-goog-api-key` header, not the `?key=` query
@@ -118,7 +118,7 @@ export class GeminiProvider implements IAIProvider {
 		}
 	];
 
-	constructor(private readonly secrets: SiriusSecretStore) { }
+	constructor(private readonly secrets: KeySource) { }
 
 	private getApiKey(): string {
 		return this.secrets.get('gemini');
@@ -128,23 +128,14 @@ export class GeminiProvider implements IAIProvider {
 		return this.getApiKey().length > 0;
 	}
 
-	async validateConnection(): Promise<boolean> {
-		try {
-			const apiKey = this.getApiKey();
-			const response = await fetch(
-				'https://generativelanguage.googleapis.com/v1beta/models',
-				{ headers: { 'x-goog-api-key': apiKey } }
-			);
-			return response.ok;
-		} catch {
-			return false;
-		}
+	checkConnection(): Promise<ConnectionCheck> {
+		return checkEndpoint('https://generativelanguage.googleapis.com/v1beta/models', { 'x-goog-api-key': this.getApiKey() }, 'Gemini');
 	}
 
 	async *chat(request: ChatRequest): AsyncIterable<ChatChunk> {
 		const apiKey = this.getApiKey();
 		if (!apiKey) {
-			yield { content: '⚠️ Gemini API key not configured. Run **Sirius: Set API Key** from the command palette.', done: true };
+			yield { content: '⚠️ No Gemini API key. Add Google Gemini in **Manage Models** (or **Sirius: Set API Key**).', done: true };
 			return;
 		}
 

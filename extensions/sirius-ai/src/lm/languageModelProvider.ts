@@ -5,11 +5,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { ChatMessage, ImagePart, ProviderType, SiriusModel, ToolCallRequest, ToolCallResult, ToolDefinition } from '../types';
+import { ChatMessage, IAIProvider, ImagePart, ProviderType, SiriusModel, ToolCallRequest, ToolCallResult, ToolDefinition } from '../types';
 import { ModelRouter } from '../providers/modelRouter';
-
-/** The vendor Sirius registers under. Must match `languageModelChatProviders` in package.json. */
-export const SIRIUS_VENDOR = 'sirius';
+import { PROVIDER_LABELS } from '../auth/secretStore';
+import { LOCAL_PROVIDERS, ProviderConnection, rememberConnection, rememberModel, vendorOf } from './vendors';
 
 /**
  * Discovery is fanned out across every configured provider, so one unreachable
@@ -17,15 +16,6 @@ export const SIRIUS_VENDOR = 'sirius';
  * not stall the model picker for the rest.
  */
 const DISCOVERY_TIMEOUT_MS = 4000;
-
-/**
- * Order providers appear as groups in the model picker. Anything unlisted sorts
- * after these.
- */
-const CATEGORY_ORDER: readonly ProviderType[] = [
-	'anthropic', 'gemini', 'openai', 'openrouter', 'groq',
-	'deepseek', 'mistral', 'xai', 'ollama', 'lmstudio', 'llamacpp', 'custom'
-];
 
 /** Resolve with `fallback` if the work has not finished in time. */
 async function withTimeout<T>(work: Promise<T>, ms: number, fallback: T): Promise<T> {
@@ -43,43 +33,57 @@ async function withTimeout<T>(work: Promise<T>, ms: number, fallback: T): Promis
 }
 
 /**
- * Model ids must be unique across the whole provider, and twelve providers can
- * easily serve the same name — OpenRouter and Groq both offer Llama, Ollama and
- * LM Studio both offer Qwen. Namespacing by provider keeps them distinct and
- * lets a request resolve its provider without searching.
+ * The model information handed to the editor. The editor keeps the object and passes it
+ * back with every request, so it carries what that request needs: which provider, which
+ * configured connection (key and endpoint), and what discovery learnt about the model.
  */
-function toLmId(provider: ProviderType, modelId: string): string {
-	return `${provider}/${modelId}`;
-}
-
-export function fromLmId(id: string): { provider: ProviderType; modelId: string } {
-	const slash = id.indexOf('/');
-	if (slash === -1) {
-		return { provider: 'ollama', modelId: id };
-	}
-	return {
-		provider: id.slice(0, slash) as ProviderType,
-		modelId: id.slice(slash + 1)
+interface SiriusModelInformation extends vscode.LanguageModelChatInformation {
+	readonly sirius: {
+		readonly provider: ProviderType;
+		readonly connection: ProviderConnection | undefined;
+		readonly model: SiriusModel;
 	};
 }
 
+/** A configured provider group's values, as the editor resolves them (the key from the keyring). */
+function toConnection(configuration: Record<string, unknown> | undefined): ProviderConnection | undefined {
+	if (!configuration) {
+		return undefined;
+	}
+	const text = (value: unknown) => typeof value === 'string' && value.trim() ? value.trim() : undefined;
+	return { apiKey: text(configuration.apiKey), url: text(configuration.url) };
+}
+
 /**
- * Exposes every Sirius provider through the editor's own language-model API.
+ * One Sirius provider, exposed through the editor's own language-model API.
  *
  * This is the seam Copilot Chat plugs into, and it is stable API at this fork
  * point. Registering here means upstream's chat view, agent mode, inline chat,
  * multi-file editing with checkpoints and MCP tools all start working against
  * Claude, Gemini, GPT, Ollama and everything else Sirius can reach — instead of
  * being reimplemented in a bespoke webview that has to be maintained forever.
+ *
+ * The editor asks each vendor once with no configuration and once per configured
+ * provider group. A hosted provider answers only for a group — its key lives there; a
+ * local server also answers unconfigured, at its usual port, so Ollama users configure
+ * nothing. A configured group is checked first, and a rejected key or a server that does
+ * not answer is thrown: the Language Models editor shows it as that provider's red row.
  */
-export class SiriusLanguageModelProvider implements vscode.LanguageModelChatProvider {
+export class SiriusLanguageModelProvider implements vscode.LanguageModelChatProvider<SiriusModelInformation> {
 
 	private readonly _onDidChange = new vscode.EventEmitter<void>();
 	readonly onDidChangeLanguageModelChatInformation = this._onDidChange.event;
 
-	constructor(private readonly router: ModelRouter) { }
+	/** One instance per connection, so a provider's caches (Ollama's model sizes) outlive one call. */
+	private readonly _instances = new Map<string, IAIProvider>();
 
-	/** Re-advertise models, e.g. after a key is added or a local server starts. */
+	constructor(private readonly router: ModelRouter, readonly providerId: ProviderType) { }
+
+	get vendor(): string {
+		return vendorOf(this.providerId);
+	}
+
+	/** Re-advertise models, e.g. after a setting changed or a local server started. */
 	refresh(): void {
 		this._onDidChange.fire();
 	}
@@ -88,129 +92,103 @@ export class SiriusLanguageModelProvider implements vscode.LanguageModelChatProv
 		this._onDidChange.dispose();
 	}
 
-	/**
-	 * Every model the editor was last told about, by its lm id.
-	 *
-	 * The router only knows the static lists; local runtimes are discovered here
-	 * and nowhere else, so this is the one place a discovered Ollama model's
-	 * `sizeBytes` can be looked up afterwards. The agent uses it to pick a tool
-	 * tier — the context window alone cannot tell a 1.5B from a 32B.
-	 */
-	private readonly _known = new Map<string, SiriusModel>();
-
-	getKnownModel(lmId: string): SiriusModel | undefined {
-		return this._known.get(lmId);
+	private _instance(connection: ProviderConnection | undefined): IAIProvider {
+		const key = JSON.stringify(connection ?? {});
+		let instance = this._instances.get(key);
+		if (!instance) {
+			instance = this.router.createProvider(this.providerId, connection);
+			this._instances.set(key, instance);
+		}
+		return instance;
 	}
 
 	// ─── Model discovery ─────────────────────────────────────────────────────
 
 	async provideLanguageModelChatInformation(
-		_options: { readonly silent: boolean },
+		options: vscode.PrepareLanguageModelChatModelOptions,
 		token: vscode.CancellationToken
-	): Promise<vscode.LanguageModelChatInformation[]> {
-		const providers = this.router.getConfiguredProviders();
+	): Promise<SiriusModelInformation[]> {
+		const connection = toConnection((options as { configuration?: Record<string, unknown> }).configuration);
+		if (!connection && !LOCAL_PROVIDERS.has(this.providerId)) {
+			return []; // a hosted provider, or Custom, is nothing until it is configured
+		}
+		const provider = this._instance(connection);
+
+		if (connection) {
+			rememberConnection(this.providerId, connection);
+			const check = await provider.checkConnection();
+			if (!check.ok) {
+				throw new Error(check.problem);
+			}
+		}
 
 		// Discovery runs even in silent mode. `silent` means "do not prompt the
-		// user for credentials", and discovery never prompts — it only uses keys
-		// already stored. Skipping it would hide every local runtime, since Ollama
-		// and LM Studio have no static model list at all and are entirely
-		// discovered.
-		const resolved = await Promise.all(providers.map(async provider => {
-			const discovered = await withTimeout(
-				provider.getAvailableModels().catch(() => [] as SiriusModel[]),
-				DISCOVERY_TIMEOUT_MS,
-				[] as SiriusModel[]
-			);
-			return {
-				provider,
-				models: discovered.length > 0 ? discovered : provider.models
-			};
-		}));
-
+		// user for credentials", and discovery never prompts.
+		const discovered = await withTimeout(provider.getAvailableModels().catch(() => [] as SiriusModel[]), DISCOVERY_TIMEOUT_MS, [] as SiriusModel[]);
 		if (token.isCancellationRequested) {
 			return [];
 		}
+		// Image-generation models cannot chat. Offering them put two Imagen entries
+		// in the editor's model picker that failed on the first message.
+		const models = (discovered.length > 0 ? discovered : provider.models).filter(model => !model.supportsImageGen);
 
-		this._known.clear();
-		const described = resolved.flatMap(({ provider, models }) =>
-			models
-				// Image-generation models cannot chat. Offering them here put two
-				// Imagen entries in the editor's model picker that failed on the
-				// first message.
-				.filter(model => !model.supportsImageGen)
-				.map(model => {
-					this._known.set(toLmId(provider.id, model.id), model);
-					return this._describe(provider.id, provider.name, model);
-				})
-		);
-
-		// The panel's "Auto" resolves to whichever model is marked default; with
-		// none marked, every auto-routed request dies with "Language model
-		// unavailable". Prefer the configured default, else the first model.
-		if (described.length > 0) {
-			const config = vscode.workspace.getConfiguration('sirius.ai');
-			const wantedModel = config.get<string>('defaultModel', '');
-			const wantedProvider = config.get<string>('defaultProvider', '');
-			const pick =
-				described.find(m => m.id.endsWith(`/${wantedModel}`)) ??
-				described.find(m => m.id.startsWith(`${wantedProvider}/`)) ??
-				described[0];
-			const index = described.indexOf(pick);
-			described[index] = { ...pick, isDefault: true };
-		}
+		const config = vscode.workspace.getConfiguration('sirius.ai');
+		const isDefaultProvider = config.get<string>('defaultProvider', '') === this.providerId;
+		const wanted = config.get<string>('defaultModel', '');
+		const defaultId = isDefaultProvider ? (models.find(model => model.id === wanted) ?? models[0])?.id : undefined;
 
 		// The walkthrough's "Connect a model" step completes on this: a model is
-		// reachable, through a stored key or a local runtime, whichever way the
-		// user connected it.
-		void vscode.commands.executeCommand('setContext', 'sirius.ai.modelAvailable', described.length > 0);
+		// reachable, through a configured provider or a local runtime.
+		if (models.length > 0) {
+			void vscode.commands.executeCommand('setContext', 'sirius.ai.modelAvailable', true);
+		}
 
-		return described;
+		return models.map(model => {
+			rememberModel(this.vendor, model);
+			return this._describe(model, connection, model.id === defaultId);
+		});
 	}
 
-	private _describe(providerId: ProviderType, providerName: string, model: SiriusModel): vscode.LanguageModelChatInformation {
-		const order = CATEGORY_ORDER.indexOf(providerId);
-
+	private _describe(model: SiriusModel, connection: ProviderConnection | undefined, isDefault: boolean): SiriusModelInformation {
 		return {
-			id: toLmId(providerId, model.id),
+			id: model.id,
 			name: model.name,
 			// Family drives model selectors, so it names the provider rather than
 			// the model — `family: 'anthropic'` should match every Claude model.
-			family: providerId,
+			family: this.providerId,
 			version: '1.0.0',
 			maxInputTokens: model.contextWindow,
 			maxOutputTokens: model.maxOutputTokens ?? 8192,
 			tooltip: model.description,
-			detail: providerName,
+			// A configured group's name stands in when there is no detail, so two
+			// OpenAI-compatible servers stay apart; a local default shows the provider.
+			detail: connection ? undefined : PROVIDER_LABELS[this.providerId],
 			// Without this a model is known to the editor but never offered in the
-			// chat model picker, which then renders an inert "Auto" entry because
-			// it believes no models exist.
+			// chat model picker.
 			isUserSelectable: true,
-			// Group by provider, so twelve providers stay navigable.
-			category: {
-				label: providerName,
-				order: order === -1 ? CATEGORY_ORDER.length : order
-			},
+			isDefault,
 			capabilities: {
 				imageInput: model.supportsVision,
 				toolCalling: true
-			}
+			},
+			sirius: { provider: this.providerId, connection, model }
 		};
 	}
 
 	// ─── Requests ────────────────────────────────────────────────────────────
 
 	async provideLanguageModelChatResponse(
-		model: vscode.LanguageModelChatInformation,
+		model: SiriusModelInformation,
 		messages: readonly vscode.LanguageModelChatRequestMessage[],
 		options: vscode.ProvideLanguageModelChatResponseOptions,
 		progress: vscode.Progress<vscode.LanguageModelResponsePart>,
 		token: vscode.CancellationToken
 	): Promise<void> {
-		const { provider, modelId } = fromLmId(model.id);
 		const converted = withVisionGuard(this._toChatMessages(messages), model.capabilities?.imageInput === true);
 		const tools = this._toToolDefinitions(options.tools);
+		const provider = this._instance(model.sirius.connection);
 
-		for await (const chunk of this.router.chatWithProvider(provider, modelId, converted, tools)) {
+		for await (const chunk of this.router.chatWithModel(provider, model.sirius.model, converted, tools)) {
 			if (token.isCancellationRequested) {
 				return;
 			}
