@@ -27,13 +27,15 @@ from Open VSX, your settings — works without one.
 
 2. **Give it a model** — one of two ways.
 
-   **A provider key.** Open the Command Palette (<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd>)
-   and run **Sirius: Set API Key**. Pick the provider — Anthropic Claude, Google Gemini,
-   OpenAI, OpenRouter, Groq, DeepSeek, Mistral or xAI Grok — and paste the key into the
-   password field. The prompt says where it goes: *stored in the system keyring — never
-   written to settings.json*. A toast confirms *✅ Anthropic Claude key saved to the system
-   keyring*, and the provider's models appear at once; no reload. Sirius does not test the
-   key when you save it — the first message does.
+   **A provider key.** Open **Manage Models** — the gear at the bottom of the chat's model
+   picker, or **Sirius: Manage Models** from the Command Palette
+   (<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd>) — and choose **Add Models…**. Pick the
+   provider — Anthropic, Google Gemini, OpenAI, OpenRouter, Groq, DeepSeek, Mistral or xAI —
+   give it a name, and paste the key into the password box; it goes into the system keyring,
+   never into settings.json. Sirius checks the key with one free request, and the provider's
+   models appear at once; a rejected key shows as a red row saying so. **Sirius: Set API
+   Key** does the same without opening the editor. [Providers and keys](/docs/providers/)
+   has the rest.
 
    **Or a local model.** Install [Ollama](https://ollama.com), then:
 
@@ -46,13 +48,12 @@ from Open VSX, your settings — works without one.
    nothing to configure, no key, and nothing leaves your machine. See
    [Local models](/docs/local-models/) for LM Studio, llama.cpp and vLLM.
 
-3. **Pick the model.** The Command Palette's **Sirius: Select
-   AI Model**: every provider you have configured, with 🧠 for models that can reason and
-   👁️ for models that accept images, then a *detected* group for each local server. The
-   choice becomes the default (`sirius.ai.defaultProvider` and `sirius.ai.defaultModel`),
-   the status bar shows **★ *model name***, and clicking that status item reopens the
-   picker. The chat view has its own model picker too, grouped by provider, for a
-   per-conversation choice.
+3. **Pick the model.** The chat's model picker, in the input, is the per-conversation
+   choice. **Sirius: Select AI Model** sets the default — for commit messages, and for a
+   chat that names no model: every model you have, by provider, with 🧠 for models that can
+   reason and 👁️ for models that accept images. It becomes `sirius.ai.defaultProvider` and
+   `sirius.ai.defaultModel`, the status bar shows **★ *model name***, and clicking that
+   status item reopens the picker.
 
 4. **Say what you want.** Open the chat with <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>I</kbd>
    (or **Sirius: Open AI Chat** from the Command Palette). **Sirius** is the default
@@ -64,9 +65,11 @@ from Open VSX, your settings — works without one.
 
 ## If nothing answers
 
-With neither a key nor a running Ollama, the chat replies: *No model is available yet. Add a
-provider key with **Sirius: Set API Key** (Ctrl+Shift+P), or start Ollama and pull a model —
-Sirius finds it automatically.* A provider without a key is not listed in the picker at all.
+With neither a provider nor a running Ollama, the chat replies: *No model is available yet.
+Add a provider and its key in **Manage Models** (the gear at the bottom of the model picker,
+or **Sirius: Manage Models**), or start Ollama and pull a model — Sirius finds it
+automatically.* A provider you have not added is not listed in the picker at all, and one
+whose check failed shows its reason in Manage Models.
 More cases are in [Troubleshooting](/docs/troubleshooting/).
 
 ## Thinking

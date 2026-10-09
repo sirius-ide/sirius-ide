@@ -1,62 +1,74 @@
 ---
 title: Providers and keys
-description: The twelve providers Sirius speaks to, which need a key, where the keys are kept, and how to point a provider at your own endpoint.
+description: The twelve providers Sirius speaks to, adding them and their keys in Manage Models, where the keys are kept, and your own endpoints.
 sidebar:
   order: 3
 ---
 
 Sirius talks to a provider's API directly from your machine — there is no Sirius account
 and no relay. Eight hosted providers take a key; four local or self-hosted ones take none.
+You add them in the editor's **Language Models** editor — **Manage Models** — where each one
+is a provider of its own.
 
 | Provider | Key | Endpoint | Models |
 | --- | --- | --- | --- |
-| Anthropic Claude | yes | fixed | Claude Opus 5, Fable 5, Sonnet 5, Opus 4.8, Haiku 4.5 |
+| Anthropic | yes | fixed | Claude Opus 5, Fable 5, Sonnet 5, Opus 4.8, Haiku 4.5 |
 | Google Gemini | yes | fixed | Gemini 3.5 Flash, 3.1 Pro, 3.1 Flash Lite; replaced by the live list your key can see |
-| OpenAI | yes | `sirius.ai.openai.baseUrl` (default `https://api.openai.com/v1`) | discovered |
+| OpenAI | yes | `https://api.openai.com/v1`, or a Base URL you give it | discovered |
 | OpenRouter | yes | fixed | discovered |
 | Groq | yes | fixed | discovered |
 | DeepSeek | yes | fixed | discovered |
 | Mistral | yes | fixed | discovered |
-| xAI Grok | yes | fixed | discovered |
-| Ollama (local) | no | `sirius.ai.ollama.endpoint` (default `http://localhost:11434`) | discovered |
-| LM Studio (local) | optional | `sirius.ai.lmstudio.baseUrl` (default `http://localhost:1234/v1`) | discovered |
-| llama.cpp / vLLM (local) | optional | `sirius.ai.llamacpp.baseUrl` (default `http://localhost:8080/v1`) | discovered |
-| Custom OpenAI-compatible | optional | `sirius.ai.custom.baseUrl` (empty until you set it; include the `/v1` suffix) | discovered |
-
-The endpoint settings (`…baseUrl`, `sirius.ai.ollama.endpoint`) are read from your user
-settings only, never from a project's `.vscode/settings.json` — a repository cannot point
-your keys at a server of its choosing.
+| xAI | yes | fixed | discovered |
+| Ollama | no | found at `http://localhost:11434` with nothing added; add another host | discovered |
+| LM Studio | optional | found at `http://localhost:1234/v1` with nothing added; add another server | discovered |
+| llama.cpp / vLLM | optional | found at `http://localhost:8080/v1` with nothing added; add another server | discovered |
+| OpenAI-compatible (custom) | optional | the Base URL you give it, with the `/v1` suffix | discovered |
 
 *Discovered* means Sirius asks the server for its model list (`/models`, or Ollama's
-`/api/tags`) each time it refreshes, so what you see is what the endpoint offers. Every
-provider except Anthropic, Gemini and Ollama is driven through the same OpenAI-compatible
-chat-completions adapter.
+`/api/tags`), so what you see is what the endpoint offers. Every provider except Anthropic,
+Gemini and Ollama is driven through the same OpenAI-compatible chat-completions adapter.
 
-## Setting a key
+## Adding a provider
 
-**Sirius: Set API Key** from the Command Palette. The picker lists the eight keyed providers
-— each marked *key stored* or *no key set* — then LM Studio, llama.cpp / vLLM and the custom
-endpoint, whose key is *optional* (set one only if your server was started with a key — LM
-Studio's authentication, `llama-server --api-key`, `vllm serve --api-key` — or the endpoint is
-a hosted gateway), and Ollama, which needs no key and instead lets you edit its endpoint. Choose a provider, paste the key into the password field, done: the
-key is kept in the editor's secret storage and the provider's models appear immediately.
+Open **Manage Models** — at the bottom of the chat's model picker, **Chat: Manage Language
+Models** in the Command Palette, or **Sirius: Manage Models** — and choose **Add Models…**.
+Pick the provider, give it a name (two of the same provider need different names), and paste
+the key into the password box; LM Studio, llama.cpp and the custom endpoint also ask for the
+server's URL, and their key may be left empty. **Sirius: Set API Key** does the same from the
+Command Palette.
 
-- The key is stored as you typed it (trimmed), not validated. If it is wrong, the first
-  request tells you.
-- If a key already exists you are offered **Replace key** or **Remove key**.
-- A key saved in one window is picked up by the others.
-- Keys are never part of Settings Sync and never written to `settings.json`.
+Sirius then checks the provider with one cheap request — listing its models, which costs
+nothing — and its models appear in the chat's model picker. If the check fails, the provider
+shows as a red row in Manage Models saying which it was: *rejected the API key (HTTP 401)*, or
+*did not answer at …* for a server that is not running or a wrong URL.
 
-Where to get one: [Anthropic](https://console.anthropic.com), [Google](https://ai.google.dev),
+In Manage Models you can also:
+
+- **Configure** a provider — a new key, another URL — or **Delete** it, key and all;
+- add the **same provider twice** — two OpenAI-compatible servers, a second Ollama machine,
+  a work and a personal key — each under its own name;
+- **Hide** a model you never use, so the picker stays short;
+- search and filter by provider, capability or visibility.
+
+Where to get a key: [Anthropic](https://console.anthropic.com), [Google](https://ai.google.dev),
 [OpenAI](https://platform.openai.com/api-keys), [OpenRouter](https://openrouter.ai/keys),
 [Groq](https://console.groq.com/keys), [DeepSeek](https://platform.deepseek.com/api_keys),
 [Mistral](https://console.mistral.ai/api-keys), [xAI](https://console.x.ai).
 
+:::note[Changed in 1.118.12: Manage Models]
+Earlier releases took keys only through **Sirius: Set API Key**, did not check them, and
+listed every provider under one entry; endpoints were settings. On its first start 1.118.12
+moves the keys you had — and a custom or OpenAI endpoint from settings — into Manage Models,
+one provider each, and tells you so. They stay in the system keyring throughout.
+:::
+
 ## Where keys live
 
-Keys go through the editor's secret storage, which encrypts them with the operating
-system's facility and keeps the result in the editor's own database — not in any settings
-file:
+The editor keeps a provider's key in its secret storage, which encrypts it with the operating
+system's facility and keeps the result in the editor's own database — never in a settings
+file, never in `chatLanguageModels.json` (which holds only a reference to it), never in
+Settings Sync:
 
 - **macOS** — the Keychain.
 - **Windows** — DPAPI, the user-account encryption built into Windows.
@@ -71,29 +83,24 @@ file:
 
 Early versions kept keys in `sirius.ai.anthropic.apiKey`, `sirius.ai.gemini.apiKey` and
 `sirius.ai.openai.apiKey`. Those settings are deprecated. On every start, Sirius moves any
-value it still finds there — in user or workspace settings — into the keyring, clears the
-setting, and tells you: *Sirius moved your … API key(s) out of settings.json and into the
-system keyring.* Nothing to do by hand.
+value it still finds there into the keyring, clears the setting, and from there into
+Manage Models as above. Nothing to do by hand.
 
-## Your own endpoint
+## Local servers and your own endpoint
 
-- **OpenAI** — set `sirius.ai.openai.baseUrl` to an Azure deployment or a corporate proxy
-  that speaks the OpenAI API.
-- **LM Studio, llama.cpp, vLLM** — change the matching `baseUrl` if the server is not on its
-  default port or runs on another machine. vLLM has no provider of its own: it uses the
-  llama.cpp entry; point `sirius.ai.llamacpp.baseUrl` at your vLLM `/v1`.
-- **Anything else OpenAI-compatible** — `sirius.ai.custom.baseUrl`, with the `/v1` suffix.
+- **Ollama, LM Studio, llama.cpp** on their usual ports need nothing added. Where Sirius looks
+  for them is a setting — `sirius.ai.ollama.endpoint`, `sirius.ai.lmstudio.baseUrl`,
+  `sirius.ai.llamacpp.baseUrl` — read from your user settings only, never from a project's
+  `.vscode/settings.json`; Tab completion uses the same Ollama and llama.cpp endpoints.
+  Another machine or port is another provider in Manage Models. vLLM uses the llama.cpp
+  entry.
+- **OpenAI** through an Azure deployment or a corporate proxy: give the OpenAI provider that
+  Base URL.
+- **Anything else OpenAI-compatible**: add *OpenAI-compatible (custom)* with its `/v1` URL —
+  as many as you have, each with its own name and key.
 
-:::caution
-In 1.118.7 the custom, LM Studio and llama.cpp entries send no `Authorization` header —
-**Sirius: Set API Key** does not offer them. An endpoint that requires a bearer token cannot
-be used through those entries yet; a proxy that injects the token, or an unauthenticated
-local server, works.
-:::
-
-Anthropic and Gemini endpoints are fixed; there is no setting to route them elsewhere.
-OpenRouter requests carry the `HTTP-Referer` and `X-Title` headers OpenRouter asks apps to
-send, identifying Sirius IDE as the client.
+Anthropic and Gemini endpoints are fixed. OpenRouter requests carry the `HTTP-Referer` and
+`X-Title` headers OpenRouter asks apps to send, identifying Sirius IDE as the client.
 
 ## What a request contains
 

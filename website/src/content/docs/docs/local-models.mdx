@@ -20,9 +20,10 @@ ollama pull qwen3
 
 Sirius asks `http://localhost:11434/api/tags` for the model list, then `/api/show` for each
 model's details — context window, and whether it declares vision, thinking or tool
-support. Change `sirius.ai.ollama.endpoint` if Ollama runs elsewhere; **Sirius: Set API Key
-→ Ollama** edits the same setting. Every model appears in the picker under *Ollama (local) —
-detected*, described as *Local model — X.X GB*.
+support. Change `sirius.ai.ollama.endpoint` if Ollama runs elsewhere, or add another Ollama
+host in **Manage Models** — both can be listed at once. Every model appears in the chat's
+model picker with *Ollama* beside it (or the name you gave another host), described as
+*Local model — X.X GB*.
 
 - **Tools without a tool API.** A model that does not declare the `tools` capability still
   gets the agent's tools: Sirius puts the tool schemas into the prompt and asks Ollama for a
@@ -55,8 +56,9 @@ are assumed to have a 32,768-token window and no thinking — the OpenAI-compati
 does not carry that information. Vision is recognised from the model's name (LLaVA, Qwen-VL,
 Gemma 3, Pixtral, Llama 4, anything with `vision` in it — see [Image input](/docs/image-input/)).
 
-If you started the server with a key (LM Studio's authentication, `llama-server --api-key`,
-`vllm serve --api-key`), set it with **Sirius: Set API Key**; it is optional for these three.
+A server on another machine or port, or one started with a key (LM Studio's authentication,
+`llama-server --api-key`, `vllm serve --api-key`), is added in **Manage Models** with its URL
+and key; the key is optional for these three.
 
 Sirius treats these three (and Ollama) as always configured, so every model-list refresh
 probes `localhost:11434`, `:1234` and `:8080` with a short timeout. That is a local
