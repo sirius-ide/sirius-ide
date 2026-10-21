@@ -15,6 +15,14 @@
 //              the key;
 //  completed — the configured key now reaches /infill, the server answers, and the suggestion
 //              is shown and accepted into the editor: the file carries the model's text;
+//  stopped   — the request asked the server to stop at the line after the cursor's (`\n}`,
+//              the function's closing brace) beside the blank-line gap, and what was accepted
+//              stays inside the function: no line steps out of its body, no next function
+//              (before 1.118.14 the completion ran on into `function subtract…` and the
+//              12-line cut left an unbalanced brace);
+//  dedented  — in a file whose closing line the model will not retype (`} // sum`), the server
+//              runs past the brace as before, and the editor cuts the suggestion where a line
+//              steps out of the function's body — the client-side half of the same fix;
 //  v1        — no request went to /v1/infill (where it went before 1.118.8).
 //
 // Progress goes to <result>.log, for a run that does not finish.
@@ -79,7 +87,7 @@ exports.run = async function (vscode) {
 	await vscode.workspace.getConfiguration('editor').update('inlineSuggest.enabled', true, global);
 
 	const head = 'function add(a, b) {\n\t';
-	const tail = '\n}\n';
+	const close = '\n}\n';
 	const infills = () => hits.filter(h => h.method === 'POST' && h.url === '/infill');
 
 	/**
@@ -87,7 +95,7 @@ exports.run = async function (vscode) {
 	 * document version it has seen), trigger at the empty line inside the function, wait for
 	 * the server to answer an /infill, accept, and read what the file holds now.
 	 */
-	const complete = async name => {
+	const complete = async (name, tail = close) => {
 		const seen = infills().length;
 		const file = path.join(ws, `${name}.js`);
 		fs.writeFileSync(file, head + tail);
@@ -168,6 +176,24 @@ exports.run = async function (vscode) {
 	check(after.hit?.key === 'sent' && after.hit?.status === 200, `completed: the server saw ${JSON.stringify(result.completed.request)}, not a keyed request answered 200`);
 	check(typeof after.inserted === 'string' && after.inserted.trim().length > 0, `completed: nothing was accepted into the editor (file: ${JSON.stringify(after.text)})`);
 	check(typeof content === 'string' && after.inserted !== null && cleaned(content).startsWith(after.inserted), `completed: the editor holds ${JSON.stringify(after.inserted)}, the server answered ${JSON.stringify(content)}`);
+
+	// ── stopped ───────────────────────────────────────────────────────────────
+	const stopsOf = hit => { try { return JSON.parse(hit?.body ?? 'null')?.stop ?? null; } catch { return null; } }; // the proxy keeps 300 bytes; an /infill body is shorter
+	const insideBody = text => typeof text === 'string' && text.trim().length > 0 && text.split('\n').slice(1).every(line => !line.trim() || /^\t/.test(line)) && !/\bfunction\b/.test(text);
+	result.stopped = { stops: stopsOf(after.hit), inserted: after.inserted };
+	check(Array.isArray(result.stopped.stops) && result.stopped.stops.includes('\n\n\n') && result.stopped.stops.includes('\n}'), `stopped: the request's stop strings were ${JSON.stringify(result.stopped.stops)}, not the gap and the closing brace`);
+	check(insideBody(after.inserted), `stopped: the suggestion stepped out of the function: ${JSON.stringify(after.inserted)}`);
+
+	// ── dedented ──────────────────────────────────────────────────────────────
+	const dedent = await complete('tab-dedent', '\n} // sum\n');
+	let dedentContent = null;
+	try { dedentContent = JSON.parse(dedent.hit?.reply ?? 'null')?.content ?? null; } catch { /* not JSON */ }
+	result.dedented = { stops: stopsOf(dedent.hit), serverContent: dedentContent, inserted: dedent.inserted, file: dedent.text };
+	check(dedent.hit?.status === 200, `dedented: the server saw ${JSON.stringify(dedent.hit && { url: dedent.hit.url, key: dedent.hit.key, status: dedent.hit.status })}`);
+	check(Array.isArray(result.dedented.stops) && result.dedented.stops.includes('\n} // sum'), `dedented: the request's stop strings were ${JSON.stringify(result.dedented.stops)}`);
+	check(typeof dedentContent === 'string' && /\n\}/.test(dedentContent), `dedented: the server did not run past the brace this time (${JSON.stringify(dedentContent)}), so the cut was not exercised`);
+	check(insideBody(dedent.inserted), `dedented: the editor took ${JSON.stringify(dedent.inserted)}, not the body alone`);
+	check(typeof dedentContent === 'string' && dedent.inserted !== null && cleaned(dedentContent).startsWith(dedent.inserted), `dedented: the editor holds ${JSON.stringify(dedent.inserted)}, the server answered ${JSON.stringify(dedentContent)}`);
 
 	// ── v1 ────────────────────────────────────────────────────────────────────
 	result.requests = hits.map(h => `${h.method} ${h.url} key=${h.key} → ${h.status}`);

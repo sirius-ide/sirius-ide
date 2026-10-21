@@ -11,6 +11,30 @@ export interface FimRequest {
 	readonly suffix: string;
 	readonly maxTokens: number;
 	readonly signal: AbortSignal;
+	/** Strings that end the completion, beside the blank-line gap every request stops at. */
+	readonly stop?: readonly string[];
+}
+
+/** Where every FIM request stops: a gap of two blank lines, as between two functions. */
+const GAP_STOP = '\n\n\n';
+
+/**
+ * The line after the cursor's, as a stop string. A FIM model that has finished the body
+ * goes on into the block's closing brace and the next function; the blank-line gap comes
+ * too late for a model that writes functions one blank line apart. The suffix already holds
+ * the line that closes the block, so a completion that reaches it — a newline, then that
+ * line with its indentation — is done: `\n}` for a function body, `\n\t}` for the block
+ * inside it. The indentation is part of the string, so a deeper or shallower closer does not
+ * match. The servers leave the stop string out of the answer, which is right: the suffix
+ * has that line. Nothing when the cursor's line is the last with content.
+ */
+export function suffixStop(suffix: string): string | undefined {
+	const next = suffix.split('\n').slice(1).find(line => line.trim().length > 0);
+	return next === undefined ? undefined : `\n${next.trimEnd()}`;
+}
+
+function stopsFor(request: FimRequest): string[] {
+	return [GAP_STOP, ...(request.stop ?? []).filter(stop => stop !== GAP_STOP)];
 }
 
 export interface FimBackend {
@@ -62,7 +86,7 @@ class OllamaFim implements FimBackend {
 				options: {
 					num_predict: request.maxTokens,
 					temperature: 0.2,
-					stop: ['\n\n\n']
+					stop: stopsFor(request)
 				}
 			})
 		});
@@ -125,7 +149,7 @@ class LlamaCppFim implements FimBackend {
 				input_suffix: request.suffix,
 				n_predict: request.maxTokens,
 				temperature: 0.2,
-				stop: ['\n\n\n']
+				stop: stopsFor(request)
 			})
 		});
 		if (!response.ok) {

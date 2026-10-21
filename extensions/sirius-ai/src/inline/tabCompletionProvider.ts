@@ -5,7 +5,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { FimBackend, resolveFimBackend } from './fimClient';
+import { FimBackend, resolveFimBackend, suffixStop } from './fimClient';
 import {
 	buildNesPrompt, locatePrediction, parseNesResponse,
 	NES_CONTEXT_LINES, RecentEditTracker
@@ -106,6 +106,9 @@ export class TabCompletionProvider implements vscode.InlineCompletionItemProvide
 		const suffix = document.getText(
 			new vscode.Range(position, new vscode.Position(document.lineCount, 0))
 		).slice(0, SUFFIX_CHARS);
+		// The whitespace before the cursor on its line: the block the completion belongs to.
+		const line = document.lineAt(position.line);
+		const indent = line.text.slice(0, Math.min(line.firstNonWhitespaceCharacterIndex, position.character));
 
 		// Nothing useful to complete at the very start of an empty file.
 		if (!prefix.trim()) {
@@ -143,13 +146,15 @@ export class TabCompletionProvider implements vscode.InlineCompletionItemProvide
 		token.onCancellationRequested(() => controller.abort());
 
 		try {
+			const stop = suffixStop(suffix);
 			const raw = await this.backend.complete({
 				prefix,
 				suffix,
 				maxTokens: 256,
-				signal: controller.signal
+				signal: controller.signal,
+				stop: stop ? [stop] : undefined
 			});
-			const completion = this.clean(raw, suffix, config.get<number>('completions.maxLines', MAX_LINES_DEFAULT));
+			const completion = this.clean(raw, suffix, indent, config.get<number>('completions.maxLines', MAX_LINES_DEFAULT));
 			this.cache.set(key, completion);
 			return completion ? [this.item(completion, position)] : [];
 		} catch {
@@ -218,14 +223,31 @@ export class TabCompletionProvider implements vscode.InlineCompletionItemProvide
 		return new vscode.InlineCompletionItem(text, new vscode.Range(position, position));
 	}
 
-	/** Trim noise a FIM model can emit and cap the suggestion's size. */
-	private clean(raw: string, suffix: string, maxLines: number): string {
-		let text = raw.replace(/<\|[a-z_]+\|>/g, '');
+	/** Trim noise a FIM model can emit, end the suggestion with its block, and cap its size. */
+	private clean(raw: string, suffix: string, indent: string, maxLines: number): string {
+		const lines = raw.replace(/<\|[a-z_]+\|>/g, '').split('\n');
 
-		const lines = text.split('\n');
-		if (lines.length > maxLines) {
-			text = lines.slice(0, maxLines).join('\n');
+		// The first line continues the cursor's. From the second on, a line indented less than
+		// the cursor's belongs to the enclosing block — the function's closing brace, the next
+		// function — and a line equal to the suffix's next line retypes what is already there.
+		// Either ends the suggestion, when the suffix goes on at all: at the end of a file the
+		// model's own closing brace is wanted. Without this, a model that wrote past the end of
+		// the body ran into the next function and the line cap left an unbalanced brace. The
+		// server is asked to stop at the suffix's next line too (suffixStop); this is the cut
+		// for a model that closes the block in its own way.
+		const next = suffixStop(suffix)?.slice(1);
+		if (next !== undefined) {
+			const end = lines.findIndex((line, i) => i > 0 && line.trim().length > 0
+				&& ((line.match(/^[ \t]*/)?.[0].length ?? 0) < indent.length || line.trimEnd() === next));
+			if (end !== -1) {
+				lines.length = end;
+			}
+			while (lines.length > 1 && lines[lines.length - 1].trim().length === 0) {
+				lines.pop();
+			}
 		}
+
+		const text = lines.slice(0, maxLines).join('\n');
 
 		// A completion that just retypes what already follows the cursor is
 		// worse than none.

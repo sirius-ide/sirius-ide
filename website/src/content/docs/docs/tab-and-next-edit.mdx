@@ -32,8 +32,11 @@ either place works; `settings.json` is the one that is always there.
 
 Suggestions appear as ghost text after a 180 ms pause in typing; <kbd>Tab</kbd> accepts,
 <kbd>Esc</kbd> dismisses. Sirius sends up to 2,000 characters before and 600 after the
-cursor, asks for at most 256 tokens at a low temperature, stops at a blank-line gap, and
-trims the result to `sirius.ai.completions.maxLines` (default 12). A newer keystroke cancels
+cursor, asks for at most 256 tokens at a low temperature, and stops at a blank-line gap or
+at the line that follows the cursor's — the closing brace of the block you are in, usually —
+so a model that has finished the body does not run on into the next function. A suggestion
+also ends where a line steps out of the cursor's block, and is trimmed to
+`sirius.ai.completions.maxLines` (default 12). A newer keystroke cancels
 the request in flight; recent contexts are cached; nothing is requested in an empty file;
 a suggestion that merely repeats the text after the cursor is dropped. It works in files
 on disk and in untitled buffers.
