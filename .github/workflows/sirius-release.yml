@@ -465,18 +465,26 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # ubuntu-24.04 by name on the x64 legs, not ubuntu-latest: the host
+          # image of every job that is not a build leg changes only by a commit
+          # here. GitHub moves `ubuntu-latest` to Ubuntu 26 between 2026-10-19
+          # and 2026-11-19; every release through v1.118.14 ran these legs, the
+          # Arch package and both publish jobs on 24.04, and the publish jobs
+          # only ever run on a tag, where a host that moved under them cannot
+          # be rehearsed first. Moving to 26.04 is a label change and a
+          # rehearsal, when it is wanted.
           - name: 'Debian 12 x64 (.deb)'
-            runner: ubuntu-latest
+            runner: ubuntu-24.04
             image: 'debian:12'
             kind: deb
             arch: x64
           - name: 'Ubuntu 22.04 x64 (.deb)'
-            runner: ubuntu-latest
+            runner: ubuntu-24.04
             image: 'ubuntu:22.04'
             kind: deb
             arch: x64
           - name: 'Rocky 9 x64 (.rpm)'
-            runner: ubuntu-latest
+            runner: ubuntu-24.04
             image: 'rockylinux:9'
             kind: rpm
             arch: x64
@@ -547,7 +555,7 @@ jobs:
   arch:
     name: Arch Linux package
     needs: linux
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04  # pinned by name; the reasoning is on install-test
     timeout-minutes: 30
     permissions:
       contents: read
@@ -660,7 +668,7 @@ jobs:
     if: >-
       !cancelled() && github.ref_type == 'tag' && needs.linux.result == 'success'
       && needs.install-test.result == 'success' && needs.arch.result == 'success'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04  # pinned by name; the reasoning is on install-test
     # Two tag runs must never interleave their writes to the release, the R2
     # mirror or latest-*.json.
     concurrency:
@@ -764,7 +772,7 @@ jobs:
     if: >-
       !cancelled() && needs.arch.outputs.built == 'true'
       && (github.ref_type != 'tag' || needs.release.result == 'success')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04  # pinned by name; the reasoning is on install-test
     timeout-minutes: 15
     permissions:
       contents: read

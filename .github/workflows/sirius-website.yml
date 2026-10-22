@@ -41,7 +41,11 @@ jobs:
     name: Build, test, deploy
     # A release run on a branch is a rehearsal and publishes nothing; only a tag's matters.
     if: github.event_name != 'workflow_run' || startsWith(github.event.workflow_run.head_branch, 'v')
-    runs-on: ubuntu-latest
+    # ubuntu-24.04 by name, as the release workflow's jobs are: GitHub moves
+    # `ubuntu-latest` to Ubuntu 26 through November 2026, and `playwright
+    # install --with-deps` picks its apt packages from a table keyed on the
+    # Ubuntu release. The site's host changes only by a commit here.
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
       HAS_PAGES_TOKEN: ${{ secrets.CLOUDFLARE_PAGES_TOKEN != '' && vars.CLOUDFLARE_ACCOUNT_ID != '' }}
