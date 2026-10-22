@@ -79,3 +79,29 @@ export function rememberConnection(provider: ProviderType, connection: ProviderC
 export function lastConnection(provider: ProviderType): ProviderConnection | undefined {
 	return lastConnections.get(provider);
 }
+
+// ─── A stop that reaches the provider ───────────────────────────────────────
+//
+// The editor hands a request's cancellation token to the provider only until the request
+// has started: its start call returns before the stream ends, and the token travels no
+// further. A stop pressed in the chat therefore never reached the provider's `fetch`, and
+// the vendor kept generating. Sirius's own callers — the chat participant above all — keep
+// their live token here under an id they put in the request's `modelOptions`, which the
+// editor passes through whole, and the bridge ties the provider's abort to it.
+
+export const STOP_OPTION = 'siriusStop';
+const stops = new Map<string, vscode.CancellationToken>();
+let nextStop = 0;
+
+/** Keep a caller's live token; put `modelOptions` on the request, dispose once its stream has ended. */
+export function registerStop(token: vscode.CancellationToken): { readonly modelOptions: Record<string, unknown>; dispose(): void } {
+	const id = `stop-${++nextStop}`;
+	stops.set(id, token);
+	return { modelOptions: { [STOP_OPTION]: id }, dispose: () => { stops.delete(id); } };
+}
+
+/** The caller's live token for a request the bridge is serving, when the caller kept one here. */
+export function stopTokenOf(modelOptions: Record<string, unknown> | undefined): vscode.CancellationToken | undefined {
+	const id = modelOptions?.[STOP_OPTION];
+	return typeof id === 'string' ? stops.get(id) : undefined;
+}

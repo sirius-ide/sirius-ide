@@ -247,9 +247,9 @@ function candidates(models, prefer, named) {
 // ── the editor ──────────────────────────────────────────────────────────────
 
 /**
- * Send through the bridge and gather what streams back. The bridge checks cancellation only
- * between chunks and the providers never abort the request, so a stalled stream is left behind
- * after the timeout rather than waited for.
+ * Send through the bridge and gather what streams back. The editor lets go of an extension's
+ * own token once the request has started (only the chat's Stop reaches the provider, through
+ * the participant), so a stalled stream is left behind after the timeout rather than waited for.
  */
 async function send(vscode, model, messages, options) {
 	const cancel = new vscode.CancellationTokenSource();

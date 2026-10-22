@@ -71,8 +71,8 @@ export class ModelRouter {
 	createProvider(id: ProviderType, connection?: ProviderConnection): IAIProvider {
 		const keys = new ConnectionKeys(id, connection?.apiKey);
 		switch (id) {
-			case 'anthropic': return new AnthropicProvider(keys);
-			case 'gemini': return new GeminiProvider(keys);
+			case 'anthropic': return new AnthropicProvider(keys, connection?.url);
+			case 'gemini': return new GeminiProvider(keys, connection?.url);
 			case 'ollama': return new OllamaProvider(connection?.url);
 			default: {
 				const endpoint = OPENAI_COMPATIBLE_ENDPOINTS.find(candidate => candidate.id === id);
@@ -225,21 +225,23 @@ export class ModelRouter {
 
 	// ─── Chat Routing ────────────────────────────────────────────────────────
 
-	/** Send through one provider instance, to a model discovery described. */
+	/** Send through one provider instance, to a model discovery described; `signal` stops it at the vendor. */
 	async *chatWithModel(
 		provider: IAIProvider,
 		model: SiriusModel,
 		messages: ChatMessage[],
-		tools?: ToolDefinition[]
+		tools?: ToolDefinition[],
+		signal?: AbortSignal
 	): AsyncIterable<ChatChunk> {
-		yield* this._send(provider, model, messages, tools);
+		yield* this._send(provider, model, messages, tools, signal);
 	}
 
 	private async *_send(
 		provider: IAIProvider,
 		model: SiriusModel,
 		messages: ChatMessage[],
-		tools?: ToolDefinition[]
+		tools?: ToolDefinition[],
+		signal?: AbortSignal
 	): AsyncIterable<ChatChunk> {
 		const config = vscode.workspace.getConfiguration('sirius.ai');
 		const modelId = model.id;
@@ -258,7 +260,8 @@ export class ModelRouter {
 			stream: config.get<boolean>('streamResponses', true),
 			systemPrompt: SIRIUS_SYSTEM_PROMPT,
 			thinking,
-			tools
+			tools,
+			signal
 		};
 
 		yield* provider.chat(request);

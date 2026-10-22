@@ -183,6 +183,12 @@ export interface ChatRequest {
 	thinking?: ThinkingConfig;
 	/** Tools the model may call this turn. Omitted when tool use is disabled. */
 	tools?: ToolDefinition[];
+	/**
+	 * Aborted when the user stops the request. Every provider hands it to `fetch`, so a
+	 * stopped generation ends at the vendor too — otherwise the editor stops reading while the
+	 * vendor keeps generating, and billing, until it finishes on its own.
+	 */
+	signal?: AbortSignal;
 }
 
 /**

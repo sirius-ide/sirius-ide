@@ -14,7 +14,10 @@
 // once a tool result is in the messages the answer is "pong tool <the last result>". Every
 // request is printed as one JSON line with the tool names it offered and whether any message
 // carries STUB-INSTRUCTIONS (the stub MCP server's instructions), so a probe can show which
-// key, path, tools and instructions arrived.
+// key, path, tools and instructions arrived. A message that says "hold" is answered with a
+// first chunk and then held — the connection stays open until the client closes it, or for
+// 60 s — a line `{"holding":…}` says the hold began and `{"held":…,"released":"close"|"timeout",
+// "heldMs":…}` how it ended, so a probe can show that a stopped request ended at the server.
 //
 //   node test/harness/openai-stub.mjs <port> <key>
 
@@ -24,6 +27,26 @@ const [port, key] = process.argv.slice(2);
 if (!port || !key) {
 	console.error('usage: openai-stub.mjs <port> <key>');
 	process.exit(2);
+}
+
+const HOLD_MS = 60_000;
+
+/** Resolve when the client closes the connection, or after HOLD_MS — whichever first. */
+function hold(res, task) {
+	const started = Date.now();
+	console.log(JSON.stringify({ holding: task }));
+	return new Promise(resolve => {
+		let done = false;
+		const release = by => {
+			if (done) { return; }
+			done = true;
+			clearTimeout(timer);
+			console.log(JSON.stringify({ held: task, released: by, heldMs: Date.now() - started }));
+			resolve(by);
+		};
+		const timer = setTimeout(() => release('timeout'), HOLD_MS);
+		res.on('close', () => release('close'));
+	});
 }
 
 http.createServer(async (req, res) => {
@@ -71,15 +94,22 @@ http.createServer(async (req, res) => {
 			}
 			return;
 		}
+		const holding = /hold/i.test(task) && !toolResult;
 		const text = toolResult
 			? `pong tool ${typeof toolResult.content === 'string' ? toolResult.content : JSON.stringify(toolResult.content)}`.trim()
-			: `pong ${task}`.trim();
+			: holding ? 'holding' : `pong ${task}`.trim();
 		if (body.stream) {
 			res.writeHead(200, { 'content-type': 'text/event-stream' });
 			res.write(`data: ${JSON.stringify({ choices: [{ index: 0, delta: { role: 'assistant', content: text } }] })}\n\n`);
+			if (holding && await hold(res, task) === 'close') {
+				return;
+			}
 			res.write(`data: ${JSON.stringify({ choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] })}\n\n`);
 			res.end('data: [DONE]\n\n');
 		} else {
+			if (holding) {
+				await hold(res, task);
+			}
 			res.writeHead(200, { 'content-type': 'application/json' });
 			res.end(JSON.stringify({ choices: [{ index: 0, message: { role: 'assistant', content: text }, finish_reason: 'stop' }] }));
 		}

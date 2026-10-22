@@ -12,8 +12,8 @@ is a provider of its own.
 
 | Provider | Key | Endpoint | Models |
 | --- | --- | --- | --- |
-| Anthropic | yes | fixed | Claude Opus 5, Fable 5, Sonnet 5, Opus 4.8, Haiku 4.5 |
-| Google Gemini | yes | fixed | Gemini 3.5 Flash, 3.1 Pro, 3.1 Flash Lite; replaced by the live list your key can see |
+| Anthropic | yes | `https://api.anthropic.com`, or a Base URL you give it | discovered — the models your key can use, each with what it accepts; the current lineup until then |
+| Google Gemini | yes | `https://generativelanguage.googleapis.com`, or a Base URL you give it | discovered — the models your key can see |
 | OpenAI | yes | `https://api.openai.com/v1`, or a Base URL you give it | discovered |
 | OpenRouter | yes | fixed | discovered |
 | Groq | yes | fixed | discovered |
@@ -25,9 +25,13 @@ is a provider of its own.
 | llama.cpp / vLLM | optional | found at `http://localhost:8080/v1` with nothing added; add another server | discovered |
 | OpenAI-compatible (custom) | optional | the Base URL you give it, with the `/v1` suffix | discovered |
 
-*Discovered* means Sirius asks the server for its model list (`/models`, or Ollama's
-`/api/tags`), so what you see is what the endpoint offers. Every provider except Anthropic,
-Gemini and Ollama is driven through the same OpenAI-compatible chat-completions adapter.
+*Discovered* means Sirius asks the server for its model list (`/models`, Anthropic's
+`/v1/models`, Ollama's `/api/tags`), so what you see is what the endpoint offers. Anthropic's
+list also says what each model accepts — adaptive thinking or a thinking budget, which effort
+levels, whether thinking can be turned off — and every request to it is shaped from that, so a
+model released after your build of Sirius works as soon as it appears in the list. Every
+provider except Anthropic, Gemini and Ollama is driven through the same OpenAI-compatible
+chat-completions adapter.
 
 ## Adding a provider
 
@@ -41,8 +45,10 @@ Command Palette.
 
 Sirius then checks the provider with one cheap request — listing its models, which costs
 nothing — and its models appear in the chat's model picker. If the check fails, the provider
-shows as a red row in Manage Models saying which it was: *rejected the API key (HTTP 401)*, or
-*did not answer at …* for a server that is not running or a wrong URL.
+shows as a red row in Manage Models saying which it was: *rejected the API key (HTTP 401)* —
+Google says it with HTTP 400, and Sirius reads that too — or *did not answer at …* for a
+server that is not running or a wrong URL. The same line goes to the **Sirius AI** output
+channel.
 
 In Manage Models you can also:
 
@@ -97,11 +103,14 @@ Manage Models as above. Nothing to do by hand.
   entry.
 - **OpenAI** through an Azure deployment or a corporate proxy: give the OpenAI provider that
   Base URL.
+- **Anthropic or Gemini** through a gateway or proxy that speaks the vendor's own API: give
+  that provider its Base URL. The key still travels in the vendor's own header (`x-api-key`,
+  `x-goog-api-key`), never in the URL.
 - **Anything else OpenAI-compatible**: add *OpenAI-compatible (custom)* with its `/v1` URL —
   as many as you have, each with its own name and key.
 
-Anthropic and Gemini endpoints are fixed. OpenRouter requests carry the `HTTP-Referer` and
-`X-Title` headers OpenRouter asks apps to send, identifying Sirius IDE as the client.
+OpenRouter requests carry the `HTTP-Referer` and `X-Title` headers OpenRouter asks apps to
+send, identifying Sirius IDE as the client.
 
 ## What a request contains
 
@@ -110,3 +119,8 @@ selection, anything you added with the context controls, the [rules files](/docs
 the results of tools the agent ran, and the request settings — `sirius.ai.maxTokens`,
 `sirius.ai.temperature`, streaming on by default. It goes to the provider you picked and
 nowhere else. The [privacy statement](/privacy/) is the binding version of that sentence.
+
+Stopping a reply in Sirius's chat — the Stop button — closes the connection to the provider,
+so a hosted model stops generating, and billing, there and then rather than when it would
+have finished on its own. (The editor itself lets go of a request once it has started, so a
+Sirius model used by another extension runs to its end.)

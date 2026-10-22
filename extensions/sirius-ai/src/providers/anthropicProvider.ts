@@ -56,92 +56,217 @@ interface AnthropicUsage {
 	cache_read_input_tokens?: number;
 }
 
+/** The vendor's API, unless a gateway or proxy that speaks it is configured. */
+const DEFAULT_BASE_URL = 'https://api.anthropic.com';
+
+/** From the least to the most; a level a model lacks steps down to the nearest it has. */
+const EFFORT_LEVELS: readonly ThinkingEffort[] = ['low', 'medium', 'high', 'xhigh', 'max'];
+
+/** `budget_tokens` for a model that takes thinking as a budget rather than an effort. */
+const THINKING_BUDGET: Record<ThinkingEffort, number> = { low: 1024, medium: 4096, high: 16384, xhigh: 32768, max: 65536 };
+
 /**
- * Per-model API constraints. These changed across Claude generations, and
- * sending a parameter a model no longer accepts is a hard 400, not a warning.
+ * The generations before 4.6: thinking is a token budget (`enabled`), there is no
+ * `output_config.effort`, and sampling parameters are still accepted. Later generations
+ * reason adaptively, take `effort`, and reject `temperature`.
  */
-interface ModelConstraints {
-	/** Sampling parameters were removed from the 4.6 generation onward. */
-	acceptsSampling: boolean;
-	/** Thinking is always on, and any explicit `thinking` config is rejected. */
-	thinkingAlwaysOn: boolean;
+const LEGACY_GENERATION = /^claude-(3-|opus-4-([015]|2025)|sonnet-4-([05]|2025)|haiku-4-5)/;
+
+interface CapabilitySupport {
+	supported?: boolean;
+}
+
+/** The subset of a model's `capabilities` from `GET /v1/models` that shapes a request. */
+interface AnthropicCapabilities {
+	image_input?: CapabilitySupport;
+	thinking?: CapabilitySupport & { types?: Partial<Record<'adaptive' | 'enabled' | 'disabled' | 'between_tools', CapabilitySupport>> };
+	effort?: CapabilitySupport & Partial<Record<ThinkingEffort, CapabilitySupport | null>>;
+}
+
+/** One model as `GET /v1/models` describes it. */
+interface AnthropicModelInfo {
+	id?: string;
+	display_name?: string;
+	lifecycle?: string;
+	max_input_tokens?: number | null;
+	max_tokens?: number | null;
+	retires_at?: string | null;
+	capabilities?: AnthropicCapabilities | null;
+}
+
+/** One page of the listing; `has_more` and `last_id` page it. */
+interface AnthropicModelList {
+	data?: AnthropicModelInfo[];
+	has_more?: boolean;
+	last_id?: string | null;
+}
+
+/**
+ * What a model accepts: read from its capabilities when discovery described it, otherwise
+ * from what its generation is known to take. Sending a parameter a model does not accept
+ * is a hard 400, not a warning.
+ */
+interface ModelRules {
+	/** The model can think at all. */
+	thinking: boolean;
+	/** `thinking: { type: 'adaptive' }` — the model decides how much. */
+	adaptive: boolean;
+	/** `thinking: { type: 'enabled', budget_tokens }` — the pre-4.6 form. */
+	enabled: boolean;
+	/** `thinking: { type: 'disabled' }` is accepted; false on a model that always reasons. */
+	disabled: boolean;
+	/** `thinking: { type: 'between_tools' }` — up-front thinking off, where `disabled` is refused. */
+	betweenTools: boolean;
+	/** The effort levels accepted, or none: then `output_config.effort` is not sent. */
+	effort: ReadonlySet<ThinkingEffort> | undefined;
+	/** `temperature` is accepted — the pre-4.6 generations only. */
+	sampling: boolean;
+}
+
+/** The thinking, effort and sampling fields of one request. */
+interface RequestShape {
+	thinking?: Record<string, unknown>;
+	effort?: ThinkingEffort;
+	temperature: boolean;
 }
 
 export class AnthropicProvider implements IAIProvider {
 	readonly id: ProviderType = 'anthropic';
 	readonly name = 'Anthropic Claude';
+	/**
+	 * What is offered before discovery has answered, and when it cannot (no key, a gateway
+	 * without `/v1/models` — its 404 passes the connection check): the current lineup, then
+	 * the previous generation. Discovery replaces it with what the key can actually use.
+	 */
 	readonly models: SiriusModel[] = [
-		// ─── Flagship ─────────────────────────────────────────────────────
+		// ─── Current ──────────────────────────────────────────────────────
+		{
+			id: 'claude-opus-5-5',
+			name: 'Claude Opus 5.5',
+			provider: 'anthropic',
+			contextWindow: 1000000,
+			description: 'Best all-round coding and agentic model — thinking always on',
+			supportsStreaming: true,
+			supportsVision: true,
+			supportsThinking: true,
+			supportsImageGen: false,
+			maxOutputTokens: 128000
+		},
+		{
+			id: 'claude-fable-5-1',
+			name: 'Claude Fable 5.1',
+			provider: 'anthropic',
+			contextWindow: 1000000,
+			description: 'Most capable — the hardest reasoning and long-horizon work. Always reasons; costs more',
+			supportsStreaming: true,
+			supportsVision: true,
+			supportsThinking: true,
+			supportsImageGen: false,
+			maxOutputTokens: 128000
+		},
+		{
+			id: 'claude-sonnet-5-5',
+			name: 'Claude Sonnet 5.5',
+			provider: 'anthropic',
+			contextWindow: 1000000,
+			description: 'Speed and intelligence balanced — a good daily driver',
+			supportsStreaming: true,
+			supportsVision: true,
+			supportsThinking: true,
+			supportsImageGen: false,
+			maxOutputTokens: 128000
+		},
+		{
+			id: 'claude-haiku-5-5',
+			name: 'Claude Haiku 5.5',
+			provider: 'anthropic',
+			contextWindow: 1000000,
+			description: 'Fastest and cheapest — quick completions and high-volume work',
+			supportsStreaming: true,
+			supportsVision: true,
+			supportsThinking: true,
+			supportsImageGen: false,
+			maxOutputTokens: 128000
+		},
+		// ─── Previous generation ──────────────────────────────────────────
 		{
 			id: 'claude-opus-5',
 			name: 'Claude Opus 5',
 			provider: 'anthropic',
 			contextWindow: 1000000,
-			description: 'Best all-round coding and agentic model — thinking on by default',
+			description: 'The previous Opus — still excellent for complex reasoning',
 			supportsStreaming: true,
 			supportsVision: true,
 			supportsThinking: true,
 			supportsImageGen: false,
-			maxOutputTokens: 64000
+			maxOutputTokens: 128000
 		},
-		// ─── Most capable ─────────────────────────────────────────────────
 		{
 			id: 'claude-fable-5',
 			name: 'Claude Fable 5',
 			provider: 'anthropic',
 			contextWindow: 1000000,
-			description: 'Most capable — hardest reasoning and long-horizon work. Always reasons; costs more',
+			description: 'The previous Fable — always reasons; costs more',
 			supportsStreaming: true,
 			supportsVision: true,
 			supportsThinking: true,
 			supportsImageGen: false,
-			maxOutputTokens: 64000
+			maxOutputTokens: 128000
 		},
-		// ─── Balanced ─────────────────────────────────────────────────────
 		{
 			id: 'claude-sonnet-5',
 			name: 'Claude Sonnet 5',
 			provider: 'anthropic',
 			contextWindow: 1000000,
-			description: 'Strong balance of speed, cost and intelligence — a good daily driver',
+			description: 'The previous Sonnet',
 			supportsStreaming: true,
 			supportsVision: true,
 			supportsThinking: true,
 			supportsImageGen: false,
-			maxOutputTokens: 64000
+			maxOutputTokens: 128000
 		},
-		// ─── Previous flagship ────────────────────────────────────────────
 		{
 			id: 'claude-opus-4-8',
 			name: 'Claude Opus 4.8',
 			provider: 'anthropic',
 			contextWindow: 1000000,
-			description: 'Previous flagship — still excellent for complex reasoning',
+			description: 'The last Opus of the 4.x line',
 			supportsStreaming: true,
 			supportsVision: true,
 			supportsThinking: true,
 			supportsImageGen: false,
-			maxOutputTokens: 64000
+			maxOutputTokens: 128000
 		},
-		// ─── Fast ─────────────────────────────────────────────────────────
 		{
 			id: 'claude-haiku-4-5',
 			name: 'Claude Haiku 4.5',
 			provider: 'anthropic',
 			contextWindow: 200000,
-			description: 'Fastest and cheapest — quick completions and high-volume work',
+			description: 'The previous fast model — takes no effort setting',
 			supportsStreaming: true,
 			supportsVision: true,
 			supportsThinking: false,
 			supportsImageGen: false,
-			maxOutputTokens: 8192
+			maxOutputTokens: 64000
 		}
 	];
 
-	constructor(private readonly secrets: KeySource) { }
+	/** What discovery learnt about each model this key can use, by id — requests are shaped from it. */
+	private readonly _capabilities = new Map<string, AnthropicCapabilities>();
+
+	/** @param baseUrl a gateway or proxy that speaks Anthropic's API; else the vendor's. */
+	constructor(private readonly secrets: KeySource, private readonly baseUrl?: string) { }
 
 	private getApiKey(): string {
 		return this.secrets.get('anthropic');
+	}
+
+	private _baseUrl(): string {
+		return (this.baseUrl?.trim() || DEFAULT_BASE_URL).replace(/\/+$/, '');
+	}
+
+	private _headers(): Record<string, string> {
+		return { 'x-api-key': this.getApiKey(), 'anthropic-version': '2023-06-01' };
 	}
 
 	isConfigured(): boolean {
@@ -150,10 +275,10 @@ export class AnthropicProvider implements IAIProvider {
 
 	checkConnection(): Promise<ConnectionCheck> {
 		// Listing models costs nothing; the check used to spend a real completion.
-		return checkEndpoint('https://api.anthropic.com/v1/models', {
-			'x-api-key': this.getApiKey(),
-			'anthropic-version': '2023-06-01'
-		}, 'Anthropic');
+		return checkEndpoint(`${this._baseUrl()}/v1/models?limit=1`, this._headers(), 'Anthropic', {
+			notFoundIsFine: this._baseUrl() !== DEFAULT_BASE_URL,
+			noRedirect: true
+		});
 	}
 
 	async *chat(request: ChatRequest): AsyncIterable<ChatChunk> {
@@ -163,9 +288,8 @@ export class AnthropicProvider implements IAIProvider {
 			return;
 		}
 
-		const model = request.model || 'claude-opus-5';
-		const constraints = this._constraintsFor(model);
-		const modelInfo = this.models.find(m => m.id === model);
+		const model = request.model || 'claude-opus-5-5';
+		const shape = this._shape(model, request);
 
 		const body: Record<string, unknown> = {
 			model,
@@ -195,32 +319,20 @@ export class AnthropicProvider implements IAIProvider {
 			}];
 		}
 
-		// ─── Thinking and effort ──────────────────────────────────────────
-		// `effort` is a field of output_config, not of `thinking`.
-		const thinkingOn = constraints.thinkingAlwaysOn
-			|| Boolean(request.thinking?.enabled && modelInfo?.supportsThinking);
-		let effort: ThinkingEffort = request.thinking?.effort ?? 'high';
-
-		if (constraints.thinkingAlwaysOn) {
-			// Any explicit thinking configuration is rejected on these models.
-		} else if (thinkingOn) {
-			// `display` defaults to omitted, which streams empty thinking blocks
-			// and leaves the thinking pane blank. Ask for a summary explicitly.
-			body.thinking = { type: 'adaptive', display: 'summarized' };
-		} else {
-			body.thinking = { type: 'disabled' };
-			// Disabling thinking is rejected above `high`.
-			if (effort === 'xhigh' || effort === 'max') {
-				effort = 'high';
-			}
+		// ─── Thinking, effort and sampling ────────────────────────────────
+		// Shaped from what the model accepts (discovery's `capabilities`, or its
+		// generation): a model that always reasons gets no `thinking` field, a pre-4.6
+		// model a token budget and no `output_config`, and `temperature` only goes
+		// where it is still taken.
+		if (shape.thinking) {
+			body.thinking = shape.thinking;
 		}
-
-		body.output_config = { effort };
-
-		// Sampling parameters were removed from the 4.6 generation onward and
-		// return 400 there. They are also meaningless while the model is reasoning.
-		if (constraints.acceptsSampling && !thinkingOn) {
-			body.temperature = request.temperature;
+		if (shape.effort) {
+			body.output_config = { effort: shape.effort };
+		}
+		if (shape.temperature) {
+			// Anthropic takes 0–1 where the setting allows up to 2.
+			body.temperature = Math.min(Math.max(request.temperature, 0), 1);
 		}
 
 		// Streaming
@@ -229,14 +341,14 @@ export class AnthropicProvider implements IAIProvider {
 		}
 
 		try {
-			const response = await fetch('https://api.anthropic.com/v1/messages', {
+			// No redirect: the key sits in a custom header, which `fetch` would carry to
+			// another host, unlike an Authorization header.
+			const response = await fetch(`${this._baseUrl()}/v1/messages`, {
 				method: 'POST',
-				headers: {
-					'x-api-key': apiKey,
-					'anthropic-version': '2023-06-01',
-					'content-type': 'application/json'
-				},
-				body: JSON.stringify(body)
+				headers: { ...this._headers(), 'content-type': 'application/json' },
+				body: JSON.stringify(body),
+				signal: request.signal,
+				redirect: 'error'
 			});
 
 			if (!response.ok) {
@@ -250,6 +362,9 @@ export class AnthropicProvider implements IAIProvider {
 				yield* this._handleNonStream(response);
 			}
 		} catch (error: any) {
+			if (request.signal?.aborted) {
+				return; // the user stopped it, and the editor is no longer reading
+			}
 			yield { content: `⚠️ Anthropic Error: ${error.message}`, done: true };
 		}
 	}
@@ -269,19 +384,50 @@ export class AnthropicProvider implements IAIProvider {
 	}
 
 	/**
-	 * Which parameters a given model still accepts. Prefix matching keeps this
-	 * working for models released after this build.
+	 * The thinking, effort and sampling fields for one request. `effort` is a field of
+	 * `output_config`, not of `thinking`; turning thinking off is rejected above `high`;
+	 * a thinking budget must stay under `max_tokens`.
 	 */
-	private _constraintsFor(modelId: string): ModelConstraints {
-		// Fable reasons on every request and rejects an explicit `thinking` block.
-		if (modelId.startsWith('claude-fable-') || modelId.startsWith('claude-mythos-')) {
-			return { acceptsSampling: false, thinkingAlwaysOn: true };
+	private _shape(model: string, request: ChatRequest): RequestShape {
+		const capabilities = this._capabilities.get(model);
+		const rules = capabilities
+			? rulesFromCapabilities(model, capabilities)
+			: rulesFromId(model, this.models.find(m => m.id === model));
+		let effort: ThinkingEffort = request.thinking?.effort ?? 'high';
+		let thinking: Record<string, unknown> | undefined;
+
+		if (request.thinking?.enabled && rules.thinking) {
+			if (rules.adaptive) {
+				// `display` defaults to omitted, which streams empty thinking blocks
+				// and leaves the thinking pane blank. Ask for a summary explicitly.
+				thinking = { type: 'adaptive', display: 'summarized' };
+			} else if (rules.enabled) {
+				// The budget counts against `max_tokens`: at most half of it, so the
+				// answer keeps the other half.
+				const budget = Math.min(THINKING_BUDGET[effort], Math.floor(request.maxTokens / 2));
+				if (budget >= 1024) {
+					thinking = { type: 'enabled', budget_tokens: budget };
+				}
+			}
+		} else if (rules.adaptive) {
+			// An adaptive model reasons unless told not to; a budget model does not reason
+			// unless given a budget, so nothing is sent to it.
+			if (rules.disabled) {
+				thinking = { type: 'disabled' };
+				effort = atMost(effort, 'high');
+			} else if (rules.betweenTools) {
+				thinking = { type: 'between_tools' };
+				effort = atMost(effort, 'high');
+			}
+			// Otherwise the model reasons on every request: nothing to send.
 		}
 
-		// Haiku 4.5 predates the removal of sampling parameters.
+		const reasoning = thinking?.type === 'adaptive' || thinking?.type === 'enabled';
 		return {
-			acceptsSampling: modelId.startsWith('claude-haiku-4-5'),
-			thinkingAlwaysOn: false
+			thinking,
+			effort: pickEffort(effort, rules.effort),
+			// Sampling is meaningless while the model reasons, and rejected where it was removed.
+			temperature: rules.sampling && !reasoning
 		};
 	}
 
@@ -527,9 +673,138 @@ export class AnthropicProvider implements IAIProvider {
 		};
 	}
 
+	/**
+	 * Ask Anthropic which models this key can use, and what each accepts.
+	 *
+	 * The static list above goes stale a generation at a time. `GET /v1/models` carries
+	 * every model's context window, output cap, lifecycle and `capabilities`, and requests
+	 * are shaped from the latter. Retired models are left out; deprecated ones are offered
+	 * and marked. The static list's order comes first, then the rest as the vendor lists
+	 * them — newest first.
+	 */
 	async getAvailableModels(): Promise<SiriusModel[]> {
-		return this.models;
+		if (!this.getApiKey()) {
+			return this.models;
+		}
+		try {
+			const listed: AnthropicModelInfo[] = [];
+			let after: string | undefined;
+			for (let page = 0; page < 10; page++) {
+				const url = new URL(`${this._baseUrl()}/v1/models`);
+				url.searchParams.set('limit', '1000');
+				if (after) {
+					url.searchParams.set('after_id', after);
+				}
+				const response = await fetch(url.toString(), { headers: this._headers(), redirect: 'error' });
+				if (!response.ok) {
+					break; // a first page refused is the static list; a later one keeps what was read
+				}
+				const data = await response.json() as AnthropicModelList;
+				listed.push(...(data.data ?? []));
+				if (!data.has_more || !data.last_id) {
+					break;
+				}
+				after = data.last_id;
+			}
+			const discovered = this._fromListing(listed);
+			return discovered.length > 0 ? discovered : this.models;
+		} catch {
+			return this.models;
+		}
 	}
+
+	private _fromListing(listed: AnthropicModelInfo[]): SiriusModel[] {
+		const rank = (id: string) => {
+			const index = this.models.findIndex(m => m.id === id);
+			return index < 0 ? this.models.length : index;
+		};
+		const seen = new Set<string>();
+		return listed
+			.filter((info): info is AnthropicModelInfo & { id: string } => Boolean(info.id) && info.lifecycle !== 'retired')
+			.filter(info => !seen.has(info.id) && seen.add(info.id))
+			.map((info, index) => ({ info, index }))
+			.sort((a, b) => rank(a.info.id) - rank(b.info.id) || a.index - b.index)
+			.map(({ info }) => {
+				const known = this.models.find(m => m.id === info.id);
+				const capabilities = info.capabilities ?? undefined;
+				if (capabilities) {
+					this._capabilities.set(info.id, capabilities);
+				} else {
+					this._capabilities.delete(info.id);
+				}
+				const deprecated = info.lifecycle === 'deprecated';
+				return {
+					id: info.id,
+					name: info.display_name || known?.name || info.id,
+					provider: 'anthropic' as ProviderType,
+					contextWindow: info.max_input_tokens ?? known?.contextWindow ?? 200000,
+					description: deprecated
+						? `Deprecated by Anthropic${typeof info.retires_at === 'string' ? ` — retires ${info.retires_at.slice(0, 10)}` : ''}`
+						: known?.description ?? 'Claude model',
+					supportsStreaming: true,
+					supportsVision: capabilities?.image_input?.supported ?? known?.supportsVision ?? true,
+					supportsThinking: capabilities?.thinking?.supported ?? known?.supportsThinking ?? true,
+					supportsImageGen: false,
+					maxOutputTokens: info.max_tokens ?? known?.maxOutputTokens,
+					deprecated
+				} satisfies SiriusModel;
+			});
+	}
+}
+
+/** What a model accepts, from the `capabilities` the listing gave it. */
+function rulesFromCapabilities(id: string, capabilities: AnthropicCapabilities): ModelRules {
+	const types = capabilities.thinking?.types ?? {};
+	const effort = capabilities.effort;
+	return {
+		thinking: capabilities.thinking?.supported === true,
+		adaptive: types.adaptive?.supported === true,
+		enabled: types.enabled?.supported === true,
+		disabled: types.disabled?.supported === true,
+		betweenTools: types.between_tools?.supported === true,
+		effort: effort?.supported ? new Set(EFFORT_LEVELS.filter(level => effort[level]?.supported)) : undefined,
+		// The listing says nothing about sampling; the generation does.
+		sampling: LEGACY_GENERATION.test(id)
+	};
+}
+
+/** For a model discovery has not described: what its generation is known to take. */
+function rulesFromId(id: string, known: SiriusModel | undefined): ModelRules {
+	if (LEGACY_GENERATION.test(id)) {
+		return { thinking: known?.supportsThinking ?? false, adaptive: false, enabled: true, disabled: true, betweenTools: false, effort: undefined, sampling: true };
+	}
+	// Fable, Mythos and Opus 5.5 reason on every request; Sonnet 5.5 turns thinking off
+	// only through `between_tools`; the rest of the adaptive generations take `disabled`.
+	// `xhigh` arrived with 4.7: the 4.6 pair has the other four levels.
+	const alwaysOn = /^claude-(fable-|mythos-|opus-5-5)/.test(id);
+	const betweenTools = /^claude-sonnet-5-5/.test(id);
+	const effort = /^claude-(opus|sonnet)-4-6/.test(id) ? ['low', 'medium', 'high', 'max'] as const : EFFORT_LEVELS;
+	return {
+		thinking: known?.supportsThinking ?? true,
+		adaptive: true,
+		enabled: false,
+		disabled: !alwaysOn && !betweenTools,
+		betweenTools,
+		effort: new Set<ThinkingEffort>(effort),
+		sampling: false
+	};
+}
+
+/** The level asked for if the model has it, else the nearest below; nothing when it takes none. */
+function pickEffort(wanted: ThinkingEffort, accepted: ReadonlySet<ThinkingEffort> | undefined): ThinkingEffort | undefined {
+	if (!accepted) {
+		return undefined;
+	}
+	for (let i = EFFORT_LEVELS.indexOf(wanted); i >= 0; i--) {
+		if (accepted.has(EFFORT_LEVELS[i])) {
+			return EFFORT_LEVELS[i];
+		}
+	}
+	return undefined;
+}
+
+function atMost(effort: ThinkingEffort, cap: ThinkingEffort): ThinkingEffort {
+	return EFFORT_LEVELS.indexOf(effort) > EFFORT_LEVELS.indexOf(cap) ? cap : effort;
 }
 
 /**

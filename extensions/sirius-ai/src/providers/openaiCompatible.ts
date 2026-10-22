@@ -249,7 +249,8 @@ export class OpenAICompatibleProvider implements IAIProvider {
 			const response = await fetch(`${baseUrl}/chat/completions`, {
 				method: 'POST',
 				headers: this._headers(),
-				body: JSON.stringify(body)
+				body: JSON.stringify(body),
+				signal: request.signal
 			});
 
 			if (!response.ok) {
@@ -263,6 +264,9 @@ export class OpenAICompatibleProvider implements IAIProvider {
 				yield* this._handleNonStream(response);
 			}
 		} catch (error: unknown) {
+			if (request.signal?.aborted) {
+				return; // the user stopped it, and the editor is no longer reading
+			}
 			const message = error instanceof Error ? error.message : String(error);
 			yield { content: `⚠️ ${this.config.name} error: ${message}`, done: true, stopReason: 'error' };
 		}

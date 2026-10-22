@@ -11,7 +11,7 @@ import { resolveWorkspacePath } from '../tools/workspacePath';
 import { TOOL_DEFINITIONS } from '../tools/toolExecutor';
 import * as path from 'path';
 import { randomBytes } from 'crypto';
-import { knownModel, siriusModels } from '../lm/vendors';
+import { knownModel, providerOf, registerStop, siriusModels } from '../lm/vendors';
 import { EXTERNAL_BUDGET, MAX_TOOLS_PER_REQUEST, activationRefused, activationResult, describeOffer, externalSources, fit, offerExternal, promptTsxText, rememberedExpansions, serverInstructions, sourceOf } from './externalTools';
 import type { SiriusModel } from '../types';
 
@@ -356,94 +356,102 @@ const createHandler = (mode: Mode): vscode.ChatRequestHandler => async (request,
 
 	for (let round = 0; round < MAX_TOOL_ROUNDS && !token.isCancellationRequested; round++) {
 		const { tools, toolNames, realNames, groups, closedTools } = offered;
-		const response = await model.sendRequest(messages, { tools }, token);
+		// The editor lets go of `token` once the request has started; kept here, it is what
+		// lets a Stop reach the provider and close the connection (lm/vendors.ts). Sirius's
+		// own providers only: another vendor might forward an option it does not know.
+		const stop = providerOf(model.vendor) ? registerStop(token) : undefined;
+		try {
+			const response = await model.sendRequest(messages, { tools, ...(stop ? { modelOptions: stop.modelOptions } : {}) }, token);
 
-		const emitted = new TextGate(stream, toolNames);
-		const toolCalls: vscode.LanguageModelToolCallPart[] = [];
-		let thinking = 0;
+			const emitted = new TextGate(stream, toolNames);
+			const toolCalls: vscode.LanguageModelToolCallPart[] = [];
+			let thinking = 0;
 
-		for await (const part of response.stream) {
-			if (token.isCancellationRequested) {
+			for await (const part of response.stream) {
+				if (token.isCancellationRequested) {
+					return result();
+				}
+				if (part instanceof vscode.LanguageModelTextPart) {
+					emitted.push(part.value);
+				} else if (part instanceof vscode.LanguageModelToolCallPart) {
+					toolCalls.push(part);
+				} else if (part instanceof vscode.LanguageModelThinkingPart) {
+					// The providers request thinking and the bridge reports it; without
+					// this the transcript dropped it, so the reasoning was paid for and
+					// never shown. The workbench renders it as a collapsible section.
+					const text = Array.isArray(part.value) ? part.value.join('') : part.value;
+					if (text) {
+						thinking += text.length;
+						stream.thinkingProgress({ text, id: part.id ?? `thinking-${round}`, metadata: part.metadata });
+					}
+				}
+			}
+			// A small model sometimes writes its tool call as prose instead of
+			// using the mechanism; the gate holds such text back so it can run as
+			// a real call instead of leaking JSON into the conversation.
+			const rescued = emitted.finish(round);
+			toolCalls.push(...rescued);
+
+			debug(`[round ${round}] text=${emitted.total} thinking=${thinking} calls=${toolCalls.map(c => c.name).join(',') || 'none'}`);
+
+			if (toolCalls.length === 0) {
 				return result();
 			}
-			if (part instanceof vscode.LanguageModelTextPart) {
-				emitted.push(part.value);
-			} else if (part instanceof vscode.LanguageModelToolCallPart) {
-				toolCalls.push(part);
-			} else if (part instanceof vscode.LanguageModelThinkingPart) {
-				// The providers request thinking and the bridge reports it; without
-				// this the transcript dropped it, so the reasoning was paid for and
-				// never shown. The workbench renders it as a collapsible section.
-				const text = Array.isArray(part.value) ? part.value.join('') : part.value;
-				if (text) {
-					thinking += text.length;
-					stream.thinkingProgress({ text, id: part.id ?? `thinking-${round}`, metadata: part.metadata });
+
+			messages.push(vscode.LanguageModelChatMessage.Assistant([
+				...(emitted.total > 0 && rescued.length === 0 ? [new vscode.LanguageModelTextPart(emitted.text)] : []),
+				...toolCalls
+			]));
+
+			const results: vscode.LanguageModelToolResultPart[] = [];
+			for (const call of toolCalls) {
+				// A model can name any tool — hallucinated, or steered by a file it
+				// read. Only what this mode offered runs; otherwise Ask's read-only set
+				// was a suggestion, and `run_in_terminal` ran if a model asked for it.
+				// One exception: a closed group's own tool, called straight from the
+				// group's description — the picker enabled it, so the group opens and
+				// the call runs, as if the model had opened it first.
+				const direct = toolNames.has(call.name) ? undefined : closedTools.get(call.name);
+				if (direct && !open(direct, `called ${call.name} directly`)) {
+					results.push(new vscode.LanguageModelToolResultPart(call.callId, [new vscode.LanguageModelTextPart(activationRefused(direct))]));
+					continue;
 				}
-			}
-		}
-		// A small model sometimes writes its tool call as prose instead of
-		// using the mechanism; the gate holds such text back so it can run as
-		// a real call instead of leaking JSON into the conversation.
-		const rescued = emitted.finish(round);
-		toolCalls.push(...rescued);
-
-		debug(`[round ${round}] text=${emitted.total} thinking=${thinking} calls=${toolCalls.map(c => c.name).join(',') || 'none'}`);
-
-		if (toolCalls.length === 0) {
-			return result();
-		}
-
-		messages.push(vscode.LanguageModelChatMessage.Assistant([
-			...(emitted.total > 0 && rescued.length === 0 ? [new vscode.LanguageModelTextPart(emitted.text)] : []),
-			...toolCalls
-		]));
-
-		const results: vscode.LanguageModelToolResultPart[] = [];
-		for (const call of toolCalls) {
-			// A model can name any tool — hallucinated, or steered by a file it
-			// read. Only what this mode offered runs; otherwise Ask's read-only set
-			// was a suggestion, and `run_in_terminal` ran if a model asked for it.
-			// One exception: a closed group's own tool, called straight from the
-			// group's description — the picker enabled it, so the group opens and
-			// the call runs, as if the model had opened it first.
-			const direct = toolNames.has(call.name) ? undefined : closedTools.get(call.name);
-			if (direct && !open(direct, `called ${call.name} directly`)) {
-				results.push(new vscode.LanguageModelToolResultPart(call.callId, [new vscode.LanguageModelTextPart(activationRefused(direct))]));
-				continue;
-			}
-			if (!direct && !toolNames.has(call.name)) {
-				debug(`[refused] ${call.name} is not offered in ${scope}`);
-				results.push(new vscode.LanguageModelToolResultPart(call.callId, [
-					new vscode.LanguageModelTextPart(`${call.name} is not available in ${scope}.`)
-				]));
-				continue;
-			}
-			const local = localTools.find(tool => tool.name === call.name);
-			const group = groups.get(call.name);
-			stream.progress(`${group ? 'Opening' : 'Running'} ${progressLabel(call.name, group?.label)}…`);
-			try {
-				if (local) {
-					const text = await local.run(call.input as Record<string, unknown>);
-					results.push(new vscode.LanguageModelToolResultPart(call.callId, [new vscode.LanguageModelTextPart(text)]));
-				} else if (group) {
-					// The group's tools join the next round's list; the result names them.
+				if (!direct && !toolNames.has(call.name)) {
+					debug(`[refused] ${call.name} is not offered in ${scope}`);
 					results.push(new vscode.LanguageModelToolResultPart(call.callId, [
-						new vscode.LanguageModelTextPart(open(group, 'opened by the model') ? activationResult(group) : activationRefused(group))
+						new vscode.LanguageModelTextPart(`${call.name} is not available in ${scope}.`)
 					]));
-				} else {
-					const result = await vscode.lm.invokeTool(offered.realNames.get(call.name) ?? realNames.get(call.name) ?? call.name, {
-						input: call.input,
-						toolInvocationToken: request.toolInvocationToken
-					}, token);
-					results.push(new vscode.LanguageModelToolResultPart(call.callId, capContent(result.content)));
+					continue;
 				}
-			} catch (error) {
-				results.push(new vscode.LanguageModelToolResultPart(call.callId, [
-					new vscode.LanguageModelTextPart(`Tool failed: ${error instanceof Error ? error.message : String(error)}`)
-				]));
+				const local = localTools.find(tool => tool.name === call.name);
+				const group = groups.get(call.name);
+				stream.progress(`${group ? 'Opening' : 'Running'} ${progressLabel(call.name, group?.label)}…`);
+				try {
+					if (local) {
+						const text = await local.run(call.input as Record<string, unknown>);
+						results.push(new vscode.LanguageModelToolResultPart(call.callId, [new vscode.LanguageModelTextPart(text)]));
+					} else if (group) {
+						// The group's tools join the next round's list; the result names them.
+						results.push(new vscode.LanguageModelToolResultPart(call.callId, [
+							new vscode.LanguageModelTextPart(open(group, 'opened by the model') ? activationResult(group) : activationRefused(group))
+						]));
+					} else {
+						const result = await vscode.lm.invokeTool(offered.realNames.get(call.name) ?? realNames.get(call.name) ?? call.name, {
+							input: call.input,
+							toolInvocationToken: request.toolInvocationToken
+						}, token);
+						results.push(new vscode.LanguageModelToolResultPart(call.callId, capContent(result.content)));
+					}
+				} catch (error) {
+					results.push(new vscode.LanguageModelToolResultPart(call.callId, [
+						new vscode.LanguageModelTextPart(`Tool failed: ${error instanceof Error ? error.message : String(error)}`)
+					]));
+				}
 			}
+			messages.push(vscode.LanguageModelChatMessage.User(results));
+		} finally {
+			stop?.dispose();
 		}
-		messages.push(vscode.LanguageModelChatMessage.User(results));
 	}
 
 	if (!token.isCancellationRequested) {

@@ -8,7 +8,8 @@ import * as vscode from 'vscode';
 import { ChatMessage, IAIProvider, ImagePart, ProviderType, SiriusModel, ToolCallRequest, ToolCallResult, ToolDefinition } from '../types';
 import { ModelRouter } from '../providers/modelRouter';
 import { PROVIDER_LABELS } from '../auth/secretStore';
-import { LOCAL_PROVIDERS, ProviderConnection, rememberConnection, rememberModel, vendorOf } from './vendors';
+import { debug } from '../chat/siriusAgent';
+import { LOCAL_PROVIDERS, ProviderConnection, rememberConnection, rememberModel, stopTokenOf, vendorOf } from './vendors';
 
 /**
  * Discovery is fanned out across every configured provider, so one unreachable
@@ -118,6 +119,8 @@ export class SiriusLanguageModelProvider implements vscode.LanguageModelChatProv
 			rememberConnection(this.providerId, connection);
 			const check = await provider.checkConnection();
 			if (!check.ok) {
+				// The editor keeps this as the group's red row and logs nothing itself.
+				debug(`[lm] ${this.vendor}: ${check.problem}`);
 				throw new Error(check.problem);
 			}
 		}
@@ -188,23 +191,44 @@ export class SiriusLanguageModelProvider implements vscode.LanguageModelChatProv
 		const tools = this._toToolDefinitions(options.tools);
 		const provider = this._instance(model.sirius.connection);
 
-		for await (const chunk of this.router.chatWithModel(provider, model.sirius.model, converted, tools)) {
-			if (token.isCancellationRequested) {
-				return;
-			}
+		// Stop means stop at the vendor: a cancellation becomes an abort signal on the
+		// provider's `fetch`, which closes the connection — checking the token between chunks
+		// alone left the request running, and billing, until the vendor finished on its own.
+		// The editor's token here is live only until the request has started, so the caller's
+		// own token, relayed through `modelOptions` (vendors.ts), is watched as well: that is
+		// how the chat's Stop arrives.
+		const controller = new AbortController();
+		const relayed = stopTokenOf(options.modelOptions);
+		const watched = relayed ? [token, relayed] : [token];
+		const stops = watched.map(t => t.onCancellationRequested(() => controller.abort()));
+		if (watched.some(t => t.isCancellationRequested)) {
+			controller.abort();
+		}
 
-			if (chunk.thinking) {
-				// Proposed API; the extension host accepts it from a provider.
-				progress.report(new vscode.LanguageModelThinkingPart(chunk.thinking) as unknown as vscode.LanguageModelResponsePart);
-			}
+		try {
+			for await (const chunk of this.router.chatWithModel(provider, model.sirius.model, converted, tools, controller.signal)) {
+				if (token.isCancellationRequested) {
+					return;
+				}
 
-			if (chunk.content) {
-				progress.report(new vscode.LanguageModelTextPart(chunk.content));
-			}
+				if (chunk.thinking) {
+					// Proposed API; the extension host accepts it from a provider.
+					progress.report(new vscode.LanguageModelThinkingPart(chunk.thinking) as unknown as vscode.LanguageModelResponsePart);
+				}
 
-			for (const call of chunk.toolCalls ?? []) {
-				progress.report(new vscode.LanguageModelToolCallPart(call.id, call.name, call.arguments));
+				if (chunk.content) {
+					progress.report(new vscode.LanguageModelTextPart(chunk.content));
+				}
+
+				for (const call of chunk.toolCalls ?? []) {
+					progress.report(new vscode.LanguageModelToolCallPart(call.id, call.name, call.arguments));
+				}
 			}
+		} finally {
+			// Whatever ended the loop — the end, a stop, a failure past the provider — the
+			// vendor's connection is not left open. After a normal end this is nothing.
+			controller.abort();
+			stops.forEach(s => s.dispose());
 		}
 	}
 

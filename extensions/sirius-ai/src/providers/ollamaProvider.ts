@@ -85,12 +85,15 @@ export class OllamaProvider implements IAIProvider {
 
 		// Check if Ollama is running
 		try {
-			const healthCheck = await fetch(`${endpoint}/api/tags`);
+			const healthCheck = await fetch(`${endpoint}/api/tags`, { signal: request.signal });
 			if (!healthCheck.ok) {
 				yield { content: '⚠️ Ollama is not running. Start it with `ollama serve` in your terminal.', done: true };
 				return;
 			}
 		} catch {
+			if (request.signal?.aborted) {
+				return;
+			}
 			yield { content: '⚠️ Cannot connect to Ollama at ' + endpoint + '. Make sure Ollama is running (`ollama serve`).', done: true };
 			return;
 		}
@@ -145,7 +148,8 @@ export class OllamaProvider implements IAIProvider {
 			const response = await fetch(`${endpoint}/api/chat`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body
+				body,
+				signal: request.signal
 			});
 
 			if (!response.ok) {
@@ -280,6 +284,9 @@ export class OllamaProvider implements IAIProvider {
 				};
 			}
 		} catch (error: any) {
+			if (request.signal?.aborted) {
+				return; // the user stopped it, and the editor is no longer reading
+			}
 			yield { content: `⚠️ Ollama Error: ${error.message}`, done: true };
 		}
 	}

@@ -142,7 +142,7 @@
 				},
 				"sirius.ai.defaultModel": {
 					"type": "string",
-					"default": "claude-opus-5",
+					"default": "claude-opus-5-5",
 					"description": "Model used for AI chat. Prefer the \"Sirius: Select AI Model\" command, which lists everything the configured providers offer."
 				},
 				"sirius.ai.gemini.apiKey": {
@@ -289,6 +289,12 @@
 							"secret": true,
 							"title": "API Key",
 							"description": "Your Anthropic API key. Stored in the system keyring, never in settings.json."
+						},
+						"url": {
+							"type": "string",
+							"title": "Base URL",
+							"default": "https://api.anthropic.com",
+							"description": "Change only for a gateway or proxy that speaks Anthropic's API."
 						}
 					},
 					"required": [
@@ -307,6 +313,12 @@
 							"secret": true,
 							"title": "API Key",
 							"description": "Your Google Gemini API key. Stored in the system keyring, never in settings.json."
+						},
+						"url": {
+							"type": "string",
+							"title": "Base URL",
+							"default": "https://generativelanguage.googleapis.com",
+							"description": "Change only for a gateway or proxy that speaks the Gemini API."
 						}
 					},
 					"required": [

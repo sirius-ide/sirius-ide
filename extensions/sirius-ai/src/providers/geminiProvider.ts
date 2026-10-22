@@ -5,7 +5,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IAIProvider, KeySource, SiriusModel, ChatRequest, ChatChunk, ChatMessage, ImagePart, ProviderType, ImageGenRequest, ImageGenResult, StopReason, ToolCallRequest } from '../types';
-import { ConnectionCheck, checkEndpoint } from './connection';
+import { ConnectionCheck, checkEndpoint, isRejectedKey } from './connection';
+
+/** The vendor's API, unless a gateway or proxy that speaks it is configured. */
+const DEFAULT_BASE_URL = 'https://generativelanguage.googleapis.com';
 
 /**
  * The key travels in the `x-goog-api-key` header, not the `?key=` query
@@ -118,10 +121,15 @@ export class GeminiProvider implements IAIProvider {
 		}
 	];
 
-	constructor(private readonly secrets: KeySource) { }
+	/** @param baseUrl a gateway or proxy that speaks the Gemini API; else the vendor's. */
+	constructor(private readonly secrets: KeySource, private readonly baseUrl?: string) { }
 
 	private getApiKey(): string {
 		return this.secrets.get('gemini');
+	}
+
+	private _baseUrl(): string {
+		return (this.baseUrl?.trim() || DEFAULT_BASE_URL).replace(/\/+$/, '');
 	}
 
 	isConfigured(): boolean {
@@ -129,7 +137,10 @@ export class GeminiProvider implements IAIProvider {
 	}
 
 	checkConnection(): Promise<ConnectionCheck> {
-		return checkEndpoint('https://generativelanguage.googleapis.com/v1beta/models', { 'x-goog-api-key': this.getApiKey() }, 'Gemini');
+		return checkEndpoint(`${this._baseUrl()}/v1beta/models`, { 'x-goog-api-key': this.getApiKey() }, 'Gemini', {
+			notFoundIsFine: this._baseUrl() !== DEFAULT_BASE_URL,
+			noRedirect: true
+		});
 	}
 
 	async *chat(request: ChatRequest): AsyncIterable<ChatChunk> {
@@ -187,11 +198,14 @@ export class GeminiProvider implements IAIProvider {
 
 		try {
 			if (request.stream) {
-				yield* this._handleStream(model, apiKey, body);
+				yield* this._handleStream(model, apiKey, body, request.signal);
 			} else {
-				yield* this._handleNonStream(model, apiKey, body);
+				yield* this._handleNonStream(model, apiKey, body, request.signal);
 			}
 		} catch (error: any) {
+			if (request.signal?.aborted) {
+				return; // the user stopped it, and the editor is no longer reading
+			}
 			yield { content: `⚠️ Gemini Error: ${error.message}`, done: true };
 		}
 	}
@@ -297,17 +311,19 @@ export class GeminiProvider implements IAIProvider {
 	/**
 	 * Handle SSE streaming response
 	 */
-	private async *_handleStream(model: string, apiKey: string, body: string): AsyncIterable<ChatChunk> {
-		const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse`;
+	private async *_handleStream(model: string, apiKey: string, body: string, signal: AbortSignal | undefined): AsyncIterable<ChatChunk> {
+		const url = `${this._baseUrl()}/v1beta/models/${model}:streamGenerateContent?alt=sse`;
+		// No redirect: the key sits in a custom header, which `fetch` would carry to another host.
 		const response = await fetch(url, {
 			method: 'POST',
 			headers: geminiHeaders(apiKey),
-			body
+			body,
+			signal,
+			redirect: 'error'
 		});
 
 		if (!response.ok) {
-			const error = await response.text();
-			yield { content: `⚠️ Gemini API Error (${response.status}): ${error}`, done: true };
+			yield { content: await this._describeError(response), done: true };
 			return;
 		}
 
@@ -380,17 +396,18 @@ export class GeminiProvider implements IAIProvider {
 	/**
 	 * Handle non-streaming response
 	 */
-	private async *_handleNonStream(model: string, apiKey: string, body: string): AsyncIterable<ChatChunk> {
-		const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+	private async *_handleNonStream(model: string, apiKey: string, body: string, signal: AbortSignal | undefined): AsyncIterable<ChatChunk> {
+		const url = `${this._baseUrl()}/v1beta/models/${model}:generateContent`;
 		const response = await fetch(url, {
 			method: 'POST',
 			headers: geminiHeaders(apiKey),
-			body
+			body,
+			signal,
+			redirect: 'error'
 		});
 
 		if (!response.ok) {
-			const error = await response.text();
-			yield { content: `⚠️ Gemini API Error: ${error}`, done: true };
+			yield { content: await this._describeError(response), done: true };
 			return;
 		}
 
@@ -430,6 +447,34 @@ export class GeminiProvider implements IAIProvider {
 		};
 	}
 
+	/**
+	 * Turn a refusal into something a user can act on. A wrong key is answered 400 here,
+	 * not 401 — `connection.ts` reads the body for it.
+	 */
+	private async _describeError(response: Response): Promise<string> {
+		const raw = await response.text();
+		let message = raw;
+		try {
+			message = (JSON.parse(raw) as { error?: { message?: string } }).error?.message ?? raw;
+		} catch {
+			// Not JSON — show the raw body.
+		}
+		if (isRejectedKey(response.status, raw)) {
+			// Google's own text matters here: a 403 may be the API not enabled for the project.
+			return `⚠️ Gemini rejected the API key. Change it in **Manage Models** — Configure on the provider's row. (${message})`;
+		}
+		switch (response.status) {
+			case 404:
+				return `⚠️ Gemini does not recognise that model. Pick another with **Sirius: Select AI Model**. (${message})`;
+			case 429: {
+				const retryAfter = response.headers.get('retry-after');
+				return `⚠️ Rate limited by Gemini${retryAfter ? ` — try again in ${retryAfter}s` : ''}. ${message}`;
+			}
+			default:
+				return `⚠️ Gemini API Error (${response.status}): ${message}`;
+		}
+	}
+
 	// ─── Image Generation via Imagen ─────────────────────────────────────────
 
 	/**
@@ -442,7 +487,7 @@ export class GeminiProvider implements IAIProvider {
 		}
 
 		const model = 'gemini-3.1-flash-image';
-		const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+		const url = `${this._baseUrl()}/v1beta/models/${model}:generateContent`;
 
 		const response = await fetch(url, {
 			method: 'POST',
@@ -455,7 +500,8 @@ export class GeminiProvider implements IAIProvider {
 					responseModalities: ['TEXT', 'IMAGE'],
 					imageSizeHint: request.size || '1024x1024'
 				}
-			})
+			}),
+			redirect: 'error'
 		});
 
 		if (!response.ok) {
@@ -495,7 +541,7 @@ export class GeminiProvider implements IAIProvider {
 		}
 
 		try {
-			const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models', { headers: { 'x-goog-api-key': apiKey } });
+			const response = await fetch(`${this._baseUrl()}/v1beta/models`, { headers: { 'x-goog-api-key': apiKey }, redirect: 'error' });
 			if (!response.ok) {
 				return this.models;
 			}
