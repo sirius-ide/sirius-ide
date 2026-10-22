@@ -1,8 +1,115 @@
 {
-	"fetchedAt": "2026-10-09T21:00:31.652Z",
+	"fetchedAt": "2026-10-22T17:31:09.114Z",
 	"owner": "sirius-ide",
 	"repo": "sirius-ide",
 	"releases": [
+		{
+			"tag": "v1.118.14",
+			"version": "1.118.14",
+			"name": "v1.118.14",
+			"prerelease": false,
+			"publishedAt": "2026-10-22T17:23:08Z",
+			"url": "https://github.com/sirius-ide/sirius-ide/releases/tag/v1.118.14",
+			"body": "**Full Changelog**: https://github.com/sirius-ide/sirius-ide/compare/v1.118.13...v1.118.14",
+			"assets": [
+				{
+					"name": "commit.txt",
+					"size": 41,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.14/commit.txt",
+					"sha256": null
+				},
+				{
+					"name": "sirius-1.118.14-1792689018.el8.aarch64.rpm",
+					"size": 160216290,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.14/sirius-1.118.14-1792689018.el8.aarch64.rpm",
+					"sha256": null
+				},
+				{
+					"name": "sirius-1.118.14-1792689069.el8.x86_64.rpm",
+					"size": 163824405,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.14/sirius-1.118.14-1792689069.el8.x86_64.rpm",
+					"sha256": null
+				},
+				{
+					"name": "sirius-ide-bin-1.118.14-1-x86_64.pkg.tar.zst",
+					"size": 153548328,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.14/sirius-ide-bin-1.118.14-1-x86_64.pkg.tar.zst",
+					"sha256": "f4772149e4e4b98334a6145b5e96d806151e679c634b342176c2fc7bbc605d78"
+				},
+				{
+					"name": "sirius-linux-arm64.tar.gz",
+					"size": 158829549,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.14/sirius-linux-arm64.tar.gz",
+					"sha256": "4bea51a777ebb1513b977f9b6da0587217660d572cbeeb3a797746c0130ff2be"
+				},
+				{
+					"name": "sirius-linux-x64.tar.gz",
+					"size": 162639179,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.14/sirius-linux-x64.tar.gz",
+					"sha256": "d9f94296db9a4447b7d5ac7958403091c112f540af8937e7ede038bd5a5d28f6"
+				},
+				{
+					"name": "sirius-server-linux-arm64.tar.gz",
+					"size": 81273886,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.14/sirius-server-linux-arm64.tar.gz",
+					"sha256": "4e2f5df057ebfa61695101a873600cd96b5c46d4956776730c3a97a97ff3cfb5"
+				},
+				{
+					"name": "sirius-server-linux-x64.tar.gz",
+					"size": 83539297,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.14/sirius-server-linux-x64.tar.gz",
+					"sha256": "85052c1cf4fa1335bf400f1a58ccffec5b0438e581f8adba503344570b3e4ca7"
+				},
+				{
+					"name": "sirius-win32-x64-setup.exe",
+					"size": 129241449,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.14/sirius-win32-x64-setup.exe",
+					"sha256": "fa3a9132ad528ba4b877b23ac6527ab8ff7107b922113b44216d4078fe2e9c81"
+				},
+				{
+					"name": "sirius_1.118.14-1792688927_arm64.deb",
+					"size": 106398076,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.14/sirius_1.118.14-1792688927_arm64.deb",
+					"sha256": null
+				},
+				{
+					"name": "sirius_1.118.14-1792688987_amd64.deb",
+					"size": 114782484,
+					"downloadUrl": "https://github.com/sirius-ide/sirius-ide/releases/download/v1.118.14/sirius_1.118.14-1792688987_amd64.deb",
+					"sha256": null
+				}
+			],
+			"commits": [
+				{
+					"sha": "fd354bf",
+					"subject": "1.118.14"
+				},
+				{
+					"sha": "5455d06",
+					"subject": "website: the v1.118.14 line for the changelog"
+				},
+				{
+					"sha": "e916602",
+					"subject": "providers: Anthropic's models discovered and every request shaped from what the model accepts, a Base URL for Anthropic and Gemini, Google's bad-key 400 read as a rejected key, and a stopped reply ending at the vendor — the chat's Stop closes the connection, relayed past an editor that lets go of a request once it has started; a probe proves all of it against stubs"
+				},
+				{
+					"sha": "60eda02",
+					"subject": "inline: Tab completion ends with the block — the server is asked to stop at the line after the cursor's, and a suggestion is cut where a line steps out of the cursor's block; a small model no longer runs past the function's closing brace into the next function"
+				},
+				{
+					"sha": "9992cfa",
+					"subject": "harness: the hosted providers live — a probe that adds Anthropic and Google Gemini in Manage Models with keys read from a file outside the repository, records every request to the vendors as they see it (the header that carried the key, the schema sent, the status), and checks a reply, a tool call through a $ref'd schema and the tool's result handed back; run so far only with a rejected key"
+				},
+				{
+					"sha": "0a2b404",
+					"subject": "repo: how to report and what we take — Sirius's own contributing guide (issues and private security reporting; no pull requests for now), issue forms and PR template, and a user-level roadmap"
+				},
+				{
+					"sha": "59a4d5c",
+					"subject": "docs: the repository holds the product — comments and the website's notes no longer cite working documents; the comparison table's remote cell says the connect is proven; the release snapshot refreshed"
+				}
+			]
+		},
 		{
 			"tag": "v1.118.13",
 			"version": "1.118.13",
