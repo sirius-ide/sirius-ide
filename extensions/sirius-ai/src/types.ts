@@ -101,6 +101,27 @@ export interface ToolDefinition {
 }
 
 /**
+ * One block of a model's reasoning, kept whole so it can go back to the vendor
+ * unchanged. Anthropic requires the thinking that led to a tool call to come back,
+ * complete and unmodified, with the call's result; without it the model resumes
+ * without its own reasoning, and a model on a thinking budget refuses the request.
+ */
+export interface ThinkingBlock {
+	/** The reasoning as the vendor sent it: a summary, or empty when the vendor omits the text. */
+	text: string;
+	/** The vendor's signature over the block, returned with it. */
+	signature?: string;
+	/** An encrypted block the vendor sent instead of text (Anthropic's `redacted_thinking`). */
+	redacted?: string;
+	/**
+	 * What the vendor bound the block to beyond the conversation itself, as the provider
+	 * fingerprints it — for Anthropic, the system prompt and the tool set. Sent back under a
+	 * different one, the vendor refuses the block, so the provider leaves it behind instead.
+	 */
+	binding?: string;
+}
+
+/**
  * A call the model asked for. `id` is provider-assigned and must be echoed back
  * with the result so the model can match them up.
  */
@@ -163,6 +184,11 @@ export interface ChatMessage {
 	 * `supportsVision` is true; see the vision guard in the LM bridge.
 	 */
 	images?: ImagePart[];
+	/**
+	 * The reasoning this assistant turn produced, in order, sent back unchanged.
+	 * A provider whose vendor has no such thing ignores it.
+	 */
+	thinkingBlocks?: ThinkingBlock[];
 	/** Tool calls this assistant turn asked for. */
 	toolCalls?: ToolCallRequest[];
 	/** Results carried by a `tool` message, answering an earlier assistant turn. */
@@ -201,6 +227,11 @@ export interface ChatChunk {
 	thinking?: string;
 	/** Whether this chunk is part of a thinking block */
 	isThinkingBlock?: boolean;
+	/**
+	 * A thinking block that has just ended, whole: the text already streamed in
+	 * `thinking`, plus what closes it. This is what goes back to the vendor.
+	 */
+	thinkingBlock?: ThinkingBlock;
 	/** Image data (base64 or URL) for image generation */
 	imageData?: string;
 	/** Tool calls the model requested. Only set on the final chunk of a turn. */

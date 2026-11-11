@@ -5,7 +5,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { ChatMessage, IAIProvider, ImagePart, ProviderType, SiriusModel, ToolCallRequest, ToolCallResult, ToolDefinition } from '../types';
+import { ChatMessage, IAIProvider, ImagePart, ProviderType, SiriusModel, ThinkingBlock, ToolCallRequest, ToolCallResult, ToolDefinition } from '../types';
+import { THINKING_BLOCK_KEY, thinkingBlockOf } from '../agent/core';
 import { ModelRouter } from '../providers/modelRouter';
 import { PROVIDER_LABELS } from '../auth/secretStore';
 import { debug } from '../chat/siriusAgent';
@@ -216,6 +217,13 @@ export class SiriusLanguageModelProvider implements vscode.LanguageModelChatProv
 					progress.report(new vscode.LanguageModelThinkingPart(chunk.thinking) as unknown as vscode.LanguageModelResponsePart);
 				}
 
+				if (chunk.thinkingBlock) {
+					// The block whole, for the agent to send back with the round's tool
+					// results. It carries no text of its own to show: the text above
+					// already streamed.
+					progress.report(new vscode.LanguageModelThinkingPart('', undefined, { [THINKING_BLOCK_KEY]: chunk.thinkingBlock }) as unknown as vscode.LanguageModelResponsePart);
+				}
+
 				if (chunk.content) {
 					progress.report(new vscode.LanguageModelTextPart(chunk.content));
 				}
@@ -279,9 +287,19 @@ export class SiriusLanguageModelProvider implements vscode.LanguageModelChatProv
 			const images: ImagePart[] = [];
 			const toolCalls: ToolCallRequest[] = [];
 			const toolResults: ToolCallResult[] = [];
+			const thinkingBlocks: ThinkingBlock[] = [];
 
 			for (const part of message.content) {
-				if (isToolCallPart(part)) {
+				// First: a thinking part has a string `value` too, and would otherwise be
+				// taken for text. Only the agent puts reasoning into a message, always
+				// with the block in its metadata.
+				const block = isAssistant ? thinkingBlockOf((part as { readonly metadata?: unknown } | undefined)?.metadata) : undefined;
+				if (block) {
+					thinkingBlocks.push(block);
+				} else if (part instanceof vscode.LanguageModelThinkingPart) {
+					// Reasoning as it was shown, without the block that carries it whole:
+					// never the assistant's words, so it does not go out as text.
+				} else if (isToolCallPart(part)) {
 					toolNames.set(part.callId, part.name);
 					toolCalls.push({ id: part.callId, name: part.name, arguments: part.input as Record<string, unknown> });
 				} else if (isToolResultPart(part)) {
@@ -303,8 +321,9 @@ export class SiriusLanguageModelProvider implements vscode.LanguageModelChatProv
 				converted.push({ role: 'tool', content: '', timestamp, toolResults });
 			}
 
+			const reasoning = thinkingBlocks.length ? { thinkingBlocks } : {};
 			if (toolCalls.length > 0) {
-				converted.push({ role: 'assistant', content: text, timestamp, toolCalls });
+				converted.push({ role: 'assistant', content: text, timestamp, toolCalls, ...reasoning });
 			} else if (text || images.length) {
 				// An image-only turn is legitimate — a pasted screenshot with no
 				// words — so presence of either is enough to emit the message.
@@ -312,7 +331,8 @@ export class SiriusLanguageModelProvider implements vscode.LanguageModelChatProv
 					role: isAssistant ? 'assistant' : 'user',
 					content: text,
 					timestamp,
-					...(images.length ? { images } : {})
+					...(images.length ? { images } : {}),
+					...reasoning
 				});
 			}
 		}

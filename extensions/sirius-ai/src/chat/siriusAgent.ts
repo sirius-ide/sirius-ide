@@ -14,6 +14,7 @@ import { randomBytes } from 'crypto';
 import { knownModel, providerOf, registerStop, siriusModels } from '../lm/vendors';
 import { EXTERNAL_BUDGET, MAX_TOOLS_PER_REQUEST, activationRefused, activationResult, describeOffer, externalSources, fit, offerExternal, promptTsxText, rememberedExpansions, serverInstructions, sourceOf } from './externalTools';
 import type { SiriusModel } from '../types';
+import { AgentFace, AgentPart, THINKING_BLOCK_KEY, runAgent, thinkingBlockOf } from '../agent/core';
 
 /**
  * The panel's ask, edit and agent modes are served by whichever participant
@@ -79,7 +80,6 @@ const MODE_RULES: Record<Mode, string> = {
 	edit: 'You are in Edit mode: read the workspace and change files with edit_file and create_file. You cannot run commands here.',
 	agent: ''
 };
-const MAX_TOOL_ROUNDS = 25;
 const MAX_TOOL_RESULT_CHARS = 24_000;
 
 /**
@@ -344,8 +344,9 @@ const createHandler = (mode: Mode): vscode.ChatRequestHandler => async (request,
 	}
 	debug(`[request] mode=${mode}${agent ? ` agent=${agent.name} instructions=${agent.instructions.length}` : ''} model=${model.id} window=${model.maxInputTokens} size=${known?.sizeBytes ?? 'unknown'} tier=${extended ? 'extended' : 'core'} tools=${offered.tools.length} (${[...offered.toolNames].join(',')})${sources.length ? ` external ${describeOffer(sources, opened, dropped)}` : ''}`);
 
-	const messages = await buildMessages(chatContext, request, mode, model.maxInputTokens, offer.expanded.map(serverInstructions).filter((text): text is string => !!text));
-	const prompt = messages[messages.length - 1].content;
+	const built = await buildMessages(chatContext, request, mode, model.maxInputTokens, offer.expanded.map(serverInstructions).filter((text): text is string => !!text));
+	const prompt = built[built.length - 1].content;
+	const messages: EditorMessage[] = built;
 	const images = prompt.filter(part => part instanceof vscode.LanguageModelDataPart).length;
 	if (images > 0) {
 		debug(`[request] images=${images} vision=${known?.supportsVision ?? 'unknown'}`);
@@ -354,57 +355,46 @@ const createHandler = (mode: Mode): vscode.ChatRequestHandler => async (request,
 	// it open — carried forward through every turn, whichever mode answered it.
 	const result = (): vscode.ChatResult => ({ metadata: { siriusExpanded: [...new Set([...remembered, ...openedByModel])] } });
 
-	for (let round = 0; round < MAX_TOOL_ROUNDS && !token.isCancellationRequested; round++) {
-		const { tools, toolNames, realNames, groups, closedTools } = offered;
-		// The editor lets go of `token` once the request has started; kept here, it is what
-		// lets a Stop reach the provider and close the connection (lm/vendors.ts). Sirius's
-		// own providers only: another vendor might forward an option it does not know.
-		const stop = providerOf(model.vendor) ? registerStop(token) : undefined;
-		try {
-			const response = await model.sendRequest(messages, { tools, ...(stop ? { modelOptions: stop.modelOptions } : {}) }, token);
-
-			const emitted = new TextGate(stream, toolNames);
-			const toolCalls: vscode.LanguageModelToolCallPart[] = [];
-			let thinking = 0;
-
-			for await (const part of response.stream) {
-				if (token.isCancellationRequested) {
-					return result();
-				}
-				if (part instanceof vscode.LanguageModelTextPart) {
-					emitted.push(part.value);
-				} else if (part instanceof vscode.LanguageModelToolCallPart) {
-					toolCalls.push(part);
-				} else if (part instanceof vscode.LanguageModelThinkingPart) {
-					// The providers request thinking and the bridge reports it; without
-					// this the transcript dropped it, so the reasoning was paid for and
-					// never shown. The workbench renders it as a collapsible section.
-					const text = Array.isArray(part.value) ? part.value.join('') : part.value;
-					if (text) {
-						thinking += text.length;
-						stream.thinkingProgress({ text, id: part.id ?? `thinking-${round}`, metadata: part.metadata });
-					}
-				}
+	// The loop itself is the agent core's (agent/core.ts); this face gives it the
+	// editor's model, the tools offered above, and the chat to write to.
+	const chosen: vscode.LanguageModelChat = model;
+	let current = offered;
+	const face: AgentFace<EditorMessage> = {
+		round: () => {
+			current = offered;
+			return { toolNames: current.toolNames };
+		},
+		send: async messages => {
+			// The editor lets go of `token` once the request has started; kept here, it is what
+			// lets a Stop reach the provider and close the connection (lm/vendors.ts). Sirius's
+			// own providers only: another vendor might forward an option it does not know.
+			const stop = providerOf(chosen.vendor) ? registerStop(token) : undefined;
+			try {
+				const response = await chosen.sendRequest([...messages], { tools: current.tools, ...(stop ? { modelOptions: stop.modelOptions } : {}) }, token);
+				return { parts: replyParts(response.stream), dispose: () => stop?.dispose() };
+			} catch (error) {
+				stop?.dispose();
+				throw error;
 			}
-			// A small model sometimes writes its tool call as prose instead of
-			// using the mechanism; the gate holds such text back so it can run as
-			// a real call instead of leaking JSON into the conversation.
-			const rescued = emitted.finish(round);
-			toolCalls.push(...rescued);
-
-			debug(`[round ${round}] text=${emitted.total} thinking=${thinking} calls=${toolCalls.map(c => c.name).join(',') || 'none'}`);
-
-			if (toolCalls.length === 0) {
-				return result();
-			}
-
-			messages.push(vscode.LanguageModelChatMessage.Assistant([
-				...(emitted.total > 0 && rescued.length === 0 ? [new vscode.LanguageModelTextPart(emitted.text)] : []),
-				...toolCalls
-			]));
-
+		},
+		assistant: (reasoning, text, calls) => {
+			const content = [
+				...(text !== undefined ? [new vscode.LanguageModelTextPart(text)] : []),
+				...calls.map(call => new vscode.LanguageModelToolCallPart(call.callId, call.name, call.input))
+			];
+			// The round's reasoning goes first, each block whole in its metadata, for the
+			// language-model bridge to hand back to the provider unchanged.
+			return reasoning.length
+				? new vscode.LanguageModelChatMessage2(vscode.LanguageModelChatMessageRole.Assistant, [
+					...reasoning.map(block => new vscode.LanguageModelThinkingPart(block.text, undefined, { [THINKING_BLOCK_KEY]: block })),
+					...content
+				])
+				: vscode.LanguageModelChatMessage.Assistant(content);
+		},
+		run: async calls => {
+			const { toolNames, realNames, groups, closedTools } = current;
 			const results: vscode.LanguageModelToolResultPart[] = [];
-			for (const call of toolCalls) {
+			for (const call of calls) {
 				// A model can name any tool — hallucinated, or steered by a file it
 				// read. Only what this mode offered runs; otherwise Ask's read-only set
 				// was a suggestion, and `run_in_terminal` ran if a model asked for it.
@@ -448,17 +438,39 @@ const createHandler = (mode: Mode): vscode.ChatRequestHandler => async (request,
 					]));
 				}
 			}
-			messages.push(vscode.LanguageModelChatMessage.User(results));
-		} finally {
-			stop?.dispose();
+			return vscode.LanguageModelChatMessage.User(results);
 		}
-	}
+	};
 
-	if (!token.isCancellationRequested) {
-		stream.markdown('\n\nStopping here — this task took more tool rounds than expected. Say "continue" to keep going.');
-	}
+	await runAgent<EditorMessage>(messages, face, {
+		markdown: text => stream.markdown(text),
+		thinking: (text, id, metadata) => stream.thinkingProgress({ text, id, metadata })
+	}, token, debug);
 	return result();
 };
+
+/** A message in the editor's language-model API; the second kind can carry reasoning. */
+type EditorMessage = vscode.LanguageModelChatMessage | vscode.LanguageModelChatMessage2;
+
+/** The editor's response parts, as the agent core reads them. */
+async function* replyParts(stream: AsyncIterable<unknown>): AsyncIterable<AgentPart> {
+	for await (const part of stream) {
+		if (part instanceof vscode.LanguageModelTextPart) {
+			yield { kind: 'text', text: part.value };
+		} else if (part instanceof vscode.LanguageModelToolCallPart) {
+			yield { kind: 'toolCall', call: { callId: part.callId, name: part.name, input: part.input } };
+		} else if (part instanceof vscode.LanguageModelThinkingPart) {
+			// The bridge closes each block with a part that carries it whole; the parts
+			// before it are its text, streamed to show.
+			const block = thinkingBlockOf(part.metadata);
+			yield block
+				? { kind: 'thinkingBlock', block }
+				: { kind: 'thinking', text: Array.isArray(part.value) ? part.value.join('') : part.value, id: part.id, metadata: part.metadata };
+		} else {
+			yield { kind: 'other' };
+		}
+	}
+}
 
 /** "read file", "echo (sirius-stub)", "the GitHub tools" — what the progress line shows. */
 function progressLabel(name: string, groupLabel: string | undefined): string {
@@ -470,102 +482,6 @@ function progressLabel(name: string, groupLabel: string | undefined): string {
 		return `${mcp[2].replace(/_/g, ' ')} (${mcp[1]})`;
 	}
 	return name.replace(/^sirius_/, '').replace(/_/g, ' ');
-}
-
-/**
- * Buffers a round's text so a small model's tool call written as prose — bare
- * or wrapped in a markdown fence — can be converted into a real invocation
- * instead of leaking JSON into the conversation. Long prose streams normally
- * once it is clearly not a tool call.
- */
-class TextGate {
-	text = '';
-	total = 0;
-	private streamedFrom = 0;
-	private decidedProse = false;
-
-	constructor(
-		private readonly stream: vscode.ChatResponseStream,
-		private readonly toolNames: ReadonlySet<string>
-	) { }
-
-	push(value: string): void {
-		this.text += value;
-		this.total += value.length;
-
-		// Past this size it is an answer, not a call — stream it live.
-		if (!this.decidedProse && this.total > 4096 && !this.extractCall()) {
-			this.decidedProse = true;
-		}
-		if (this.decidedProse) {
-			this.stream.markdown(this.text.slice(this.streamedFrom));
-			this.streamedFrom = this.text.length;
-		}
-	}
-
-	finish(round: number): vscode.LanguageModelToolCallPart[] {
-		// A small model may write several calls in one breath; convert every
-		// one, and only the leftover prose reaches the conversation.
-		const calls: vscode.LanguageModelToolCallPart[] = [];
-		let remaining = this.text;
-		for (let i = 0; i < 6; i++) {
-			const found = this.extractCallIn(remaining);
-			if (!found) {
-				break;
-			}
-			debug(`[rescue] textual tool call converted: ${found.name}`);
-			calls.push(new vscode.LanguageModelToolCallPart(`rescued-${round}-${i}`, found.name, found.args));
-			remaining = remaining.slice(0, found.start) + remaining.slice(found.end);
-		}
-		if (calls.length > 0) {
-			const prose = remaining.replace(/```[a-zA-Z]*\s*```/g, '').trim();
-			if (prose) {
-				this.stream.markdown(prose + '\n\n');
-			}
-			return calls;
-		}
-		if (this.streamedFrom < this.text.length) {
-			this.stream.markdown(this.text.slice(this.streamedFrom));
-			this.streamedFrom = this.text.length;
-		}
-		return calls;
-	}
-
-	private extractCall(): { name: string; args: object; start: number; end: number } | undefined {
-		return this.extractCallIn(this.text);
-	}
-
-	/** A fenced or bare {"name": ..., "arguments": ...} for a known tool. */
-	private extractCallIn(text: string): { name: string; args: object; start: number; end: number } | undefined {
-		const fenced = /```[a-zA-Z]*\s*\n?([\s\S]*?)```/.exec(text);
-		const candidates: Array<{ body: string; start: number; end: number }> = [];
-		if (fenced) {
-			candidates.push({ body: fenced[1], start: fenced.index, end: fenced.index + fenced[0].length });
-		}
-		const brace = text.indexOf('{');
-		if (brace !== -1) {
-			const close = text.lastIndexOf('}');
-			if (close > brace) {
-				candidates.push({ body: text.slice(brace, close + 1), start: brace, end: close + 1 });
-			}
-		}
-		for (const candidate of candidates) {
-			try {
-				const parsed = JSON.parse(candidate.body.trim()) as { name?: string; arguments?: unknown };
-				if (parsed && typeof parsed.name === 'string' && this.toolNames.has(parsed.name)) {
-					return {
-						name: parsed.name,
-						args: (parsed.arguments as object | undefined) ?? {},
-						start: candidate.start,
-						end: candidate.end
-					};
-				}
-			} catch {
-				// keep looking
-			}
-		}
-		return undefined;
-	}
 }
 
 interface LocalTool {

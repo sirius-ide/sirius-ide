@@ -4,14 +4,19 @@
  *  Licensed under the MIT License.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAIProvider, KeySource, SiriusModel, ChatRequest, ChatChunk, ChatMessage, ImagePart, ProviderType, ThinkingEffort, ToolCallRequest, StopReason } from '../types';
+import { IAIProvider, KeySource, SiriusModel, ChatRequest, ChatChunk, ChatMessage, ImagePart, ProviderType, ThinkingBlock, ThinkingEffort, ToolCallRequest, StopReason } from '../types';
 import { ConnectionCheck, checkEndpoint } from './connection';
+import { createHash } from 'crypto';
 
 /** A content block in a response: text, thinking, or a tool call. */
 interface AnthropicContentBlock {
 	type?: string;
 	text?: string;
 	thinking?: string;
+	/** A thinking block's signature, which must come back with the block. */
+	signature?: string;
+	/** A `redacted_thinking` block's encrypted reasoning. */
+	data?: string;
 	id?: string;
 	name?: string;
 	input?: Record<string, unknown>;
@@ -33,6 +38,8 @@ interface AnthropicStreamEvent {
 		type?: string;
 		text?: string;
 		thinking?: string;
+		/** `signature_delta`: arrives once, just before a thinking block closes. */
+		signature?: string;
 		partial_json?: string;
 		stop_reason?: string;
 	};
@@ -291,20 +298,31 @@ export class AnthropicProvider implements IAIProvider {
 		const model = request.model || 'claude-opus-5-5';
 		const shape = this._shape(model, request);
 
+		const tools = request.tools?.map(t => ({
+			name: t.name,
+			description: t.description,
+			input_schema: t.inputSchema
+		}));
+		// Anthropic binds each thinking block to the conversation that produced it: the
+		// system prompt, the tool set and the messages before it. Within a tool loop the
+		// messages only grow, but the tool set can change (the agent opens a group of an MCP
+		// server's tools), and a block sent back under a changed one is refused. So each
+		// block carries this request's fingerprint, and one made under another is left
+		// behind — always the earliest, which the API allows. A model on a thinking budget
+		// binds nothing and needs its block back, so it keeps them all.
+		const binding = bindingOf(request.systemPrompt, tools);
+		const keepAll = (shape.thinking as { type?: string } | undefined)?.type === 'enabled';
+
 		const body: Record<string, unknown> = {
 			model,
 			max_tokens: request.maxTokens,
-			messages: this._toWireMessages(request.messages)
+			messages: this._toWireMessages(request.messages, keepAll ? undefined : binding)
 		};
 
 		// Tool definitions are stable across turns, so they sit before the system
 		// prompt's cache breakpoint and are cached along with it.
-		if (request.tools?.length) {
-			body.tools = request.tools.map(t => ({
-				name: t.name,
-				description: t.description,
-				input_schema: t.inputSchema
-			}));
+		if (tools?.length) {
+			body.tools = tools;
 		}
 
 		// The system prompt is byte-identical on every turn, so mark it as a cache
@@ -357,9 +375,9 @@ export class AnthropicProvider implements IAIProvider {
 			}
 
 			if (request.stream) {
-				yield* this._handleStream(response);
+				yield* this._handleStream(response, binding);
 			} else {
-				yield* this._handleNonStream(response);
+				yield* this._handleNonStream(response, binding);
 			}
 		} catch (error: any) {
 			if (request.signal?.aborted) {
@@ -477,7 +495,7 @@ export class AnthropicProvider implements IAIProvider {
 	 * Anthropic carries tool calls and their results as content blocks, and
 	 * results come back on a `user` turn rather than a dedicated tool role.
 	 */
-	private _toWireMessages(messages: ChatMessage[]): AnthropicWireMessage[] {
+	private _toWireMessages(messages: ChatMessage[], binding?: string): AnthropicWireMessage[] {
 		const wire: AnthropicWireMessage[] = [];
 
 		for (const message of messages) {
@@ -498,8 +516,20 @@ export class AnthropicProvider implements IAIProvider {
 				continue;
 			}
 
+			// The reasoning behind an assistant turn goes back first, unchanged, as the
+			// vendor sent it: within a tool loop Anthropic requires it, and across turns
+			// it is what lets the model continue its own line of thought. A block with
+			// no signature is not Anthropic's (another model's reasoning after a switch)
+			// and would be refused, so it stays behind, as does one bound to another tool set
+			// (see `chat`).
+			const reasoning = (message.role === 'assistant' ? message.thinkingBlocks ?? [] : []).flatMap((block): unknown[] =>
+				binding !== undefined && block.binding !== binding ? []
+					: block.redacted ? [{ type: 'redacted_thinking', data: block.redacted }]
+						: block.signature ? [{ type: 'thinking', thinking: block.text, signature: block.signature }]
+							: []);
+
 			if (message.role === 'assistant' && message.toolCalls?.length) {
-				const blocks: unknown[] = [];
+				const blocks: unknown[] = [...reasoning];
 				if (message.content) {
 					blocks.push({ type: 'text', text: message.content });
 				}
@@ -507,6 +537,12 @@ export class AnthropicProvider implements IAIProvider {
 					blocks.push({ type: 'tool_use', id: call.id, name: call.name, input: call.arguments });
 				}
 				wire.push({ role: 'assistant', content: blocks });
+				continue;
+			}
+
+			if (reasoning.length) {
+				const body = anthropicBlocks(message.content, message.images);
+				wire.push({ role: 'assistant', content: [...reasoning, ...(typeof body === 'string' ? (body ? [{ type: 'text', text: body }] : []) : body)] });
 				continue;
 			}
 
@@ -555,7 +591,7 @@ export class AnthropicProvider implements IAIProvider {
 	 * keyed by content-block index, so they must be reassembled per block before
 	 * they can be parsed.
 	 */
-	private async *_handleStream(response: Response): AsyncIterable<ChatChunk> {
+	private async *_handleStream(response: Response, binding: string): AsyncIterable<ChatChunk> {
 		const reader = response.body?.getReader();
 		if (!reader) {
 			yield { content: '⚠️ No response stream available', done: true, stopReason: 'error' };
@@ -566,6 +602,9 @@ export class AnthropicProvider implements IAIProvider {
 		const pendingTools = new Map<number, { id: string; name: string; json: string }>();
 		let buffer = '';
 		let isInThinkingBlock = false;
+		// The block being read, thinking or redacted: its text, then the signature that
+		// arrives just before it closes. It goes out whole when it closes.
+		let reasoning: ThinkingBlock | undefined;
 		let stopReason: StopReason = 'end_turn';
 		let usage: ChatChunk['usage'];
 
@@ -593,7 +632,11 @@ export class AnthropicProvider implements IAIProvider {
 					const block = event.content_block;
 					if (block?.type === 'thinking') {
 						isInThinkingBlock = true;
+						reasoning = { text: block.thinking ?? '', ...(block.signature ? { signature: block.signature } : {}), binding };
 						yield { content: '', thinking: '', isThinkingBlock: true, done: false };
+					} else if (block?.type === 'redacted_thinking' && block.data) {
+						isInThinkingBlock = false;
+						reasoning = { text: '', redacted: block.data, binding };
 					} else if (block?.type === 'tool_use' && block.id && block.name) {
 						pendingTools.set(event.index ?? 0, { id: block.id, name: block.name, json: '' });
 					} else {
@@ -605,7 +648,14 @@ export class AnthropicProvider implements IAIProvider {
 				if (event.type === 'content_block_delta') {
 					const delta = event.delta;
 					if (delta?.type === 'thinking_delta') {
+						if (reasoning) {
+							reasoning.text += delta.thinking || '';
+						}
 						yield { content: '', thinking: delta.thinking || '', done: false };
+					} else if (delta?.type === 'signature_delta') {
+						if (reasoning) {
+							reasoning.signature = (reasoning.signature ?? '') + (delta.signature || '');
+						}
 					} else if (delta?.type === 'text_delta') {
 						yield { content: delta.text || '', done: false };
 					} else if (delta?.type === 'input_json_delta') {
@@ -618,9 +668,13 @@ export class AnthropicProvider implements IAIProvider {
 				}
 
 				if (event.type === 'content_block_stop') {
+					const closed = reasoning;
+					reasoning = undefined;
 					if (isInThinkingBlock) {
 						isInThinkingBlock = false;
-						yield { content: '', thinking: '', isThinkingBlock: false, done: false };
+						yield { content: '', thinking: '', isThinkingBlock: false, done: false, ...(closed ? { thinkingBlock: closed } : {}) };
+					} else if (closed) {
+						yield { content: '', done: false, thinkingBlock: closed };
 					}
 					continue;
 				}
@@ -644,15 +698,19 @@ export class AnthropicProvider implements IAIProvider {
 	/**
 	 * Handle non-streaming response
 	 */
-	private async *_handleNonStream(response: Response): AsyncIterable<ChatChunk> {
+	private async *_handleNonStream(response: Response, binding: string): AsyncIterable<ChatChunk> {
 		const result = await response.json() as AnthropicMessageResponse;
 		let textContent = '';
 		let thinkingContent = '';
 		const toolCalls: ToolCallRequest[] = [];
+		const reasoning: ThinkingBlock[] = [];
 
 		for (const block of (result.content || [])) {
 			if (block.type === 'thinking') {
 				thinkingContent += block.thinking || '';
+				reasoning.push({ text: block.thinking ?? '', ...(block.signature ? { signature: block.signature } : {}), binding });
+			} else if (block.type === 'redacted_thinking' && block.data) {
+				reasoning.push({ text: '', redacted: block.data, binding });
 			} else if (block.type === 'text') {
 				textContent += block.text || '';
 			} else if (block.type === 'tool_use' && block.id && block.name) {
@@ -662,6 +720,9 @@ export class AnthropicProvider implements IAIProvider {
 
 		if (thinkingContent) {
 			yield { content: '', thinking: thinkingContent, isThinkingBlock: true, done: false };
+		}
+		for (const block of reasoning) {
+			yield { content: '', done: false, thinkingBlock: block };
 		}
 
 		yield {
@@ -813,6 +874,15 @@ function atMost(effort: ThinkingEffort, cap: ThinkingEffort): ThinkingEffort {
  * becomes blocks only when an image has to ride along. An empty text block is
  * rejected by the API, so text is only emitted when present.
  */
+/**
+ * A fingerprint of what a thinking block is bound to besides the messages: the system prompt
+ * and the tool set, which Anthropic binds as a set (order does not matter, content does).
+ */
+function bindingOf(systemPrompt: string | undefined, tools: ReadonlyArray<{ readonly name: string }> | undefined): string {
+	const set = [...(tools ?? [])].sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
+	return createHash('sha256').update(JSON.stringify({ system: systemPrompt ?? '', tools: set })).digest('base64url').slice(0, 22);
+}
+
 function anthropicBlocks(text: string, images: ImagePart[] | undefined): string | unknown[] {
 	if (!images?.length) {
 		return text;
