@@ -17,5 +17,8 @@
 		"../../src/vscode-dts/vscode.proposed.chatParticipantPrivate.d.ts",
 		"../../src/vscode-dts/vscode.proposed.chatProvider.d.ts",
 		"../../src/vscode-dts/vscode.proposed.languageModelThinkingPart.d.ts"
+	],
+	"exclude": [
+		"src/panel/webview/**"
 	]
 }

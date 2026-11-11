@@ -1,0 +1,73 @@
+{
+	"name": "sirius-ai",
+	"displayName": "Sirius",
+	"description": "Sirius's own chat for VS Code: your models \u2014 Anthropic, Gemini, OpenAI and nine more, or your own local server \u2014 with their thinking shown as it streams.",
+	"publisher": "siriuside",
+	"version": "0.1.0",
+	"license": "SEE LICENSE IN LICENSE.txt",
+	"engines": {
+		"vscode": "^1.145.0"
+	},
+	"categories": [
+		"AI",
+		"Chat"
+	],
+	"main": "./dist/edition.js",
+	"activationEvents": [
+		"onWebviewPanel:sirius.chat"
+	],
+	"contributes": {
+		"viewsContainers": {
+			"secondarySidebar": [
+				{
+					"id": "sirius",
+					"title": "Sirius",
+					"icon": "media/sirius.svg"
+				}
+			]
+		},
+		"views": {
+			"sirius": [
+				{
+					"type": "webview",
+					"id": "sirius.panel",
+					"name": "Sirius"
+				}
+			]
+		},
+		"commands": [
+			{
+				"command": "sirius.open",
+				"title": "Open Sirius",
+				"category": "Sirius"
+			},
+			{
+				"command": "sirius.panel.openInTab",
+				"title": "Open Sirius in New Tab",
+				"category": "Sirius",
+				"icon": "$(link-external)"
+			},
+			{
+				"command": "sirius.panel.newConversation",
+				"title": "New Conversation",
+				"category": "Sirius",
+				"icon": "$(add)"
+			},
+			{
+				"command": "sirius.panel.setup",
+				"title": "Models and Keys",
+				"category": "Sirius",
+				"icon": "$(gear)"
+			}
+		],
+		"menus": {
+			"view/title": [
+				{
+					"command": "sirius.panel.openInTab",
+					"when": "view == sirius.panel",
+					"group": "navigation@1"
+				}
+			]
+		}
+	}
+}

@@ -1,0 +1,21 @@
+{
+	"extends": "../../../../tsconfig.base.json",
+	"compilerOptions": {
+		"noEmit": true,
+		"lib": [
+			"ES2022",
+			"DOM",
+			"DOM.Iterable"
+		],
+		"types": [],
+		"module": "esnext",
+		"moduleResolution": "bundler",
+		"allowJs": false
+	},
+	"include": [
+		"main.ts",
+		"../protocol.ts",
+		"../../../../../src/vs/base/common/marked/marked.d.ts",
+		"../../../../../src/vs/base/browser/dompurify/dompurify.d.ts"
+	]
+}

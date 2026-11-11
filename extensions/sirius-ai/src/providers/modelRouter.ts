@@ -14,7 +14,7 @@ import { selectDefaultModel } from '../lm/defaultModel';
 export const MANAGE_MODELS_COMMAND = 'workbench.action.chat.manage';
 
 /** Providers whose endpoint is asked for when one is added; the value is the usual one. */
-const DEFAULT_URLS: Partial<Record<ProviderType, string>> = {
+export const DEFAULT_URLS: Partial<Record<ProviderType, string>> = {
 	ollama: 'http://localhost:11434',
 	lmstudio: 'http://localhost:1234/v1',
 	llamacpp: 'http://localhost:8080/v1',
@@ -226,14 +226,19 @@ export class ModelRouter {
 	// ─── Chat Routing ────────────────────────────────────────────────────────
 
 	/** Send through one provider instance, to a model discovery described; `signal` stops it at the vendor. */
+	/**
+	 * `options` is for a caller with its own system prompt and thinking choice — Sirius's panel
+	 * in VS Code; without them, Sirius IDE's prompt and the `sirius.ai.thinking` settings apply.
+	 */
 	async *chatWithModel(
 		provider: IAIProvider,
 		model: SiriusModel,
 		messages: ChatMessage[],
 		tools?: ToolDefinition[],
-		signal?: AbortSignal
+		signal?: AbortSignal,
+		options?: { readonly systemPrompt?: string; readonly thinking?: ThinkingConfig }
 	): AsyncIterable<ChatChunk> {
-		yield* this._send(provider, model, messages, tools, signal);
+		yield* this._send(provider, model, messages, tools, signal, options);
 	}
 
 	private async *_send(
@@ -241,14 +246,15 @@ export class ModelRouter {
 		model: SiriusModel,
 		messages: ChatMessage[],
 		tools?: ToolDefinition[],
-		signal?: AbortSignal
+		signal?: AbortSignal,
+		options?: { readonly systemPrompt?: string; readonly thinking?: ThinkingConfig }
 	): AsyncIterable<ChatChunk> {
 		const config = vscode.workspace.getConfiguration('sirius.ai');
 		const modelId = model.id;
 
 		// Thinking is only requested where the model actually supports it — what
 		// discovery learnt, which the static lists never knew for a local model.
-		const thinkingConfig = this.getThinkingConfig();
+		const thinkingConfig = options?.thinking ?? this.getThinkingConfig();
 		const thinking: ThinkingConfig | undefined =
 			model.supportsThinking && thinkingConfig.enabled ? thinkingConfig : undefined;
 
@@ -258,7 +264,7 @@ export class ModelRouter {
 			maxTokens: config.get<number>('maxTokens', 16384),
 			temperature: config.get<number>('temperature', 0.7),
 			stream: config.get<boolean>('streamResponses', true),
-			systemPrompt: SIRIUS_SYSTEM_PROMPT,
+			systemPrompt: options?.systemPrompt ?? SIRIUS_SYSTEM_PROMPT,
 			thinking,
 			tools,
 			signal
