@@ -17,10 +17,24 @@
 // `GET /__requests` whether, and when, the client let go. Every request is recorded there and
 // printed as one JSON line: the path, which header carried a key and whether it was the right
 // one (never the key), the parsed body, and for a held one when and how it was released.
+// Thinking, on Anthropic's shape: a chat whose text says "think", on a request with thinking on,
+// gets its reasoning first — a thinking block whose text arrives in pieces (slowly, 350 ms apart,
+// when the text says "slow"; held after the first piece when it says "hold"), then its signature;
+// two blocks when it says "two thoughts", empty text when it says "omitted", and a
+// redacted_thinking block after them when it says "redacted" — and, offered sirius_list_directory
+// and asked about files, calls it. Every signature names the tool set (and system prompt) it was
+// made under. The next round must bring the blocks back, first in the last assistant turn,
+// unchanged; the request's record says whether it did (`replay`). As Anthropic refuses them:
+// with adaptive thinking, a block made under a different tool set is HTTP 400; on a thinking
+// budget, a last assistant turn that does not start with its blocks is HTTP 400.
+// The agent loop: "prose call" answers with a sirius_list_directory call written as text in a
+// fenced block — the call a small model writes instead of using the mechanism — and "call the
+// terminal" calls run_in_terminal whether it was offered or not.
 //
 //   node test/harness/hosted-stub.mjs <port> <key>
 
 import http from 'node:http';
+import { createHash } from 'node:crypto';
 
 const [port, key] = process.argv.slice(2);
 if (!port || !key) {
@@ -61,6 +75,11 @@ const OLLAMA_TAGS = { models: [{ name: 'stub-coder:1b', size: 1_000_000_000, mod
 const OLLAMA_SHOW = { capabilities: ['completion', 'tools'], model_info: { 'qwen2.context_length': 32768 }, details: OLLAMA_TAGS.models[0].details };
 
 const WEATHER_CALL = { name: 'get_weather', args: { location: { city: 'Paris', country: 'France' }, unit: 'celsius' } };
+const LIST_CALL = { name: 'sirius_list_directory', args: { path: '.' } };
+const TERMINAL_CALL = { name: 'run_in_terminal', args: { command: 'echo stub', explanation: 'stub', isBackground: false } };
+const PROSE_CALL = '```json\n' + JSON.stringify({ name: LIST_CALL.name, arguments: LIST_CALL.args }) + '\n```';
+const SLOW_MS = 350;
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 const GOOGLE_BAD_KEY = {
 	error: {
 		code: 400, message: 'API key not valid. Please pass a valid API key.', status: 'INVALID_ARGUMENT',
@@ -105,6 +124,15 @@ function reply(ask) {
 	if (ask.tools.includes('get_weather') && /weather/i.test(ask.text)) {
 		return { call: WEATHER_CALL };
 	}
+	if (ask.tools.includes(LIST_CALL.name) && /\bthink\b/i.test(ask.text) && /\bfiles?\b/i.test(ask.text)) {
+		return { call: LIST_CALL };
+	}
+	if (ask.tools.includes(LIST_CALL.name) && /\bprose call\b/i.test(ask.text)) {
+		return { text: PROSE_CALL };
+	}
+	if (/\bcall the terminal\b/i.test(ask.text)) {
+		return { call: TERMINAL_CALL };
+	}
 	return { text: `pong ${ask.text}`.trim(), hold: /hold/i.test(ask.text) };
 }
 
@@ -128,35 +156,129 @@ function hold(res, record) {
 	});
 }
 
+// ── thinking ────────────────────────────────────────────────────────────────
+
+/** The last user text in an Anthropic request — a tool round's last user turn holds only results. */
+const promptOf = body => blockText([...(body.messages ?? [])].reverse().find(m => m.role === 'user' && blockText(m.content))?.content);
+/** Whether this request gets reasoning: asked to think, with thinking on. */
+const thinks = body => /\bthink\b/i.test(promptOf(body)) && ['adaptive', 'enabled'].includes(body.thinking?.type);
+/** Which tool round a request is: how many tool results it carries. */
+const roundOf = body => (body.messages ?? []).flatMap(m => Array.isArray(m.content) ? m.content.filter(b => b.type === 'tool_result') : []).length;
+const reasoningOf = round => `Stub reasoning for round ${round}: first the files, then the answer.`;
+/** What a block is bound to besides the messages: the system prompt and the set of tool names. */
+const bindingOf = body => createHash('sha256').update(JSON.stringify({ system: body.system ?? null, tools: (body.tools ?? []).map(t => t.name).sort() })).digest('hex').slice(0, 12);
+const signatureOf = (round, binding, part = '') => `stub-signature-${round}${part}-${binding}`;
+/** The binding a block was made under, read back from its signature or data. */
+const boundTo = block => /-([0-9a-f]{12})$/.exec(block?.signature ?? block?.data ?? '')?.[1];
+const isReasoning = block => block?.type === 'thinking' || block?.type === 'redacted_thinking';
+
+/** The reasoning this stub produces for a round, under a binding. */
+function reasoningBlocks(body, round, binding) {
+	const prompt = promptOf(body);
+	const text = /\bomitted\b/i.test(prompt) ? '' : reasoningOf(round);
+	const blocks = /\btwo thoughts\b/i.test(prompt)
+		? [{ type: 'thinking', thinking: text.slice(0, 20), signature: signatureOf(round, binding, 'a') }, { type: 'thinking', thinking: text.slice(20), signature: signatureOf(round, binding, 'b') }]
+		: [{ type: 'thinking', thinking: text, signature: signatureOf(round, binding) }];
+	if (/\bredacted\b/i.test(prompt)) {
+		blocks.push({ type: 'redacted_thinking', data: `stub-redacted-${round}-${binding}` });
+	}
+	return blocks;
+}
+
+/**
+ * What came back: `kept` — the last assistant turn starts with exactly the previous round's
+ * reasoning, unchanged; `stale` — reasoning anywhere made under another binding than this
+ * request's; `ok` — what Anthropic would accept and the model would keep its reasoning.
+ */
+function replayOf(body) {
+	const binding = bindingOf(body);
+	const assistants = (body.messages ?? []).filter(m => m.role === 'assistant');
+	const blocksOf = m => Array.isArray(m?.content) ? m.content : [];
+	const last = assistants[assistants.length - 1];
+	const leading = [];
+	for (const block of blocksOf(last)) {
+		if (!isReasoning(block)) { break; }
+		leading.push(block);
+	}
+	const round = roundOf(body) - 1;
+	const expected = leading.length ? reasoningBlocks(body, round, boundTo(leading[0])) : [];
+	const kept = leading.length > 0 && JSON.stringify(leading) === JSON.stringify(expected);
+	const stale = assistants.flatMap(blocksOf).filter(b => isReasoning(b) && boundTo(b) !== binding).length;
+	const budget = body.thinking?.type === 'enabled';
+	return { round, binding, kept, stale, ok: kept && (budget || stale === 0), leading: leading.map(b => b.type), found: blocksOf(last)[0]?.type ?? null };
+}
+
 // ── the answers ─────────────────────────────────────────────────────────────
 
 const json = (res, status, value) => { res.writeHead(status, { 'content-type': 'application/json' }); res.end(JSON.stringify(value)); };
 
 async function anthropicMessages(body, res, record) {
-	const answer = reply(anthropicAsk(body));
+	const ask = anthropicAsk(body);
+	const answer = reply(ask);
 	const text = answer.hold ? 'holding' : answer.text;
+	const thinking = thinks(body);
+	const round = roundOf(body);
+	if (thinking && round > 0) {
+		record.replay = replayOf(body);
+		if (body.thinking.type === 'enabled' && !record.replay.kept) {
+			json(res, 400, { type: 'error', error: { type: 'invalid_request_error', message: 'messages: Expected `thinking` or `redacted_thinking`, but found `tool_use`. When `thinking` is enabled, a final `assistant` message must start with a thinking block.' } });
+			return;
+		}
+		if (body.thinking.type === 'adaptive' && record.replay.stale > 0) {
+			json(res, 400, { type: 'error', error: { type: 'invalid_request_error', message: 'messages: Invalid `signature` in `thinking` block. The block is bound to a different conversation.' } });
+			return;
+		}
+	}
+	const reasoning = thinking ? reasoningBlocks(body, round, bindingOf(body)) : [];
 	if (!body.stream) {
 		if (answer.hold) { await hold(res, record); }
-		const content = answer.call
-			? [{ type: 'tool_use', id: 'toolu_stub_1', name: answer.call.name, input: answer.call.args }]
-			: [{ type: 'text', text }];
+		const content = [
+			...reasoning,
+			...(answer.call
+				? [{ type: 'tool_use', id: 'toolu_stub_1', name: answer.call.name, input: answer.call.args }]
+				: [{ type: 'text', text }])
+		];
 		json(res, 200, { id: 'msg_stub', type: 'message', role: 'assistant', model: body.model, content, stop_reason: answer.call ? 'tool_use' : 'end_turn', stop_sequence: null, usage: { input_tokens: 12, output_tokens: 3 } });
 		return;
 	}
 	res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache' });
 	const event = (type, data) => res.write(`event: ${type}\ndata: ${JSON.stringify({ type, ...data })}\n\n`);
 	event('message_start', { message: { id: 'msg_stub', type: 'message', role: 'assistant', model: body.model, content: [], stop_reason: null, usage: { input_tokens: 12, output_tokens: 1 } } });
+	let index = 0;
+	let held = false;
+	const slow = /\bslow\b/i.test(promptOf(body));
+	for (const block of reasoning) {
+		if (block.type === 'redacted_thinking') {
+			event('content_block_start', { index, content_block: { type: 'redacted_thinking', data: block.data } });
+		} else {
+			event('content_block_start', { index, content_block: { type: 'thinking', thinking: '', signature: '' } });
+			const pieces = block.thinking ? block.thinking.match(/.{1,12}/gs) : [''];
+			for (const [i, piece] of pieces.entries()) {
+				event('content_block_delta', { index, delta: { type: 'thinking_delta', thinking: piece } });
+				if (i === 0 && answer.hold && !held) {
+					held = true;
+					if (await hold(res, record) === 'close') {
+						return;
+					}
+				}
+				if (slow) { await sleep(SLOW_MS); }
+			}
+			event('content_block_delta', { index, delta: { type: 'signature_delta', signature: block.signature } });
+		}
+		event('content_block_stop', { index });
+		index++;
+	}
 	if (answer.call) {
-		event('content_block_start', { index: 0, content_block: { type: 'tool_use', id: 'toolu_stub_1', name: answer.call.name, input: {} } });
-		event('content_block_delta', { index: 0, delta: { type: 'input_json_delta', partial_json: JSON.stringify(answer.call.args) } });
+		event('content_block_start', { index, content_block: { type: 'tool_use', id: 'toolu_stub_1', name: answer.call.name, input: {} } });
+		event('content_block_delta', { index, delta: { type: 'input_json_delta', partial_json: JSON.stringify(answer.call.args) } });
 	} else {
-		event('content_block_start', { index: 0, content_block: { type: 'text', text: '' } });
-		event('content_block_delta', { index: 0, delta: { type: 'text_delta', text } });
-		if (answer.hold && await hold(res, record) === 'close') {
+		event('content_block_start', { index, content_block: { type: 'text', text: '' } });
+		event('content_block_delta', { index, delta: { type: 'text_delta', text } });
+		if (answer.hold && !held && await hold(res, record) === 'close') {
 			return;
 		}
 	}
-	event('content_block_stop', { index: 0 });
+	event('content_block_stop', { index });
 	event('message_delta', { delta: { stop_reason: answer.call ? 'tool_use' : 'end_turn', stop_sequence: null }, usage: { output_tokens: 3 } });
 	event('message_stop', {});
 	res.end();

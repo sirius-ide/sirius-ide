@@ -14,6 +14,8 @@
 # SIRIUS_PROBE_USER=<dir> is copied into the profile's User directory first — for mcp.json and the like.
 # SIRIUS_PROBE_EXTENSIONS=<dir> is used as the extensions directory instead of an empty one — for a
 # probe that needs an installed extension (`bin/sirius --extensions-dir <dir> --install-extension x.vsix`).
+# SIRIUS_PROBE_ARGS is added to the app's command line — `--remote-debugging-port=<n>` lets a probe
+# read the window's own DOM over CDP (probes/thinking.js).
 
 set -euo pipefail
 APP=${1:?app dir, e.g. ~/Projects/VSCode-linux-x64}
@@ -23,7 +25,14 @@ WAIT=${4:-90}
 HERE=$(cd "$(dirname "$0")" && pwd)
 WORK=$(mktemp -d)
 
-reap() { ps -eo pid,args --no-headers | awk -v a="$APP/" '$2 ~ "^"a {print $1}' | while read -r p; do kill "$p" 2>/dev/null; done; }
+app_pids() { ps -eo pid,args --no-headers | awk -v a="$APP/" '$2 ~ "^"a {print $1}'; }
+# The app's main process can outlive SIGTERM once its display is gone, spinning, and still holding
+# the debugging port the next run wants: what is left after a few seconds is killed outright.
+reap() {
+	app_pids | while read -r p; do kill "$p" 2>/dev/null; done
+	for _ in 1 2 3 4 5 6 7 8 9 10; do [ -z "$(app_pids)" ] && return 0; sleep 0.5; done
+	app_pids | while read -r p; do kill -9 "$p" 2>/dev/null; done
+}
 cleanup() { reap; sleep 1; kill "${XP:-0}" 2>/dev/null || true; rm -rf "$WORK" "$APP/resources/app/extensions/sirius-probe"; }
 trap cleanup EXIT
 
@@ -44,7 +53,7 @@ sleep 2
 env -u WAYLAND_DISPLAY SIRIUS_PROBE_SCRIPT="$PROBE" SIRIUS_PROBE_OUT="$OUT" SIRIUS_AGENT_DEBUG=1 DISPLAY=:97 \
 	"$APP/bin/sirius" --ozone-platform=x11 --user-data-dir="$WORK/user" --extensions-dir="${SIRIUS_PROBE_EXTENSIONS:-$WORK/empty}" \
 	--no-sandbox --disable-gpu --disable-workspace-trust --use-inmemory-secretstorage \
-	--skip-welcome --skip-release-notes --disable-updates "$WORK/ws" >/dev/null 2>&1 &
+	--skip-welcome --skip-release-notes --disable-updates ${SIRIUS_PROBE_ARGS:-} "$WORK/ws" >/dev/null 2>&1 &
 
 for _ in $(seq 1 "$WAIT"); do
 	[ -s "$OUT" ] && break
