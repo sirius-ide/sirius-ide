@@ -38,7 +38,8 @@
 // (`replay`, `textSignature`).
 // The agent loop: "prose call" answers with a sirius_list_directory call written as text in a
 // fenced block — the call a small model writes instead of using the mechanism — and "call the
-// terminal" calls run_in_terminal whether it was offered or not.
+// terminal" calls run_in_terminal whether it was offered or not. "show me" answers in markdown — a
+// list and a TypeScript block — for a picture of how an answer renders.
 //
 //   node test/harness/hosted-stub.mjs <port> <key>
 
@@ -88,6 +89,7 @@ const LIST_CALL = { name: 'sirius_list_directory', args: { path: '.' } };
 const TERMINAL_CALL = { name: 'run_in_terminal', args: { command: 'echo stub', explanation: 'stub', isBackground: false } };
 const PROSE_CALL = '```json\n' + JSON.stringify({ name: LIST_CALL.name, arguments: LIST_CALL.args }) + '\n```';
 const SLOW_MS = 350;
+const SHOW_ME = 'Here is a small example:\n\n- the function takes a **name**\n- it returns a greeting\n\n```typescript\nexport function greet(name: string): string {\n\treturn `Hello, ${name}!`;\n}\n```\n\nCall it as `greet(\'Sirius\')`.';
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 const GOOGLE_BAD_KEY = {
 	error: {
@@ -138,6 +140,9 @@ function reply(ask) {
 	}
 	if (ask.tools.includes(LIST_CALL.name) && /\bprose call\b/i.test(ask.text)) {
 		return { text: PROSE_CALL };
+	}
+	if (/\bshow me\b/i.test(ask.text) && ask.result === undefined) {
+		return { text: SHOW_ME };
 	}
 	if (/\bcall the terminal\b/i.test(ask.text)) {
 		return { call: TERMINAL_CALL };
