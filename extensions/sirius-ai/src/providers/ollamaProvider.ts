@@ -6,7 +6,7 @@
 
 import * as vscode from 'vscode';
 import { IAIProvider, SiriusModel, ChatRequest, ChatChunk, ChatMessage, ImagePart, ProviderType, ToolCallRequest, ToolDefinition, StopReason } from '../types';
-import { ConnectionCheck, checkEndpoint } from './connection';
+import { ConnectionCheck, checkEndpoint, closeOnAbort } from './connection';
 
 /** A tool call as Ollama reports it. Ollama assigns no id, so we synthesise one. */
 interface OllamaToolCall {
@@ -164,6 +164,7 @@ export class OllamaProvider implements IAIProvider {
 					yield { content: '⚠️ No response stream available', done: true };
 					return;
 				}
+				closeOnAbort(reader, request.signal);
 
 				const decoder = new TextDecoder();
 				const toolCalls: ToolCallRequest[] = [];

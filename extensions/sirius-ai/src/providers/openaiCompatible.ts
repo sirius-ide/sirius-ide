@@ -9,7 +9,7 @@ import {
 	IAIProvider, SiriusModel, ChatRequest, ChatChunk, ChatMessage, ImagePart,
 	ProviderType, StopReason, ToolCallRequest, KeySource
 } from '../types';
-import { ConnectionCheck, checkEndpoint } from './connection';
+import { ConnectionCheck, checkEndpoint, closeOnAbort } from './connection';
 
 /**
  * Describes one service that speaks the OpenAI chat-completions shape.
@@ -259,7 +259,7 @@ export class OpenAICompatibleProvider implements IAIProvider {
 			}
 
 			if (request.stream) {
-				yield* this._handleStream(response);
+				yield* this._handleStream(response, request.signal);
 			} else {
 				yield* this._handleNonStream(response);
 			}
@@ -329,12 +329,13 @@ export class OpenAICompatibleProvider implements IAIProvider {
 		return wire;
 	}
 
-	private async *_handleStream(response: Response): AsyncIterable<ChatChunk> {
+	private async *_handleStream(response: Response, signal: AbortSignal | undefined): AsyncIterable<ChatChunk> {
 		const reader = response.body?.getReader();
 		if (!reader) {
 			yield { content: '⚠️ No response stream available', done: true, stopReason: 'error' };
 			return;
 		}
+		closeOnAbort(reader, signal);
 
 		const decoder = new TextDecoder();
 		const pending = new Map<number, { id: string; name: string; args: string }>();

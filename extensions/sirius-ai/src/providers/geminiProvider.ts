@@ -5,7 +5,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IAIProvider, KeySource, SiriusModel, ChatRequest, ChatChunk, ChatMessage, ImagePart, ProviderType, ImageGenRequest, ImageGenResult, StopReason, ToolCallRequest } from '../types';
-import { ConnectionCheck, checkEndpoint, isRejectedKey } from './connection';
+import { ConnectionCheck, checkEndpoint, closeOnAbort, isRejectedKey } from './connection';
 
 /** The vendor's API, unless a gateway or proxy that speaks it is configured. */
 const DEFAULT_BASE_URL = 'https://generativelanguage.googleapis.com';
@@ -24,8 +24,25 @@ interface GeminiPart {
 	text?: string;
 	thought?: boolean;
 	inlineData?: { data: string; mimeType?: string };
-	functionCall?: { name?: string; args?: Record<string, unknown> };
+	functionCall?: { id?: string; name?: string; args?: Record<string, unknown> };
+	/** Gemini's signature over its reasoning, on the part it belongs to: a function call, or text. */
+	thoughtSignature?: string;
 }
+
+/**
+ * Gemini's documented value for a function call it did not sign — one rescued from a model's
+ * prose, or made by another model — which Google's own SDK sends the same way. Gemini 3 checks
+ * the first function call of each step and refuses one with no signature at all; the calls after
+ * it in a parallel step come unsigned from Gemini itself and go back the same way.
+ */
+const SKIP_SIGNATURE = 'skip_thought_signature_validator';
+
+/**
+ * A call id Gemini gave, as Sirius carries it: marked, so that only Gemini's own ids go back to
+ * Gemini as ids. A call without one gets `sirius-call-<n>`, never sent.
+ */
+const GEMINI_ID = 'gid_';
+const geminiIdOf = (id: string): string | undefined => id.startsWith(GEMINI_ID) ? id.slice(GEMINI_ID.length) : undefined;
 
 /** The subset of the models endpoint that discovery reads. */
 interface GeminiModelList {
@@ -152,7 +169,7 @@ export class GeminiProvider implements IAIProvider {
 
 		const model = request.model || 'gemini-3.5-flash';
 
-		const contents = this._toContents(request.messages);
+		const contents = this._toContents(request.messages, model);
 
 		const systemInstruction = request.systemPrompt
 			? { parts: [{ text: request.systemPrompt }] }
@@ -215,9 +232,11 @@ export class GeminiProvider implements IAIProvider {
 	 *
 	 * Gemini names the assistant role `model`, carries tool calls as
 	 * `functionCall` parts, and takes results back as `functionResponse` parts on
-	 * a user turn. It assigns no call ids, so results are matched by name.
+	 * a user turn, matched by name — and by the call's id where Gemini gave one.
+	 * The reasoning signatures it gave go back on the parts they belong to: a call's
+	 * on that call, the answer's on its text (thoughtSignature).
 	 */
-	private _toContents(messages: ChatMessage[]): Array<Record<string, unknown>> {
+	private _toContents(messages: ChatMessage[], model: string): Array<Record<string, unknown>> {
 		const contents: Array<Record<string, unknown>> = [];
 
 		for (const message of messages) {
@@ -234,6 +253,7 @@ export class GeminiProvider implements IAIProvider {
 					parts: (message.toolResults ?? []).flatMap(result => [
 						{
 							functionResponse: {
+								...(geminiIdOf(result.id) ? { id: geminiIdOf(result.id) } : {}),
 								name: result.name,
 								response: { result: result.content }
 							}
@@ -244,14 +264,25 @@ export class GeminiProvider implements IAIProvider {
 				continue;
 			}
 
+			// Only signatures this model made: a signature goes back to the model that produced
+			// it, never to another Gemini after a switch.
+			const own = message.role === 'assistant' ? (message.thinkingBlocks ?? []).filter(block => block.vendor === 'gemini' && block.binding === model && block.signature) : [];
+			const textSignature = own.filter(block => !block.call).pop()?.signature;
+			const text = (value: string) => ({ text: value, ...(textSignature ? { thoughtSignature: textSignature } : {}) });
+
 			if (message.role === 'assistant' && message.toolCalls?.length) {
+				const signed = new Map(own.filter(block => block.call).map(block => [block.call, block.signature]));
 				const parts: Array<Record<string, unknown>> = [];
 				if (message.content) {
-					parts.push({ text: message.content });
+					parts.push(text(message.content));
 				}
-				for (const call of message.toolCalls) {
-					parts.push({ functionCall: { name: call.name, args: call.arguments } });
-				}
+				message.toolCalls.forEach((call, i) => {
+					const signature = signed.get(call.id) ?? (i === 0 ? SKIP_SIGNATURE : undefined);
+					parts.push({
+						functionCall: { ...(geminiIdOf(call.id) ? { id: geminiIdOf(call.id) } : {}), name: call.name, args: call.arguments },
+						...(signature ? { thoughtSignature: signature } : {})
+					});
+				});
 				contents.push({ role: 'model', parts });
 				continue;
 			}
@@ -261,7 +292,7 @@ export class GeminiProvider implements IAIProvider {
 			contents.push({
 				role: message.role === 'assistant' ? 'model' : 'user',
 				parts: [
-					...(message.content ? [{ text: message.content }] : []),
+					...(message.content ? [message.role === 'assistant' ? text(message.content) : { text: message.content }] : []),
 					...geminiImageParts(message.images)
 				]
 			});
@@ -271,17 +302,44 @@ export class GeminiProvider implements IAIProvider {
 	}
 
 	/**
-	 * Gemini assigns no id to a function call, so synthesise one from position.
-	 * Results are matched back by name.
+	 * A call keeps the id Gemini gave it, marked (Gemini 3 gives one, and wants it back on the
+	 * call and its result); one without gets an id of Sirius's own, by position, which is never
+	 * sent as an id. Results are matched back by name either way.
 	 */
 	private _toToolCalls(parts: GeminiPart[], offset = 0): ToolCallRequest[] {
 		return parts
 			.filter(part => part.functionCall?.name)
 			.map((part, i) => ({
-				id: `call_${offset + i}`,
+				id: part.functionCall?.id ? `${GEMINI_ID}${part.functionCall.id}` : `sirius-call-${offset + i}`,
 				name: part.functionCall?.name ?? '',
 				arguments: part.functionCall?.args ?? {}
 			}));
+	}
+
+	/**
+	 * The parts' text and thought as they stream (`streamed`), and every signature as a
+	 * thinking block: a call's tied to that call, any other — often on the last part, whose
+	 * text may be empty — to the answer's text. `calls` are the parts' calls, in order.
+	 */
+	private *_signatures(parts: GeminiPart[], calls: ToolCallRequest[], streamed: boolean, model: string): Iterable<ChatChunk> {
+		let next = 0;
+		for (const part of parts) {
+			if (part.functionCall) {
+				const call = part.functionCall.name ? calls[next++] : undefined;
+				if (call && part.thoughtSignature) {
+					yield { content: '', done: false, thinkingBlock: { text: '', signature: part.thoughtSignature, call: call.id, vendor: 'gemini', binding: model } };
+				}
+				continue;
+			}
+			if (streamed && part.thought) {
+				yield { content: '', thinking: part.text || '', isThinkingBlock: true, done: false };
+			} else if (streamed && part.text) {
+				yield { content: part.text, done: false };
+			}
+			if (part.thoughtSignature) {
+				yield { content: '', done: false, thinkingBlock: { text: '', signature: part.thoughtSignature, vendor: 'gemini', binding: model } };
+			}
+		}
 	}
 
 	private _toStopReason(raw: string | undefined): StopReason {
@@ -332,6 +390,7 @@ export class GeminiProvider implements IAIProvider {
 			yield { content: '⚠️ No response stream available', done: true };
 			return;
 		}
+		closeOnAbort(reader, signal);
 
 		const decoder = new TextDecoder();
 		const toolCalls: ToolCallRequest[] = [];
@@ -371,18 +430,9 @@ export class GeminiProvider implements IAIProvider {
 				}
 
 				const parts = parsed.candidates?.[0]?.content?.parts || [];
-				toolCalls.push(...this._toToolCalls(parts, toolCalls.length));
-
-				for (const part of parts) {
-					if (part.functionCall) {
-						continue; // Collected above.
-					}
-					if (part.thought) {
-						yield { content: '', thinking: part.text || '', isThinkingBlock: true, done: false };
-					} else if (part.text) {
-						yield { content: part.text, done: false };
-					}
-				}
+				const calls = this._toToolCalls(parts, toolCalls.length);
+				toolCalls.push(...calls);
+				yield* this._signatures(parts, calls, true, model);
 			}
 		}
 
@@ -432,6 +482,7 @@ export class GeminiProvider implements IAIProvider {
 		if (thinkingContent) {
 			yield { content: '', thinking: thinkingContent, isThinkingBlock: true, done: false };
 		}
+		yield* this._signatures(parts, toolCalls, false, model);
 
 		yield {
 			content: textContent,

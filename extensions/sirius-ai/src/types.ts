@@ -115,10 +115,18 @@ export interface ThinkingBlock {
 	redacted?: string;
 	/**
 	 * What the vendor bound the block to beyond the conversation itself, as the provider
-	 * fingerprints it — for Anthropic, the system prompt and the tool set. Sent back under a
-	 * different one, the vendor refuses the block, so the provider leaves it behind instead.
+	 * fingerprints it — for Anthropic, the system prompt and the tool set; for Gemini, the
+	 * model. Sent back under a different one, the vendor refuses the block, so the provider
+	 * leaves it behind instead.
 	 */
 	binding?: string;
+	/**
+	 * The tool call this signature belongs to: Gemini signs the call itself rather than a block
+	 * of reasoning of its own, and wants the signature back on that call.
+	 */
+	call?: string;
+	/** The provider that made the block (`anthropic`, `gemini`); each sends back only its own. */
+	vendor?: string;
 }
 
 /**

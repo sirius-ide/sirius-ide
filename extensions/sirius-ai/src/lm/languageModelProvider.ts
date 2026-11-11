@@ -10,6 +10,7 @@ import { THINKING_BLOCK_KEY, thinkingBlockOf } from '../agent/core';
 import { ModelRouter } from '../providers/modelRouter';
 import { PROVIDER_LABELS } from '../auth/secretStore';
 import { debug } from '../chat/siriusAgent';
+
 import { LOCAL_PROVIDERS, ProviderConnection, rememberConnection, rememberModel, stopTokenOf, vendorOf } from './vendors';
 
 /**
@@ -201,7 +202,10 @@ export class SiriusLanguageModelProvider implements vscode.LanguageModelChatProv
 		const controller = new AbortController();
 		const relayed = stopTokenOf(options.modelOptions);
 		const watched = relayed ? [token, relayed] : [token];
-		const stops = watched.map(t => t.onCancellationRequested(() => controller.abort()));
+		const stops = watched.map((t, i) => t.onCancellationRequested(() => {
+			debug(`[stop] ${i === 0 ? 'the editor' : 'the caller'} cancelled: closing the request to ${this.vendor}${relayed ? '' : ' (no relayed token)'}`);
+			controller.abort();
+		}));
 		if (watched.some(t => t.isCancellationRequested)) {
 			controller.abort();
 		}

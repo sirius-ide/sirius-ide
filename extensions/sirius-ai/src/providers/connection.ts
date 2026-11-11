@@ -68,3 +68,19 @@ export function isRejectedKey(status: number, body: string): boolean {
 		return false;
 	}
 }
+
+/**
+ * Stop closes the connection: when the request's signal fires, the stream being read is
+ * cancelled too. Aborting `fetch` alone did not always end a streaming read in the editor's
+ * extension host — the read stayed pending and the connection open, so the vendor kept
+ * generating — while cancelling the reader always closed it. The signal belongs to one
+ * request, and the bridge fires it when the request ends either way, so nothing is left behind.
+ */
+export function closeOnAbort(reader: ReadableStreamDefaultReader<Uint8Array>, signal: AbortSignal | undefined): void {
+	const cancel = () => { reader.cancel().catch(() => { /* already ended by the abort */ }); };
+	if (signal?.aborted) {
+		cancel();
+	} else {
+		signal?.addEventListener('abort', cancel, { once: true });
+	}
+}

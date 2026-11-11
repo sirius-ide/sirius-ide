@@ -5,7 +5,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IAIProvider, KeySource, SiriusModel, ChatRequest, ChatChunk, ChatMessage, ImagePart, ProviderType, ThinkingBlock, ThinkingEffort, ToolCallRequest, StopReason } from '../types';
-import { ConnectionCheck, checkEndpoint } from './connection';
+import { ConnectionCheck, checkEndpoint, closeOnAbort } from './connection';
 import { createHash } from 'crypto';
 
 /** A content block in a response: text, thinking, or a tool call. */
@@ -375,7 +375,7 @@ export class AnthropicProvider implements IAIProvider {
 			}
 
 			if (request.stream) {
-				yield* this._handleStream(response, binding);
+				yield* this._handleStream(response, binding, request.signal);
 			} else {
 				yield* this._handleNonStream(response, binding);
 			}
@@ -521,9 +521,10 @@ export class AnthropicProvider implements IAIProvider {
 			// it is what lets the model continue its own line of thought. A block with
 			// no signature is not Anthropic's (another model's reasoning after a switch)
 			// and would be refused, so it stays behind, as does one bound to another tool set
-			// (see `chat`).
+			// (see `chat`). Only Anthropic's own blocks go: another vendor's signature would be
+			// refused as invalid.
 			const reasoning = (message.role === 'assistant' ? message.thinkingBlocks ?? [] : []).flatMap((block): unknown[] =>
-				binding !== undefined && block.binding !== binding ? []
+				block.vendor !== 'anthropic' || (binding !== undefined && block.binding !== binding) ? []
 					: block.redacted ? [{ type: 'redacted_thinking', data: block.redacted }]
 						: block.signature ? [{ type: 'thinking', thinking: block.text, signature: block.signature }]
 							: []);
@@ -591,12 +592,13 @@ export class AnthropicProvider implements IAIProvider {
 	 * keyed by content-block index, so they must be reassembled per block before
 	 * they can be parsed.
 	 */
-	private async *_handleStream(response: Response, binding: string): AsyncIterable<ChatChunk> {
+	private async *_handleStream(response: Response, binding: string, signal: AbortSignal | undefined): AsyncIterable<ChatChunk> {
 		const reader = response.body?.getReader();
 		if (!reader) {
 			yield { content: '⚠️ No response stream available', done: true, stopReason: 'error' };
 			return;
 		}
+		closeOnAbort(reader, signal);
 
 		const decoder = new TextDecoder();
 		const pendingTools = new Map<number, { id: string; name: string; json: string }>();
@@ -632,11 +634,11 @@ export class AnthropicProvider implements IAIProvider {
 					const block = event.content_block;
 					if (block?.type === 'thinking') {
 						isInThinkingBlock = true;
-						reasoning = { text: block.thinking ?? '', ...(block.signature ? { signature: block.signature } : {}), binding };
+						reasoning = { text: block.thinking ?? '', ...(block.signature ? { signature: block.signature } : {}), binding, vendor: 'anthropic' };
 						yield { content: '', thinking: '', isThinkingBlock: true, done: false };
 					} else if (block?.type === 'redacted_thinking' && block.data) {
 						isInThinkingBlock = false;
-						reasoning = { text: '', redacted: block.data, binding };
+						reasoning = { text: '', redacted: block.data, binding, vendor: 'anthropic' };
 					} else if (block?.type === 'tool_use' && block.id && block.name) {
 						pendingTools.set(event.index ?? 0, { id: block.id, name: block.name, json: '' });
 					} else {
@@ -708,9 +710,9 @@ export class AnthropicProvider implements IAIProvider {
 		for (const block of (result.content || [])) {
 			if (block.type === 'thinking') {
 				thinkingContent += block.thinking || '';
-				reasoning.push({ text: block.thinking ?? '', ...(block.signature ? { signature: block.signature } : {}), binding });
+				reasoning.push({ text: block.thinking ?? '', ...(block.signature ? { signature: block.signature } : {}), binding, vendor: 'anthropic' });
 			} else if (block.type === 'redacted_thinking' && block.data) {
-				reasoning.push({ text: '', redacted: block.data, binding });
+				reasoning.push({ text: '', redacted: block.data, binding, vendor: 'anthropic' });
 			} else if (block.type === 'text') {
 				textContent += block.text || '';
 			} else if (block.type === 'tool_use' && block.id && block.name) {

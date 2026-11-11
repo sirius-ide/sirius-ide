@@ -242,11 +242,13 @@ export function thinkingBlockOf(metadata: unknown): ThinkingBlock | undefined {
 	if (typeof block !== 'object' || block === null || typeof (block as ThinkingBlock).text !== 'string') {
 		return undefined;
 	}
-	const { text, signature, redacted, binding } = block as ThinkingBlock;
+	const { text, signature, redacted, binding, call, vendor } = block as ThinkingBlock;
 	return {
 		text,
 		...(typeof signature === 'string' ? { signature } : {}),
 		...(typeof redacted === 'string' ? { redacted } : {}),
-		...(typeof binding === 'string' ? { binding } : {})
+		...(typeof binding === 'string' ? { binding } : {}),
+		...(typeof call === 'string' ? { call } : {}),
+		...(typeof vendor === 'string' ? { vendor } : {})
 	};
 }

@@ -354,6 +354,7 @@ const createHandler = (mode: Mode): vscode.ChatRequestHandler => async (request,
 	// What the model opened travels with the result, so the next turn starts with
 	// it open — carried forward through every turn, whichever mode answered it.
 	const result = (): vscode.ChatResult => ({ metadata: { siriusExpanded: [...new Set([...remembered, ...openedByModel])] } });
+	const stopped = token.onCancellationRequested(() => debug('[stop] the chat cancelled the request'));
 
 	// The loop itself is the agent core's (agent/core.ts); this face gives it the
 	// editor's model, the tools offered above, and the chat to write to.
@@ -445,7 +446,7 @@ const createHandler = (mode: Mode): vscode.ChatRequestHandler => async (request,
 	await runAgent<EditorMessage>(messages, face, {
 		markdown: text => stream.markdown(text),
 		thinking: (text, id, metadata) => stream.thinkingProgress({ text, id, metadata })
-	}, token, debug);
+	}, token, debug).finally(() => stopped.dispose());
 	return result();
 };
 
