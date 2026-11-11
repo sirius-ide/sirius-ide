@@ -21,6 +21,17 @@
 //               server's tools: with adaptive thinking the earlier block is left behind (the stub,
 //               as Anthropic, refuses a block bound to another tool set); on a thinking budget,
 //               which binds nothing and needs it, the block is kept.
+//   gemini    — Gemini 3 signs its function calls and wants the signature back on the call, with
+//               the call's id on it and on its result; without it the next round is HTTP 400 and
+//               Agent mode stops after its first tool call. Through the chat: a tool round carries
+//               the real signature and ids back; a call rescued from prose carries Gemini's
+//               documented skip value. Through the API, as a caller that keeps its own history
+//               does (the chat's history between turns is its text only): of two parallel calls the
+//               signed first keeps its signature and the second goes back unsigned, as Gemini sent
+//               it — also when the two arrive a stream chunk each; a signed call without an id
+//               (Gemini 2.5's shape) keeps its signature; a signature from another model is not
+//               sent, the call gets the skip value; a text answer's signature, which arrives on a
+//               last part with no text, goes back on the text next turn.
 //   stop      — "think hold" holds the reply after the first piece of thinking; the chat's Stop
 //               closes the connection at the stub, and the block stops streaming.
 // The window's DOM is read over CDP: run.sh passes SIRIUS_PROBE_ARGS=--remote-debugging-port=<n>
@@ -53,7 +64,7 @@ const OPEN_ALL = `(() => { let n = 0; for (const box of document.querySelectorAl
 	header?.click(); n++; } return n; })()`;
 const CHAT_TEXT = `document.querySelector('.interactive-session')?.textContent ?? ''`;
 
-exports.run = async function (vscode) {
+exports.run = async function (vscode, context) {
 	const failures = [];
 	const check = (ok, what) => { if (!ok) { failures.push(what); } };
 	const result = {};
@@ -222,6 +233,109 @@ exports.run = async function (vscode) {
 		check(b.answer.includes('pong tool'), `binding budget: no answer (${b.error ?? b.answer})`);
 	}
 
+	// ── gemini: the call's signature and id come back ─────────────────────────
+	{
+		try {
+			await vscode.commands.executeCommand('lm.addLanguageModelsProviderGroup', { vendor: 'sirius-gemini', name: 'Gemini stub', apiKey: KEY, url: HOSTED });
+		} catch (error) {
+			check(false, `gemini: adding the group: ${error}`);
+		}
+		let gemini;
+		for (let i = 0; i < 15 && !gemini; i++) {
+			gemini = (await vscode.lm.selectChatModels({ vendor: 'sirius-gemini' })).find(m => m.id === 'gemini-stub-flash');
+			if (!gemini) { await sleep(2000); }
+		}
+		check(!!gemini, 'gemini: the stub\'s model was not offered');
+		if (gemini) {
+			const geminiPosts = async from => (await stubRequests()).slice(from).filter(r => r.vendor === 'gemini' && r.method === 'POST' && /generatecontent/i.test(r.path));
+			/** Through the chat in Agent mode: the follow-up round's record, and whether the answer came. */
+			const throughChat = async query => {
+				const from = (await stubRequests()).length;
+				await ask(gemini, query);
+				let answered = false;
+				for (let i = 0; i < 150 && !answered; i++) {
+					answered = (await window.evaluate(CHAT_TEXT)).includes('pong tool');
+					if (!answered) { await sleep(200); }
+				}
+				const followUp = (await geminiPosts(from)).find(r => r.replay);
+				return { answered, status: followUp?.status ?? null, replay: followUp?.replay ?? null };
+			};
+			log('gemini: a tool round through the chat');
+			const loop = await throughChat('think, then list the files');
+			log('gemini: a call rescued from prose');
+			const prose = await throughChat('think: prose call');
+
+			const LIST = { name: 'sirius_list_directory', description: 'List a directory.', inputSchema: { type: 'object', properties: { path: { type: 'string' } } } };
+			const collect = async (messages, tools) => {
+				const out = { blocks: [], calls: [], text: '', error: undefined };
+				try {
+					const response = await gemini.sendRequest(messages, tools ? { tools } : {}, new vscode.CancellationTokenSource().token);
+					for await (const part of response.stream) {
+						if (part instanceof vscode.LanguageModelThinkingPart && part.metadata?.siriusThinkingBlock) {
+							out.blocks.push(part);
+						} else if (part instanceof vscode.LanguageModelToolCallPart) {
+							out.calls.push(part);
+						} else if (part instanceof vscode.LanguageModelTextPart) {
+							out.text += part.value;
+						}
+					}
+				} catch (error) {
+					out.error = String(error?.message ?? error);
+				}
+				return out;
+			};
+			/** A tool round through the API; `adjust` may rewrite the blocks before they go back. */
+			const apiRound = async (prompt, adjust = blocks => blocks) => {
+				const from = (await stubRequests()).length;
+				const user = vscode.LanguageModelChatMessage.User(prompt);
+				const first = await collect([user], [LIST]);
+				const answer = await collect([
+					user,
+					new vscode.LanguageModelChatMessage2(vscode.LanguageModelChatMessageRole.Assistant, [...adjust(first.blocks), ...first.calls]),
+					vscode.LanguageModelChatMessage.User(first.calls.map(call => new vscode.LanguageModelToolResultPart(call.callId, [new vscode.LanguageModelTextPart('a.txt')])))
+				], [LIST]);
+				const record = (await geminiPosts(from)).find(r => r.replay);
+				return { calls: first.calls.map(c => c.callId), blocks: first.blocks.length, status: record?.status ?? null, replay: record?.replay ?? null, answer: answer.text, error: answer.error };
+			};
+			log('gemini: parallel, split, no ids and a switched model through the API');
+			const parallel = await apiRound('think, then list the files: two calls');
+			const split = await apiRound('think, then list the files: split');
+			const noIds = await apiRound('think, then list the files: no ids');
+			const switched = await apiRound('think, then list the files', blocks => blocks.map(part =>
+				new vscode.LanguageModelThinkingPart('', undefined, { siriusThinkingBlock: { ...part.metadata.siriusThinkingBlock, binding: 'gemini-another-model' } })));
+			log('gemini: a text answer\'s signature, next turn');
+			const textFrom = (await stubRequests()).length;
+			const question = vscode.LanguageModelChatMessage.User('think: just answer');
+			const plain = await collect([question]);
+			await collect([
+				question,
+				new vscode.LanguageModelChatMessage2(vscode.LanguageModelChatMessageRole.Assistant, [...plain.blocks, new vscode.LanguageModelTextPart(plain.text)]),
+				vscode.LanguageModelChatMessage.User('think: and again')
+			]);
+			const textRecord = (await geminiPosts(textFrom)).pop();
+
+			result.gemini = {
+				loop, prose,
+				parallel, split, noIds, switched,
+				text: { blocks: plain.blocks.length, answer: plain.text, sentBack: textRecord?.textSignature ?? null }
+			};
+			save();
+			const step = r => r?.replay?.steps?.[0];
+			check(loop.status === 200 && step(loop)?.signature === 'real' && loop.replay.idsBack, `gemini loop: the call did not come back with its signature and ids (${JSON.stringify(loop)})`);
+			check(loop.answered, 'gemini loop: no answer in the chat');
+			check(prose.status === 200 && step(prose)?.signature === 'dummy', `gemini prose: the rescued call did not carry the skip value (${JSON.stringify(prose)})`);
+			check(prose.answered, 'gemini prose: no answer in the chat');
+			for (const [name, p] of [['parallel', parallel], ['split', split]]) {
+				check(p.calls.length === 2 && p.blocks === 1, `gemini ${name}: ${p.calls.length} calls and ${p.blocks} signature(s) reported, not 2 and 1`);
+				check(p.status === 200 && JSON.stringify(step(p)?.signatures) === JSON.stringify(['gemini-sig-0-call', null]) && p.replay?.idsBack, `gemini ${name}: not the first call's signature and the second unsigned, with both ids (${JSON.stringify(p.replay)})`);
+				check(p.answer.includes('pong tool'), `gemini ${name}: no answer (${p.error ?? p.answer})`);
+			}
+			check(noIds.status === 200 && step(noIds)?.signature === 'real' && JSON.stringify(step(noIds)?.callIds) === '[null]' && JSON.stringify(noIds.replay?.responseIds) === '[null]', `gemini no ids: the signed call without an id did not keep its signature, or an id was made up (${JSON.stringify(noIds.replay)})`);
+			check(switched.status === 200 && step(switched)?.signature === 'dummy', `gemini switched: another model's signature went back (${JSON.stringify(switched.replay)})`);
+			check(result.gemini.text.blocks === 1 && result.gemini.text.sentBack === 'gemini-sig-0-text', `gemini text: the answer's signature did not go back on its text (${JSON.stringify(result.gemini.text)})`);
+		}
+	}
+
 	// ── stop: Stop mid-thought closes the connection, and the block stops ─────
 	{
 		const from = (await stubRequests()).length;
@@ -234,6 +348,8 @@ exports.run = async function (vscode) {
 		}
 		await sleep(700);
 		const during = await window.evaluate(BLOCKS);
+		const STOP_SHOWN = `!!document.querySelector('.interactive-session .codicon-stop-circle')`;
+		const stopShownBefore = await window.evaluate(STOP_SHOWN);
 		const cancelledAt = Date.now();
 		await vscode.commands.executeCommand('workbench.action.chat.cancel');
 		let release;
@@ -247,7 +363,14 @@ exports.run = async function (vscode) {
 		}
 		await sleep(1000);
 		const after = await window.evaluate(BLOCKS);
-		result.stop = { held: !!held, during, release, after };
+		// What the window and the agent logged about it: whether Stop found a chat widget, and the rounds.
+		const logs = path.dirname(path.dirname(path.dirname(context.logUri.fsPath)));
+		const grep = (file, pattern) => { try { return fs.readFileSync(file, 'utf8').split('\n').filter(line => pattern.test(line)).slice(-6); } catch { return []; } };
+		const windowLog = grep(path.join(logs, 'window1', 'renderer.log'), /ChatCancelAction|cancel/i);
+		const exthost = path.dirname(context.logUri.fsPath);
+		const agentLog = fs.readdirSync(exthost).filter(d => d.startsWith('output_logging_')).flatMap(d =>
+			fs.readdirSync(path.join(exthost, d)).filter(f => f.endsWith('Sirius AI.log')).flatMap(f => grep(path.join(exthost, d, f), /\[(request|round|stop)/)));
+		result.stop = { held: !!held, during, stopShownBefore, stopShownAfter: await window.evaluate(STOP_SHOWN), release, after, windowLog, agentLog: agentLog.slice(-6) };
 		save();
 		check(!!held, 'stop: the request never reached the stub\'s hold');
 		check((during ?? []).some(b => b.streaming && b.text.length > 0 && b.text.length < REASONING(0).length), `stop: no block was streaming part of the reasoning before Stop (${JSON.stringify(during)})`);

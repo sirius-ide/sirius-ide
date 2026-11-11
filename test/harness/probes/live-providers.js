@@ -26,9 +26,12 @@
 //              `anthropic-version`;
 //  toolRound — handed the tool's result in the editor's shape (the call and its result as parts
 //              of the history), the model answers in prose with what the result said — the
-//              second round of an agent turn. The result records whether the provider sent
-//              Gemini's function call back with its `id` and `thoughtSignature`, which Gemini 3
-//              documents as required; the check is the vendor's answer, not the docs.
+//              second round of an agent turn. The history carries the reasoning parts the bridge
+//              reported with the call, as the agent sends them, so the vendor gets back what it
+//              signed: Anthropic's thinking blocks, Gemini's `thoughtSignature` on the call with its
+//              `id`. The result records what went back (Gemini's signature as `real` or `dummy` —
+//              the documented skip value, sent for a call the model did not sign); the check is
+//              the vendor's answer, not the docs.
 //
 // A provider whose key is not in the environment is reported as skipped and fails the run.
 // SIRIUS_PROBE_ANTHROPIC_MODELS / SIRIUS_PROBE_GEMINI_MODELS (comma-separated ids) name the
@@ -253,7 +256,7 @@ function candidates(models, prefer, named) {
  */
 async function send(vscode, model, messages, options) {
 	const cancel = new vscode.CancellationTokenSource();
-	const out = { text: '', textParts: 0, toolCalls: [], ms: 0 };
+	const out = { text: '', textParts: 0, toolCalls: [], reasoning: [], ms: 0 };
 	const started = Date.now();
 	const collect = (async () => {
 		try {
@@ -264,6 +267,8 @@ async function send(vscode, model, messages, options) {
 					out.textParts++;
 				} else if (part instanceof vscode.LanguageModelToolCallPart) {
 					out.toolCalls.push({ callId: part.callId, name: part.name, input: part.input });
+				} else if (part instanceof vscode.LanguageModelThinkingPart && part.metadata?.siriusThinkingBlock) {
+					out.reasoning.push(part); // the block whole, as the agent sends it back
 				}
 			}
 		} catch (error) {
@@ -404,7 +409,7 @@ async function exercise(vscode, context, provider, hits, save) {
 	// ── toolRound ─────────────────────────────────────────────────────────────
 	const history = [
 		ask,
-		vscode.LanguageModelChatMessage.Assistant([new vscode.LanguageModelToolCallPart(call.callId, call.name, call.input)]),
+		new vscode.LanguageModelChatMessage2(vscode.LanguageModelChatMessageRole.Assistant, [...called.reasoning, new vscode.LanguageModelToolCallPart(call.callId, call.name, call.input)]),
 		vscode.LanguageModelChatMessage.User([new vscode.LanguageModelToolResultPart(call.callId, [new vscode.LanguageModelTextPart(TOOL_RESULT)])])
 	];
 	const mark2 = posts().length;
@@ -418,9 +423,14 @@ async function exercise(vscode, context, provider, hits, save) {
 		const resultPart = turns.find(t => t.role === 'user' && (t.parts ?? []).some(p => p.functionResponse))?.parts?.find(p => p.functionResponse);
 		out.toolRound.wire = {
 			generation: (model.id.match(/gemini-(\d+(?:\.\d+)?)/) ?? [])[1] ?? null,
-			functionCall: callPart ? { fields: Object.keys(callPart), name: callPart.functionCall.name, id: callPart.functionCall.id ?? null, thoughtSignature: callPart.thoughtSignature ? `${String(callPart.thoughtSignature).length} chars` : null } : null,
+			functionCall: callPart ? { fields: Object.keys(callPart), name: callPart.functionCall.name, id: callPart.functionCall.id ?? null, thoughtSignature: !callPart.thoughtSignature ? null : callPart.thoughtSignature === 'skip_thought_signature_validator' ? 'dummy' : `real, ${String(callPart.thoughtSignature).length} chars` } : null,
 			functionResponse: resultPart ? { fields: Object.keys(resultPart.functionResponse), name: resultPart.functionResponse.name, id: resultPart.functionResponse.id ?? null } : null
 		};
+		// Gemini signed the call: the real signature must go back on it, not the skip value, which
+		// Gemini would also accept while the model lost its reasoning.
+		if (called.reasoning.some(part => part.metadata.siriusThinkingBlock.call)) {
+			check(String(out.toolRound.wire.functionCall?.thoughtSignature ?? '').startsWith('real'), `toolRound: Gemini signed the call, but its signature did not go back on it (${JSON.stringify(out.toolRound.wire.functionCall)})`);
+		}
 	} else {
 		const messages = hit2?.body?.messages ?? [];
 		out.toolRound.wire = {

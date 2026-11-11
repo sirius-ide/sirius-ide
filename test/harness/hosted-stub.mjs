@@ -27,6 +27,15 @@
 // unchanged; the request's record says whether it did (`replay`). As Anthropic refuses them:
 // with adaptive thinking, a block made under a different tool set is HTTP 400; on a thinking
 // budget, a last assistant turn that does not start with its blocks is HTTP 400.
+// Gemini 3's signatures, on Gemini's shape, for a chat that says "think" (Gemini 3 signs whether
+// or not thoughts are asked for; the thought part comes only with thinkingConfig): the call with an
+// id and a thoughtSignature on the first call of the step — "two calls" makes two, the second
+// unsigned, as Gemini signs parallel calls; "split" streams them a chunk each; "no ids" leaves the
+// ids off, as Gemini 2.5 does — or the text with its signature on a last, empty text part. The next
+// round must bring each step's first call back signed — the stub's own signature for that step, or
+// Gemini's documented skip value for a call it did not make — or it is refused with Gemini's HTTP
+// 400; ids come back on the call and its response. The request's record says what came back
+// (`replay`, `textSignature`).
 // The agent loop: "prose call" answers with a sirius_list_directory call written as text in a
 // fenced block — the call a small model writes instead of using the mechanism — and "call the
 // terminal" calls run_in_terminal whether it was offered or not.
@@ -284,10 +293,66 @@ async function anthropicMessages(body, res, record) {
 	res.end();
 }
 
+// ── Gemini 3's signatures ───────────────────────────────────────────────────
+
+const SKIP_SIGNATURE = 'skip_thought_signature_validator';
+const geminiThinks = (body, ask) => /\bthink\b/i.test(ask.text);
+/** Which tool round a Gemini request is: how many function responses it carries. */
+const geminiRoundOf = body => (body.contents ?? []).flatMap(c => (c.parts ?? []).filter(p => p.functionResponse)).length;
+const geminiSignature = (round, what = 'call') => `gemini-sig-${round}-${what}`;
+const geminiCallId = (round, i) => `gemini-call-${round}-${i}`;
+
+/** What came back in the current turn: each step's first call, signed how; the ids on calls and responses. */
+function geminiReplayOf(body) {
+	const contents = body.contents ?? [];
+	let start = 0;
+	contents.forEach((c, i) => { if (c.role === 'user' && (c.parts ?? []).some(p => typeof p.text === 'string')) { start = i; } });
+	const turn = contents.slice(start);
+	// Step k of the current turn is the stub's round k: its first call carries that round's signature.
+	const steps = turn.filter(c => c.role === 'model').map((step, k) => {
+		const calls = (step.parts ?? []).filter(p => p.functionCall);
+		const first = calls[0];
+		const signature = !first ? 'none'
+			: !first.thoughtSignature ? 'missing'
+				: first.thoughtSignature === SKIP_SIGNATURE ? 'dummy'
+					: first.thoughtSignature === geminiSignature(k) ? 'real' : 'wrong';
+		return { name: first?.functionCall?.name ?? null, signature, callIds: calls.map(c => c.functionCall.id ?? null), signatures: calls.map(c => c.thoughtSignature ?? null) };
+	});
+	const responseIds = turn.flatMap(c => (c.parts ?? []).filter(p => p.functionResponse).map(p => p.functionResponse.id ?? null));
+	const issuedIds = steps.flatMap(s => s.callIds).filter(id => /^gemini-call-/.test(id ?? ''));
+	return { steps, responseIds, idsBack: issuedIds.every(id => responseIds.includes(id)) };
+}
+
 async function geminiGenerate(body, res, record, streamed) {
-	const answer = reply(geminiAsk(body));
+	const ask = geminiAsk(body);
+	const answer = reply(ask);
 	const text = answer.hold ? 'holding' : answer.text;
-	const parts = answer.call ? [{ functionCall: answer.call }] : [{ text }];
+	const thinking = geminiThinks(body, ask);
+	const round = geminiRoundOf(body);
+	if (thinking) {
+		const lastModel = [...(body.contents ?? [])].reverse().find(c => c.role === 'model');
+		record.textSignature = (lastModel?.parts ?? []).find(p => typeof p.text === 'string')?.thoughtSignature ?? null;
+	}
+	if (thinking && round > 0) {
+		record.replay = geminiReplayOf(body);
+		const missing = record.replay.steps.findIndex(step => step.signature === 'missing');
+		if (missing !== -1) {
+			json(res, 400, { error: { code: 400, message: `Function call is missing a thought_signature in functionCall parts. This is required for tools to work correctly, and missing thought_signature may lead to degraded model performance. Additional data, function call \`default_api:${record.replay.steps[missing].name}\` , position ${missing + 2}. Please refer to https://ai.google.dev/gemini-api/docs/thought-signatures for more details.`, status: 'INVALID_ARGUMENT' } });
+			return;
+		}
+		if (record.replay.steps.some(step => step.signature === 'wrong')) {
+			json(res, 400, { error: { code: 400, message: 'Thought signature is not valid.', status: 'INVALID_ARGUMENT' } });
+			return;
+		}
+	}
+	const calls = !answer.call ? [] : /\btwo calls|\bsplit\b/i.test(ask.text) ? [answer.call, answer.call] : [answer.call];
+	const ids = thinking && !/\bno ids\b/i.test(ask.text);
+	const thought = thinking && body.generationConfig?.thinkingConfig ? [{ thought: true, text: reasoningOf(round) }] : [];
+	const callParts = calls.map((call, i) => ({ functionCall: { ...(ids ? { id: geminiCallId(round, i) } : {}), name: call.name, args: call.args }, ...(thinking && i === 0 ? { thoughtSignature: geminiSignature(round) } : {}) }));
+	const parts = [
+		...thought,
+		...(answer.call ? callParts : [{ text, ...(thinking && !streamed ? { thoughtSignature: geminiSignature(round, 'text') } : {}) }])
+	];
 	const usage = { promptTokenCount: 12, candidatesTokenCount: 3, totalTokenCount: 15 };
 	if (!streamed) {
 		if (answer.hold) { await hold(res, record); }
@@ -302,6 +367,14 @@ async function geminiGenerate(body, res, record, streamed) {
 			return;
 		}
 		chunk([{ text: '' }], true);
+	} else if (answer.call && callParts.length > 1 && /\bsplit\b/i.test(ask.text)) {
+		// As Gemini may stream a parallel step: a call a chunk.
+		chunk([...thought, callParts[0]], false);
+		chunk(callParts.slice(1), true);
+	} else if (thinking && !answer.call) {
+		// As Gemini streams it: the answer, then its signature on a last part with no text.
+		chunk(parts, false);
+		chunk([{ text: '', thoughtSignature: geminiSignature(round, 'text') }], true);
 	} else {
 		chunk(parts, true);
 	}
