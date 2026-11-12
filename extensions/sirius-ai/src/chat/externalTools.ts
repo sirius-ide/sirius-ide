@@ -8,13 +8,16 @@ import * as vscode from 'vscode';
 
 /**
  * Tools that are neither Sirius's nor the workbench's: an MCP server's, or another
- * extension's. The editor already does most of the work — they arrive in `vscode.lm.tools`
- * with their source, the tools picker and an agent file's `tools:` decide which are enabled,
- * and invoking one goes back through the editor, approval dialog included. What this module
- * adds is the budget. A model is handed a server's tools directly only while the set stays
- * small enough for it; every other server is one *group* tool the model calls to open it,
- * and what the model opened stays open for the rest of the conversation (the participant
- * returns the opened keys as result metadata, and reads them back from the history).
+ * extension's. This module is the budget and the offer, on the stable API alone, shared by the
+ * editor's chat and the VS Code edition's panel; how a tool's source is read differs between
+ * them (chat/externalSources.ts in the editor, panel/tools.ts in the edition). The editor
+ * already does most of the work — they arrive in `vscode.lm.tools` with their source, the tools
+ * picker and an agent file's `tools:` decide which are enabled, and invoking one goes back
+ * through the editor, approval dialog included. What this module adds is the budget. A model
+ * is handed a server's tools directly only while the set stays small enough for it; every
+ * other server is one *group* tool the model calls to open it, and what the model opened
+ * stays open for the rest of the conversation (the participant returns the opened keys as
+ * result metadata, and reads them back from the history).
  */
 
 export interface ExternalSource {
@@ -31,6 +34,33 @@ export interface ExternalSource {
 /** External tool schemas a model is handed without asking, by tier (chat/siriusAgent.ts). */
 export const EXTERNAL_BUDGET = { core: 8, extended: 64 } as const;
 
+/**
+ * Which tier a model earns: `extended` is handed the extended budget of external tools and the
+ * extended set of the editor's own, `core` the small one.
+ *
+ * For a local model, bytes on disk is the honest signal: a Q4 7B is ~4.4 GB, a
+ * 1.5B about 1 GB, and the extra schemas overwhelm the small one. The context
+ * window cannot make that call — a 1.5B, a 7B and a 32B all report 32k — which
+ * the runtime probe demonstrated before this existed. Only Ollama reports size
+ * today (LM Studio and llama.cpp discovery do not), so anything without a size
+ * falls back to the window rule, where 32k still separates small local quants
+ * from frontier models.
+ */
+const EXTENDED_MIN_SIZE_BYTES = 4_000_000_000;
+const EXTENDED_MIN_INPUT_TOKENS = 32_000;
+
+export function isExtendedTier(known: { readonly supportsTools?: boolean; readonly sizeBytes?: number } | undefined, maxInputTokens: number): boolean {
+	// A model on prompted tools carries every schema in its prompt and writes
+	// the call envelope itself; the small set is the one it can follow.
+	if (known?.supportsTools === false) {
+		return false;
+	}
+	if (known?.sizeBytes !== undefined) {
+		return known.sizeBytes >= EXTENDED_MIN_SIZE_BYTES;
+	}
+	return maxInputTokens >= EXTENDED_MIN_INPUT_TOKENS;
+}
+
 /** Tools in one request, all told: OpenAI's limit, and the strictest of the providers. */
 export const MAX_TOOLS_PER_REQUEST = 128;
 
@@ -42,35 +72,6 @@ const MAX_SERVER_INSTRUCTIONS_CHARS = 2_000;
  * first character (a letter or an underscore).
  */
 const TOOL_NAME = /^[A-Za-z_][A-Za-z0-9_-]{0,63}$/;
-
-/** The source of a tool, when it is an MCP server or another extension. */
-export function sourceOf(tool: vscode.LanguageModelToolInformation): Omit<ExternalSource, 'tools'> | undefined {
-	const source = tool.source;
-	if (source instanceof vscode.LanguageModelToolMCPSource) {
-		return { key: `mcp:${source.label}`, kind: 'mcp', label: source.label, instructions: source.instructions };
-	}
-	if (source instanceof vscode.LanguageModelToolExtensionSource) {
-		return { key: `extension:${source.id}`, kind: 'extension', label: source.label };
-	}
-	return undefined;
-}
-
-/** The external tools among `tools`, grouped by source, in a stable order. */
-export function externalSources(tools: Iterable<vscode.LanguageModelToolInformation>): ExternalSource[] {
-	const byKey = new Map<string, { meta: Omit<ExternalSource, 'tools'>; tools: vscode.LanguageModelToolInformation[] }>();
-	for (const tool of tools) {
-		const meta = sourceOf(tool);
-		if (!meta) {
-			continue;
-		}
-		const entry = byKey.get(meta.key) ?? { meta, tools: [] };
-		entry.tools.push(tool);
-		byKey.set(meta.key, entry);
-	}
-	return [...byKey.values()]
-		.map(({ meta, tools }) => ({ ...meta, tools: tools.slice().sort((a, b) => a.name.localeCompare(b.name)) }))
-		.sort((a, b) => a.label.localeCompare(b.label) || a.key.localeCompare(b.key));
-}
 
 export interface Offer {
 	/** Their tools go to the model as they are. */

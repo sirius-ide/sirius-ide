@@ -12,8 +12,8 @@ import { TOOL_DEFINITIONS } from '../tools/toolExecutor';
 import * as path from 'path';
 import { randomBytes } from 'crypto';
 import { knownModel, providerOf, registerStop, siriusModels } from '../lm/vendors';
-import { EXTERNAL_BUDGET, MAX_TOOLS_PER_REQUEST, activationRefused, activationResult, describeOffer, externalSources, fit, offerExternal, promptTsxText, rememberedExpansions, serverInstructions, sourceOf } from './externalTools';
-import type { SiriusModel } from '../types';
+import { EXTERNAL_BUDGET, MAX_TOOLS_PER_REQUEST, activationRefused, activationResult, describeOffer, fit, isExtendedTier, offerExternal, promptTsxText, rememberedExpansions, serverInstructions } from './externalTools';
+import { externalSources, sourceOf } from './externalSources';
 import { AgentFace, AgentPart, THINKING_BLOCK_KEY, runAgent, thinkingBlockOf } from '../agent/core';
 
 /**
@@ -136,32 +136,6 @@ const EXTENDED_NATIVE = new Set([
 	'click_element',
 	'type_in_page'
 ]);
-
-/**
- * Which tier a model earns.
- *
- * For a local model, bytes on disk is the honest signal: a Q4 7B is ~4.4 GB, a
- * 1.5B about 1 GB, and the extra schemas overwhelm the small one. The context
- * window cannot make that call — a 1.5B, a 7B and a 32B all report 32k — which
- * the runtime probe demonstrated before this existed. Only Ollama reports size
- * today (LM Studio and llama.cpp discovery do not), so anything without a size
- * falls back to the window rule, where 32k still separates small local quants
- * from frontier models.
- */
-const EXTENDED_MIN_SIZE_BYTES = 4_000_000_000;
-const EXTENDED_MIN_INPUT_TOKENS = 32_000;
-
-function isExtendedTier(known: SiriusModel | undefined, maxInputTokens: number): boolean {
-	// A model on prompted tools carries every schema in its prompt and writes
-	// the call envelope itself; the small set is the one it can follow.
-	if (known?.supportsTools === false) {
-		return false;
-	}
-	if (known?.sizeBytes !== undefined) {
-		return known.sizeBytes >= EXTENDED_MIN_SIZE_BYTES;
-	}
-	return maxInputTokens >= EXTENDED_MIN_INPUT_TOKENS;
-}
 
 /** Set at registration; the bridge is the only thing that knows a discovered model's size. */
 

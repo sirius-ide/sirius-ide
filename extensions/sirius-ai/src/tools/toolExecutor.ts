@@ -79,6 +79,20 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 	}
 ];
 
+/** A short, human-readable line describing what a call is about to do. */
+export function describeInvocation(name: string, input: Record<string, unknown>): string {
+	const path = typeof input.path === 'string' ? input.path : '';
+	const query = typeof input.query === 'string' ? input.query : '';
+
+	switch (name) {
+		case 'read_file': return `Read ${path}`;
+		case 'list_directory': return `List ${path || 'the workspace root'}`;
+		case 'search_files': return `Search for "${query}"`;
+		case 'get_diagnostics': return 'Check errors and warnings';
+		default: return name;
+	}
+}
+
 // ─── Tool Executor ───────────────────────────────────────────────────────────
 
 /**

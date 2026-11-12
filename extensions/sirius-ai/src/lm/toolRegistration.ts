@@ -5,7 +5,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { TOOL_DEFINITIONS, SiriusToolExecutor } from '../tools/toolExecutor';
+import { TOOL_DEFINITIONS, SiriusToolExecutor, describeInvocation } from '../tools/toolExecutor';
 
 /**
  * Tool names are global across every extension, so Sirius's are prefixed. This
@@ -57,19 +57,5 @@ export function registerSiriusTools(
 		};
 
 		context.subscriptions.push(vscode.lm.registerTool(qualifiedToolName(definition.name), tool));
-	}
-}
-
-/** A short, human-readable line describing what a call is about to do. */
-function describeInvocation(name: string, input: Record<string, unknown>): string {
-	const path = typeof input.path === 'string' ? input.path : '';
-	const query = typeof input.query === 'string' ? input.query : '';
-
-	switch (name) {
-		case 'read_file': return `Read ${path}`;
-		case 'list_directory': return `List ${path || 'the workspace root'}`;
-		case 'search_files': return `Search for "${query}"`;
-		case 'get_diagnostics': return 'Check errors and warnings';
-		default: return name;
 	}
 }
