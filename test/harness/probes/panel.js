@@ -93,6 +93,12 @@
 //               the question. A pasted image reaches Anthropic as an image and Ollama's text-only
 //               model as a note. The next question's history carries all of them as they went.
 //   copy      — a code block's Copy puts its code on the clipboard.
+//   code blocks — with blocks.txt open and the cursor on its second line, a block's Insert puts the
+//               block there, the file shown, and Undo takes it back; Apply with that line selected
+//               proposes the block in its place in the diff editor, and Accept Change in its title bar
+//               applies it to the file on disk, without the block's last line break mid-line; Apply
+//               with the whole file selected proposes the file as the block, and Reject Change leaves
+//               the file; Insert with no file open says so.
 //   errors    — Anthropic's HTTP 529 is shown with its message, and an error event mid-answer
 //               keeps the half answer and says what happened; Retry is offered on both.
 //   stop      — "think hold" is held mid-thought by the stub; Stop closes the connection at once
@@ -1268,6 +1274,64 @@ exports.run = async function (vscode) {
 	}
 	result.copy = { code: shown?.code, copied };
 	check(shown?.code?.length > 0 && copied === shown.code[0], `copy: Copy did not put the code block's code on the clipboard (${js(result.copy)})`);
+	save();
+
+	// ── code blocks ───────────────────────────────────────────────────────────
+	log('code blocks: Insert at the cursor, and Undo');
+	const BLOCKS = 'line one\nline two\n';
+	fs.writeFileSync(path.join(WS, 'blocks.txt'), BLOCKS);
+	const blocksDoc = await vscode.workspace.openTextDocument(vscode.Uri.file(path.join(WS, 'blocks.txt')));
+	const blocksEditor = await vscode.window.showTextDocument(blocksDoc, { preview: false });
+	blocksEditor.selection = new vscode.Selection(1, 0, 1, 0);
+	await until(s => !!s.chips?.find(c => c.text === 'blocks.txt'), 5000);
+	const withBlock = await ask('show me a block');
+	const code = withBlock?.code?.[0] ?? '';
+	await panel.evaluate(click('.turn:last-child .code button[title="Insert at the cursor"]'));
+	const inserted = await within(async () => blocksDoc.getText(), text => text !== BLOCKS, 5000);
+	const insertedShown = vscode.window.activeTextEditor?.document === blocksDoc;
+	await vscode.commands.executeCommand('undo');
+	const undoneInsert = await within(async () => blocksDoc.getText(), text => text === BLOCKS, 5000);
+	await blocksDoc.save();
+	result.codeBlocks = { code: code.slice(0, 40), insert: { at: inserted === `line one\n${code}line two\n`, shown: insertedShown, undone: undoneInsert === BLOCKS } };
+	check(code.length > 0 && result.codeBlocks.insert.at && insertedShown && result.codeBlocks.insert.undone, `code blocks: Insert did not put the block at the cursor of the open file, or Undo did not take it back (${js(result.codeBlocks.insert)})`);
+
+	log('code blocks: Apply in place of the selection, accepted in the diff editor');
+	const blocksAgain = vscode.window.visibleTextEditors.find(editor => editor.document === blocksDoc) ?? await vscode.window.showTextDocument(blocksDoc);
+	blocksAgain.selection = new vscode.Selection(1, 0, 1, 8);
+	await until(s => !!s.chips?.find(c => c.text === 'line 2'), 5000);
+	await panel.evaluate(click('.turn:last-child .code button[title="Apply to the open file"]'));
+	const applyShown = (await within(async () => diffTabs(), tabs => tabs.some(t => t.shown && t.modified.startsWith('sirius-proposal:') && /blocks\.txt/.test(t.modified)), 8000)).find(t => t.shown);
+	const applyDiff = await diffOf(applyShown);
+	await sleep(700);
+	const applyAccepted = await realClick(win, '.editor-actions .action-label[aria-label^="Accept Change"]');
+	// The block replaces part of a line: its last line break is left out, or the line after it would break.
+	const withApplied = BLOCKS.replace('line two', code.replace(/\n$/, ''));
+	const applied = await within(async () => onDisk('blocks.txt'), text => text === withApplied, 5000);
+	result.codeBlocks.apply = { diff: applyDiff && { scheme: applyDiff.scheme, original: applyDiff.original === BLOCKS, modified: applyDiff.modified === withApplied }, accepted: applyAccepted, disk: applied === withApplied, tabs: proposalTabs().length };
+	check(applyDiff?.scheme === 'sirius-proposal' && result.codeBlocks.apply.diff.original && result.codeBlocks.apply.diff.modified && applyAccepted && result.codeBlocks.apply.disk, `code blocks: Apply did not propose the block in place of the selection, or Accept Change did not apply it (${js(result.codeBlocks.apply)})`);
+
+	log('code blocks: Apply to the whole file, selected, rejected');
+	const blocksThird = vscode.window.visibleTextEditors.find(editor => editor.document === blocksDoc) ?? await vscode.window.showTextDocument(blocksDoc);
+	blocksThird.selection = new vscode.Selection(0, 0, blocksDoc.lineCount - 1, 0);
+	await until(s => !!s.chips?.find(c => /^lines 1-\d+$/.test(c.text)), 5000);
+	await panel.evaluate(click('.turn:last-child .code button[title="Apply to the open file"]'));
+	const wholeShown = (await within(async () => diffTabs(), tabs => tabs.some(t => t.shown && t.modified.startsWith('sirius-proposal:') && /blocks\.txt/.test(t.modified)), 8000)).find(t => t.shown);
+	const wholeDiff = await diffOf(wholeShown);
+	await sleep(700);
+	const wholeRejected = await realClick(win, '.editor-actions .action-label[aria-label^="Reject Change"]');
+	await within(async () => proposalTabs(), tabs => tabs.length === 0, 5000);
+	await sleep(500);
+	result.codeBlocks.whole = { modified: wholeDiff?.modified === code, rejected: wholeRejected, disk: onDisk('blocks.txt') === withApplied, tabs: proposalTabs().length };
+	check(result.codeBlocks.whole.modified && wholeRejected && result.codeBlocks.whole.disk && result.codeBlocks.whole.tabs === 0, `code blocks: Apply with the whole file selected did not propose the file as the block, or Reject Change did not leave it (${js(result.codeBlocks.whole)})`);
+
+	log('code blocks: Insert with no file open');
+	await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+	await until(s => !s.chips?.some(c => c.text === 'blocks.txt'), 5000);
+	await panel.evaluate(click('.turn:last-child .code button[title="Insert at the cursor"]'));
+	const told = await within(() => win.evaluate(`[...document.querySelectorAll('.notifications-toasts .notification-list-item-message')].map(m => m.textContent).join(' | ')`), text => /Open a file/.test(text), 5000);
+	await vscode.commands.executeCommand('notifications.clearAll');
+	result.codeBlocks.noFile = { told: told.slice(0, 100), disk: onDisk('blocks.txt') === withApplied };
+	check(/Open a file/.test(told) && result.codeBlocks.noFile.disk, `code blocks: Insert with no file open did not say so, or changed a file (${js(result.codeBlocks.noFile)})`);
 	save();
 
 	// ── errors ────────────────────────────────────────────────────────────────
