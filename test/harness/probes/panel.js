@@ -38,6 +38,32 @@
 //   modes     — Ask, Edit and Agent each reach the model in the system prompt; Agent by default.
 //   effort    — Low goes out as effort low with thinking on, Thinking off as thinking disabled,
 //               High as effort high.
+//   tools     — Agent with thinking: a question about the files has the model call
+//               sirius_list_directory; its card shows it done; the tool round carries the thinking
+//               back unchanged (the stub's `replay`), and the answer is the tool's result. Agent is
+//               offered another extension's tool (probe-tools-ext's harness_ping), and neither a
+//               built-in extension's nor an MCP server's that VS Code has not started (the panel
+//               starts none). The next turn sends that whole round back — every block one the stub
+//               sent, unchanged (its `history`) — and Ask after it is offered Sirius's four alone.
+//   approvals — harness_ping waits on its card, showing what it will run with, and runs on Allow
+//               once. The stub MCP server (the profile's mcp.json), once started as a user would, in
+//               VS Code's MCP commands: echo waits, runs on Allow once, waits again and is declined
+//               on Deny; write_note, allowed for the conversation, is then asked about by VS Code
+//               itself (Yes runs it); called again it is not asked about by the panel, and VS Code's
+//               Cancel declines it; Stop while a card waits stops it, and the next question is
+//               answered on that history.
+//   ids       — Ollama names its calls call_0 every round: a two-round answer shows two cards of
+//               its own; a question to Anthropic after it is answered (the stub refuses repeated
+//               tool_use ids, as Anthropic does). An OpenAI-compatible model calling a tool with
+//               `null` arguments, and under a Kimi-style id (`functions.<name>:0`), gets results and
+//               the next questions are answered, by it and then by Anthropic (the stubs refuse a
+//               call left without a result, input that is not an object and an id outside
+//               Anthropic's pattern, as the vendors do).
+//   pictures  — a tool's picture reaches Anthropic as an image and Ollama's text-only model as a
+//               note that an image could not be shown.
+//   deleting  — a conversation deleted while a card waits stays deleted.
+//   addresses — the workspace's settings name another address for Groq; Groq's key goes to Groq's
+//               own API (answered inside the extension host), never to that address.
 //   copy      — a code block's Copy puts its code on the clipboard.
 //   errors    — Anthropic's HTTP 529 is shown with its message, and an error event mid-answer
 //               keeps the half answer and says what happened; Retry is offered on both.
@@ -60,7 +86,10 @@
 //               once: it asks first (the site is not a trusted one), nothing opens before Open, and
 //               then the system's opener — the harness's, which only records it — gets it once; a
 //               mailto: link opens nothing; the panel stays where it was.
-//   reload    — after the window reloads, the side panel shows the last conversation again.
+//   reload    — the window reloads while a card waits on the user (a two-round answer): after it,
+//               the side panel shows the last conversation again, that answer with its first round
+//               done and the waiting call stopped, and a next question is answered on that history;
+//               the MCP server's tools are known before anything starts it (VS Code keeps them).
 //   at rest   — no file in the profile's folder holds the key, while the conversations are there
 //               to be found (the run's keyring is held in memory, so this covers what VS Code
 //               writes to disk — settings, state and logs — not the keyring itself).
@@ -78,6 +107,7 @@ const OPENAI = 'http://127.0.0.1:11991/v1';
 const STUBLOG = process.env.SIRIUS_PROBE_STUBLOG;
 const OPENED = process.env.SIRIUS_PROBE_OPENED;
 const KEY = 'good-key';
+const GROQ_KEY = 'groqke-for-the-probe';
 const EXTENSION = 'siriuside.sirius-ai';
 const MODEL = 'anthropic/claude-stub-adaptive';
 const OTHERS = { gemini: 'gemini/gemini-stub-flash', openai: 'openai/stub-model', llamacpp: 'llamacpp/stub-model', ollama: 'ollama/stub-coder:1b' };
@@ -90,6 +120,8 @@ const log = line => { if (OUT) { fs.appendFileSync(`${OUT}.log`, `${new Date().t
 const stubRequests = async () => (await fetch(`${HOSTED}/__requests`)).json();
 const anthropicSince = async from => (await stubRequests()).slice(from).filter(r => r.method === 'POST' && r.path.startsWith('/v1/messages'));
 /** The OpenAI stub's chat requests, as its log printed them. */
+const openaiLines = () => (STUBLOG && fs.existsSync(STUBLOG) ? fs.readFileSync(STUBLOG, 'utf8').split('\n') : [])
+	.flatMap(line => { try { return [JSON.parse(line)]; } catch { return []; } });
 const openaiRequests = () => (STUBLOG && fs.existsSync(STUBLOG) ? fs.readFileSync(STUBLOG, 'utf8').split('\n') : [])
 	.flatMap(line => { try { return [JSON.parse(line)]; } catch { return []; } })
 	.filter(r => r.method === 'POST' && r.url === '/v1/chat/completions');
@@ -104,7 +136,8 @@ const SNAPSHOT = `({
 		return {
 			role: t.classList.contains('user') ? 'user' : 'assistant',
 			streaming: t.classList.contains('streaming'),
-			text: t.querySelector('.markdown, .bubble')?.textContent ?? '',
+			text: t.classList.contains('user') ? t.querySelector('.bubble')?.textContent ?? '' : [...t.querySelectorAll(':scope > .markdown')].map(m => m.textContent).join(''),
+			tools: [...t.querySelectorAll(':scope > .tool')].map(c => ({ id: c.dataset.call, label: c.querySelector('.tool-label')?.textContent ?? '', status: ['running', 'waiting', 'done', 'failed', 'denied', 'stopped'].find(k => c.classList.contains(k)) ?? '', asks: [...c.querySelectorAll('.tool-ask button')].map(b => b.textContent), armed: [...c.querySelectorAll('.tool-ask button')].some(b => !b.disabled), waitedMs: Number(c.dataset.waitedMs ?? -1), input: c.querySelector('.tool-input')?.textContent ?? '' })),
 			thinking: thinking ? { open: thinking.classList.contains('open'), streaming: thinking.classList.contains('streaming'), label: thinking.querySelector('.label')?.textContent ?? '', text: thinking.querySelector('.thinking-body')?.textContent ?? '' } : null,
 			meta: t.querySelector('.meta')?.textContent ?? '',
 			error: t.querySelector('.error')?.textContent ?? '',
@@ -158,6 +191,10 @@ function guardVendors() {
 		try { body = typeof init?.body === 'string' ? JSON.parse(init.body) : undefined; } catch { /* not JSON */ }
 		const call = { host: url.hostname, path: url.pathname, method: init?.method ?? 'GET', streamOptions: body?.stream_options ?? null, answered: false };
 		vendorCalls.push(call);
+		if (url.hostname === 'api.groq.com' && url.pathname === '/openai/v1/models') {
+			call.answered = true;
+			return new Response(JSON.stringify({ object: 'list', data: [{ id: 'stub-groq', object: 'model' }] }), { status: 200, headers: { 'content-type': 'application/json' } });
+		}
 		if (url.hostname === 'api.openai.com' && url.pathname === '/v1/models') {
 			call.answered = true;
 			return new Response(JSON.stringify({ object: 'list', data: [{ id: 'stub-model', object: 'model' }] }), { status: 200, headers: { 'content-type': 'application/json' } });
@@ -280,6 +317,25 @@ exports.run = async function (vscode) {
 		const after = await until(s => s.turns.length > 0, 20000);
 		result.reload = { title: after.title, turns: after.turns.length };
 		check(after.turns.length === result.beforeReload?.turns && after.title === result.beforeReload?.title, `reload: the panel did not show the last conversation again (${JSON.stringify(result.reload)} vs ${JSON.stringify(result.beforeReload)})`);
+		const kept = last(after);
+		result.reload.kept = { cards: kept?.tools?.map(card => ({ label: card.label, status: card.status })), meta: kept?.meta };
+		check(js(kept?.tools?.map(card => card.status)) === js(['done', 'stopped']) && /Stopped/.test(kept?.meta ?? ''), `reload: the answer that waited on a card was not kept with its first round done and the call stopped (${js(result.reload.kept)})`);
+		// The harness's keyring is held in memory and is gone after a reload (a user's is not): the
+		// key is saved again, and the question waits for Anthropic's models, or another would answer.
+		await panel.evaluate(click('button[title="Models and keys"]'));
+		await until(s => 'anthropic' in s.providers);
+		await panel.evaluate(fill('anthropic', 'input[type="password"]', KEY, 'Save key'));
+		await until(s => /\d+ models?/.test(s.providers.anthropic ?? ''), 20000);
+		await panel.evaluate(click('button[title="Back to the conversation"]'));
+		await until(s => s.model === MODEL, 20000);
+		const reloadedFrom = (await stubRequests()).length;
+		const next = await ask('a question after the reload');
+		const nextRequest = (await stubRequests()).slice(reloadedFrom).filter(r => r.method === 'POST' && r.path.startsWith('/v1/messages'))[0];
+		const stoppedResult = (nextRequest?.body?.messages ?? []).flatMap(m => Array.isArray(m.content) ? m.content.filter(b => b.type === 'tool_result') : []).map(b => JSON.stringify(b.content)).pop() ?? '';
+		result.reload.next = { status: nextRequest?.status, text: next?.text?.slice(0, 80), stoppedResult: stoppedResult.slice(0, 80) };
+		check(nextRequest?.status === 200 && /pong a question after the reload/.test(next?.text ?? '') && /Stopped by the user/.test(stoppedResult), `reload: the next question was not answered on the kept history (${js(result.reload.next)})`);
+		result.mcpAfterReload = vscode.lm.tools.filter(tool => tool.tags.includes('mcp')).map(tool => tool.name);
+		check(result.mcpAfterReload.includes('mcp_sirius-stub_echo'), `reload: the MCP server's tools are not known after the reload without starting it (${js(result.mcpAfterReload)})`);
 		result.guardAfterReload = vendorCalls;
 		check(vendorCalls.length === 0, `guard: after the reload the panel called a vendor's API (${js(vendorCalls)})`);
 		panel.close();
@@ -326,22 +382,28 @@ exports.run = async function (vscode) {
 	log('setup: the stubs\' addresses and a key for Anthropic, Gemini, OpenAI and llama.cpp; Ollama\'s address');
 	await panel.evaluate(click('button[title="Models and keys"]'));
 	await until(s => 'anthropic' in s.providers);
-	for (const [provider, address, key] of [['anthropic', HOSTED, KEY], ['gemini', HOSTED, KEY], ['openai', OPENAI, KEY], ['llamacpp', OPENAI, KEY], ['ollama', HOSTED, undefined]]) {
-		await panel.evaluate(fill(provider, 'input[type="text"]', address, 'Save address'));
-		await sleep(500);
+	for (const [provider, address, key] of [['anthropic', HOSTED, KEY], ['gemini', HOSTED, KEY], ['openai', OPENAI, KEY], ['llamacpp', OPENAI, KEY], ['ollama', HOSTED, undefined], ['groq', undefined, GROQ_KEY]]) {
+		if (address) {
+			await panel.evaluate(fill(provider, 'input[type="text"]', address, 'Save address'));
+			await sleep(500);
+		}
 		await until(s => provider in s.providers);
 		if (key) {
 			await panel.evaluate(fill(provider, 'input[type="password"]', key, 'Save key'));
 			await sleep(500);
 		}
 	}
-	const PROVIDERS = ['anthropic', 'gemini', 'openai', 'llamacpp', 'ollama'];
+	const PROVIDERS = ['anthropic', 'gemini', 'openai', 'llamacpp', 'ollama', 'groq'];
 	const ready = await until(s => PROVIDERS.every(p => /\d+ models?/.test(s.providers[p] ?? '')));
 	result.setup = { providers: Object.fromEntries(PROVIDERS.map(p => [p, ready.providers[p]])), keyInPage: await panel.evaluate(`document.documentElement.outerHTML.includes(${js(KEY)})`) };
 	for (const provider of PROVIDERS) {
 		check(/\d+ models?/.test(ready.providers[provider] ?? ''), `setup: ${provider} did not offer the stub's models (${JSON.stringify(ready.providers[provider])})`);
 	}
 	check(result.setup.keyInPage === false, 'setup: a key is in the webview\'s page');
+	const groqAt = { workspace: openaiLines().filter(line => line.bearer === GROQ_KEY.slice(0, 6)).map(line => line.url), own: vendorCalls.filter(call => call.host === 'api.groq.com').map(call => call.path) };
+	result.addresses = groqAt;
+	check(groqAt.workspace.length === 0, `addresses: Groq's key went to the address the workspace's settings named (${js(groqAt)})`);
+	check(groqAt.own.includes('/openai/v1/models'), `addresses: Groq was not asked at its own address (${js(groqAt)})`);
 	for (let i = 0; i < 40; i++) {
 		done = (await win.evaluate(WALKTHROUGH)).filter(s => s.done).map(s => s.title);
 		if (done.includes('Add a model')) { break; }
@@ -499,6 +561,203 @@ exports.run = async function (vscode) {
 	check(result.effort.low.thinking?.type === 'adaptive' && result.effort.low.effort === 'low', `effort: Low did not go out as effort low with thinking on (${js(result.effort.low)})`);
 	check(result.effort.off.thinking?.type === 'disabled', `effort: Thinking off did not go out as thinking disabled (${js(result.effort.off)})`);
 	check(result.effort.high.thinking?.type === 'adaptive' && result.effort.high.effort === 'high', `effort: High did not go out as effort high with thinking on (${js(result.effort.high)})`);
+	save();
+
+	// ── tools ─────────────────────────────────────────────────────────────────
+	log('tools: Agent with thinking calls a tool');
+	const lastTool = s => last(s)?.tools?.[last(s).tools.length - 1];
+	from = (await stubRequests()).length;
+	const listing = await ask('think about the files here');
+	const listRequests = await anthropicSince(from);
+	const listResult = listRequests[1]?.body?.messages?.flatMap(m => Array.isArray(m.content) ? m.content.filter(b => b.type === 'tool_result') : []).pop();
+	result.tools = { card: listing?.tools, text: listing?.text?.slice(0, 120), offered: (listRequests[0]?.body?.tools ?? []).map(t => t.name), requests: listRequests.map(r => ({ status: r.status, replay: r.replay ? { ok: r.replay.ok, round: r.replay.round } : undefined, history: r.history })), result: JSON.stringify(listResult?.content ?? null).slice(0, 160) };
+	check(listing?.tools?.length === 1 && listing.tools[0].status === 'done' && /^List /.test(listing.tools[0].label), `tools: no done card for the directory listing (${js(listing?.tools)})`);
+	check(listRequests.length === 2 && listRequests[1].replay?.ok === true, `tools: the tool round did not carry the thinking back unchanged (${js(result.tools.requests)})`);
+	check(/greet\.js/.test(result.tools.result) && /README\.md/.test(result.tools.result), `tools: the listing the model got does not name the workspace's files (${result.tools.result})`);
+	check(/pong tool/.test(listing?.text ?? ''), `tools: the answer is not the tool's result (${js(listing?.text)})`);
+	check(result.tools.offered.includes('harness_ping'), `tools: Agent was not offered another extension's tool (${js(result.tools.offered)})`);
+	check(!result.tools.offered.some(name => /^mcp_/.test(name) || name === 'renderMermaidDiagram'), `tools: Agent was offered a built-in extension's tool, or an MCP server's VS Code had not started (${js(result.tools.offered)})`);
+
+	log('tools: the next turn sends the tool round back whole');
+	from = (await stubRequests()).length;
+	const followed = await ask('think about it once more');
+	const follow = (await anthropicSince(from))[0];
+	const shapes = (follow?.body?.messages ?? []).map(m => `${m.role}:${Array.isArray(m.content) ? m.content.map(b => b.type).join('+') : 'text'}`);
+	result.tools.next = { status: follow?.status, history: follow?.history, shapes: shapes.slice(-6) };
+	check(follow?.status === 200 && followed?.text?.includes('pong think about it once more'), `tools: the next turn was refused or not answered (${js(result.tools.next)})`);
+	const questions = (follow?.body?.messages ?? []).map((m, i) => m.role === 'user' && (typeof m.content === 'string' || m.content.some(b => b.type === 'text')) ? i : -1).filter(i => i >= 0);
+	const previousExchange = (follow?.body?.messages ?? []).slice(questions[questions.length - 2] + 1, questions[questions.length - 1]);
+	const earlierBlocks = previousExchange.flatMap(m => m.role === 'assistant' && Array.isArray(m.content) ? m.content.filter(b => b.type === 'thinking') : []).length;
+	result.tools.next.earlierBlocks = earlierBlocks;
+	check(earlierBlocks === 2 && follow.history.genuine === follow.history.blocks, `tools: the next turn's history does not carry both rounds' blocks back as the stub sent them (${js({ earlierBlocks, history: follow?.history })})`);
+	check(shapes.some((shape, i) => /^assistant:thinking\+tool_use$/.test(shape) && /^user:tool_result$/.test(shapes[i + 1] ?? '')), `tools: the next turn's history lost the earlier tool round (${js(shapes)})`);
+
+	log('tools: Ask after the Agent turn');
+	await panel.evaluate(choose('footer select[title="Mode"]', 'ask'));
+	await sleep(300);
+	from = (await stubRequests()).length;
+	const inAsk = await ask('think in ask mode');
+	const askRequest = (await anthropicSince(from))[0];
+	result.tools.ask = { status: askRequest?.status, history: askRequest?.history, tools: (askRequest?.body?.tools ?? []).map(t => t.name) };
+	check(askRequest?.status === 200 && inAsk?.text?.includes('pong think in ask mode'), `tools: Ask after the Agent turn was refused or not answered (${js(result.tools.ask)})`);
+	check(js(result.tools.ask.tools.sort()) === js(['sirius_get_diagnostics', 'sirius_list_directory', 'sirius_read_file', 'sirius_search_files']), `tools: Ask was offered other tools than Sirius's four (${js(result.tools.ask.tools)})`);
+	await panel.evaluate(choose('footer select[title="Mode"]', 'agent'));
+	await sleep(300);
+	save();
+
+	// ── approvals ─────────────────────────────────────────────────────────────
+	log('approvals: an MCP server\'s tools ask first');
+	/** Sends `text`, waits for its tool's card to ask, and answers it with `choice`'s button. */
+	const askAndAnswer = async (text, button) => {
+		const before = (await snap()).turns.length;
+		await panel.evaluate(sendText(text));
+		const waiting = await until(s => s.turns.length >= before + 2 && lastTool(s)?.status === 'waiting', 30000);
+		const card = lastTool(waiting);
+		// A new card's buttons take no click for half a second; then they do.
+		await until(s => lastTool(s)?.armed === true, 5000);
+		const clicked = await panel.evaluate(clickText('.turn:last-child .tool.waiting .tool-ask button', button));
+		return { card, clicked };
+	};
+	const vscodeDialog = async (answer) => {
+		let text = '';
+		for (let i = 0; i < 40 && !text.includes('write_note'); i++) {
+			text = await win.evaluate(`[...document.querySelectorAll('.monaco-dialog-box')].map(d => d.textContent).join(' | ')`);
+			if (!text.includes('write_note')) { await sleep(250); }
+		}
+		const pressed = text ? await win.evaluate(clickText('.monaco-dialog-box .monaco-button', answer)) : false;
+		return { text: text.slice(0, 120), pressed };
+	};
+	const answered = async () => last(await until(s => last(s)?.role === 'assistant' && !last(s).streaming && !s.stop, 30000));
+
+	const ping = await askAndAnswer('please use harness_ping', 'Allow once');
+	const pingDone = await answered();
+	result.approvals = { ping: { card: ping.card, done: pingDone?.tools, text: pingDone?.text } };
+	check(ping.card?.status === 'waiting' && /"text": "marco"/.test(ping.card?.input ?? ''), `approvals: harness_ping's card did not wait showing what it would run with (${js(ping.card)})`);
+	check(ping.card && (ping.card.armed === false || ping.card.waitedMs >= 500), `approvals: a new card's buttons took a click at once (${js(ping.card)})`);
+	check(ping.clicked && pingDone?.tools?.[0]?.status === 'done' && /pong tool ping:marco/.test(pingDone?.text ?? ''), `approvals: allowed once, harness_ping did not run (${js(result.approvals.ping)})`);
+	save();
+
+	log('approvals: the MCP server, started as a user would');
+	await vscode.commands.executeCommand('workbench.mcp.startServer', '*', { waitForLiveTools: true });
+	for (let i = 0; i < 40 && !vscode.lm.tools.some(tool => tool.name === 'mcp_sirius-stub_echo'); i++) { await sleep(250); }
+	from = (await stubRequests()).length;
+	const once = await askAndAnswer('please use mcp_sirius-stub_echo', 'Allow once');
+	const onceDone = await answered();
+	result.approvals.offered = ((await anthropicSince(from))[0]?.body?.tools ?? []).map(t => t.name);
+	result.approvals.once = { card: once.card, clicked: once.clicked, done: onceDone?.tools, text: onceDone?.text };
+	save();
+	const deny = await askAndAnswer('please use mcp_sirius-stub_echo again', 'Deny');
+	const denyDone = await answered();
+	result.approvals.deny = { card: deny.card, done: denyDone?.tools };
+	save();
+	const session = await askAndAnswer('please use mcp_sirius-stub_write_note', 'Allow for this conversation');
+	const sessionDialog = await vscodeDialog('Yes');
+	const sessionDone = await answered();
+	const beforeAgain = (await snap()).turns.length;
+	await panel.evaluate(sendText('please use mcp_sirius-stub_write_note again'));
+	const againRunning = await until(s => s.turns.length >= beforeAgain + 2 && lastTool(s) !== undefined, 30000);
+	const againDialog = await vscodeDialog('Cancel');
+	const againDone = await answered();
+	result.approvals = {
+		ping: result.approvals.ping,
+		offered: result.approvals.offered,
+		once: { asks: once.card?.asks, clicked: once.clicked, card: onceDone?.tools, text: onceDone?.text },
+		deny: { card: denyDone?.tools, text: denyDone?.text?.slice(0, 120) },
+		session: { dialog: sessionDialog, card: sessionDone?.tools, text: sessionDone?.text },
+		again: { first: lastTool(againRunning), dialog: againDialog, card: againDone?.tools, text: againDone?.text?.slice(0, 120) }
+	};
+	check(js(once.card?.asks) === js(['Allow once', 'Allow for this conversation', 'Deny']) && once.clicked, `approvals: the echo card did not ask with Allow once, Allow for this conversation and Deny (${js(result.approvals.once)})`);
+	check(onceDone?.tools?.[0]?.status === 'done' && /pong tool echo:marco/.test(onceDone?.text ?? ''), `approvals: allowed once, echo did not run (${js(result.approvals.once)})`);
+	check(deny.card?.status === 'waiting' && denyDone?.tools?.[0]?.status === 'denied' && /declined/.test(denyDone?.text ?? ''), `approvals: echo did not ask again, or Deny did not decline it (${js(result.approvals.deny)})`);
+	check(session.clicked && /write_note/.test(sessionDialog.text) && sessionDialog.pressed && sessionDone?.tools?.[0]?.status === 'done' && /pong tool write_note:marco/.test(sessionDone?.text ?? ''), `approvals: allowed for the conversation and confirmed in VS Code's own dialog, write_note did not run (${js(result.approvals.session)})`);
+	check(result.approvals.again.first?.status !== 'waiting' && /write_note/.test(againDialog.text) && againDone?.tools?.[0]?.status === 'denied' && /declined/.test(againDone?.text ?? ''), `approvals: called again, write_note was asked about by the panel, or VS Code's Cancel did not decline it (${js(result.approvals.again)})`);
+
+	log('approvals: Stop while a card waits');
+	const stopWait = await askAndAnswer('please use mcp_sirius-stub_echo once more', 'nothing');
+	await panel.evaluate(click('button[title="Stop"]'));
+	const stoppedWait = last(await until(s => !s.stop && !last(s)?.streaming, 10000));
+	from = (await stubRequests()).length;
+	const afterStop = await ask('a plain question after the stop');
+	const afterStopRequest = (await anthropicSince(from))[0];
+	result.approvals.stop = { waiting: stopWait.card?.status, card: stoppedWait?.tools, meta: stoppedWait?.meta, next: { status: afterStopRequest?.status, text: afterStop?.text } };
+	check(stopWait.card?.status === 'waiting' && stoppedWait?.tools?.[0]?.status === 'stopped' && /Stopped/.test(stoppedWait?.meta ?? ''), `approvals: Stop did not stop the waiting call (${js(result.approvals.stop)})`);
+	check(afterStopRequest?.status === 200 && /pong a plain question after the stop/.test(afterStop?.text ?? ''), `approvals: the question after the stop was not answered (${js(result.approvals.stop.next)})`);
+	save();
+
+	// ── ids ───────────────────────────────────────────────────────────────────
+	log('ids: Ollama\'s call_0 in every round, then Anthropic');
+	await panel.evaluate(choose('footer select[title="Model"]', OTHERS.ollama));
+	await sleep(300);
+	const twoRounds = await ask('use sirius_list_directory then sirius_get_diagnostics');
+	await panel.evaluate(choose('footer select[title="Model"]', MODEL));
+	await sleep(300);
+	from = (await stubRequests()).length;
+	const afterOllama = await ask('a question after the ollama rounds');
+	const afterOllamaRequest = (await anthropicSince(from))[0];
+	const useIds = (afterOllamaRequest?.body?.messages ?? []).flatMap(m => Array.isArray(m.content) ? m.content.filter(b => b.type === 'tool_use').map(b => b.id) : []);
+	result.ids = { cards: twoRounds?.tools, next: { status: afterOllamaRequest?.status, text: afterOllama?.text, useIds } };
+	check(twoRounds?.tools?.length === 2 && twoRounds.tools[0].id !== twoRounds.tools[1].id && twoRounds.tools.every(card => card.status === 'done'), `ids: Ollama's two rounds did not show two cards of their own, both done (${js(twoRounds?.tools)})`);
+	check(afterOllamaRequest?.status === 200 && /pong a question after the ollama rounds/.test(afterOllama?.text ?? '') && new Set(useIds).size === useIds.length, `ids: after Ollama's rounds, Anthropic was sent repeated ids or refused (${js(result.ids.next)})`);
+
+	log('ids: null arguments from an OpenAI-compatible model');
+	await panel.evaluate(choose('footer select[title="Model"]', OTHERS.llamacpp));
+	await sleep(300);
+	const nullArgs = await ask('null args please');
+	const afterNull = await ask('a plain question for llamacpp');
+	const oddIds = await ask('odd ids please');
+	result.ids.nullArgs = { card: nullArgs?.tools, text: nullArgs?.text?.slice(0, 80), next: afterNull?.text?.slice(0, 120), oddIds: oddIds?.tools, refusals: openaiLines().filter(line => line.refused).length };
+	check(nullArgs?.tools?.[0]?.status === 'done' && /pong tool/.test(nullArgs?.text ?? ''), `ids: a call with null arguments did not run (${js(result.ids.nullArgs)})`);
+	check(/pong a plain question for llamacpp/.test(afterNull?.text ?? '') && result.ids.nullArgs.refusals === 0, `ids: after a call with null arguments the next question was refused (${js(result.ids.nullArgs)})`);
+	check(oddIds?.tools?.[0]?.status === 'done' && /pong tool/.test(oddIds?.text ?? ''), `ids: a call under a Kimi-style id did not run (${js(oddIds?.tools)})`);
+	await panel.evaluate(choose('footer select[title="Model"]', MODEL));
+	await sleep(300);
+	from = (await stubRequests()).length;
+	const toClaude = await ask('a question for claude after those');
+	const toClaudeRequest = (await anthropicSince(from))[0];
+	const sentIds = (toClaudeRequest?.body?.messages ?? []).flatMap(m => Array.isArray(m.content) ? m.content.filter(b => b.type === 'tool_use') : []);
+	result.ids.toClaude = { status: toClaudeRequest?.status, text: toClaude?.text?.slice(0, 100), ids: sentIds.map(b => b.id).slice(-3), inputs: sentIds.map(b => b.input).slice(-3) };
+	check(toClaudeRequest?.status === 200 && /pong a question for claude after those/.test(toClaude?.text ?? ''), `ids: after the null arguments and the Kimi-style id, Anthropic refused the conversation (${js(result.ids.toClaude)})`);
+
+	// ── pictures ──────────────────────────────────────────────────────────────
+	log('pictures: a tool\'s picture, to a model that can see and to one that cannot');
+	from = (await stubRequests()).length;
+	await askAndAnswer('please use harness_picture', 'Allow once');
+	const seenByClaude = await answered();
+	const claudeRound = (await anthropicSince(from))[1];
+	const claudeResult = (claudeRound?.body?.messages ?? []).flatMap(m => Array.isArray(m.content) ? m.content.filter(b => b.type === 'tool_result') : []).pop();
+	await panel.evaluate(choose('footer select[title="Model"]', OTHERS.ollama));
+	await sleep(300);
+	from = (await stubRequests()).length;
+	await askAndAnswer('please use harness_picture', 'Allow once');
+	const seenByOllama = await answered();
+	const ollamaRound = (await stubRequests()).slice(from).filter(r => r.path === '/api/chat')[1];
+	const ollamaTool = (ollamaRound?.body?.messages ?? []).filter(m => m.role === 'tool').pop();
+	result.pictures = {
+		claude: { text: seenByClaude?.text?.slice(0, 60), parts: Array.isArray(claudeResult?.content) ? claudeResult.content.map(b => b.type) : typeof claudeResult?.content },
+		ollama: { text: seenByOllama?.text?.slice(0, 80), images: ollamaRound?.body?.messages?.flatMap(m => m.images ?? []).length ?? -1, tool: String(ollamaTool?.content ?? '').slice(0, 120) }
+	};
+	check(Array.isArray(claudeResult?.content) && claudeResult.content.some(b => b.type === 'image'), `pictures: the picture did not reach Anthropic as an image (${js(result.pictures.claude)})`);
+	check(ollamaRound && result.pictures.ollama.images === 0 && /cannot view images/.test(result.pictures.ollama.tool), `pictures: the text-only model was sent the picture, or no note (${js(result.pictures.ollama)})`);
+	await panel.evaluate(choose('footer select[title="Model"]', MODEL));
+	await sleep(300);
+	save();
+
+	// ── deleting ──────────────────────────────────────────────────────────────
+	log('deleting: a conversation deleted while a card waits');
+	await panel.evaluate(click('button[title="New conversation"]'));
+	await until(s => s.turns.length === 0, 5000);
+	await panel.evaluate(sendText('please use harness_ping to wait'));
+	const waitingToDelete = await until(s => lastTool(s)?.status === 'waiting', 30000);
+	const doomed = waitingToDelete.title;
+	await panel.evaluate(click('button[title="Conversations"]'));
+	await until(s => s.sessions.includes(doomed), 5000);
+	await panel.evaluate(click(`button[title=${js(`Delete "${doomed}"`)}]`));
+	await sleep(2500);
+	await panel.evaluate(click('button[title="Conversations"]'));
+	const afterDeleting = await until(s => s.sessions.length > 0, 5000);
+	result.deleting = { doomed, waited: lastTool(waitingToDelete)?.status, sessions: afterDeleting.sessions };
+	check(lastTool(waitingToDelete)?.status === 'waiting' && !afterDeleting.sessions.includes(doomed), `deleting: a conversation deleted while a card waited came back (${js(result.deleting)})`);
+	await panel.evaluate(click('button[title="Back to the conversation"]'));
 	save();
 
 	// ── copy ──────────────────────────────────────────────────────────────────
@@ -717,11 +976,16 @@ exports.run = async function (vscode) {
 	result.guard = vendorCalls;
 	const unanswered = vendorCalls.filter(call => !call.answered);
 	check(unanswered.length === 0, `guard: the panel called a vendor's API the probe did not mean it to (${js(unanswered)})`);
-	check(vendorCalls.length > 0 && vendorCalls.every(call => call.host === 'api.openai.com'), `guard: the vendor calls are not just OpenAI's, at its own address, as this probe asked (${js(vendorCalls)})`);
+	check(vendorCalls.length > 0 && vendorCalls.every(call => call.host === 'api.openai.com' || (call.host === 'api.groq.com' && call.path === '/openai/v1/models')), `guard: the vendor calls are not just OpenAI's and Groq's, at their own addresses, as this probe asked (${js(vendorCalls)})`);
 	save();
 
 	// ── reload ────────────────────────────────────────────────────────────────
-	log('reload: the window reloads');
+	log('reload: the window reloads while a card waits');
+	const reloadFrom = (await snap()).turns.length;
+	await panel.evaluate(sendText('use sirius_list_directory then harness_ping'));
+	const waitingAtReload = await until(s => s.turns.length >= reloadFrom + 2 && lastTool(s)?.status === 'waiting', 30000);
+	result.atReload = { cards: last(waitingAtReload)?.tools?.map(card => ({ label: card.label, status: card.status })) };
+	check(last(waitingAtReload)?.tools?.length === 2 && lastTool(waitingAtReload)?.status === 'waiting', `reload: the answer was not waiting on its second round's card (${js(result.atReload)})`);
 	const final = await snap();
 	result.beforeReload = { title: final.title, turns: final.turns.length };
 	fs.writeFileSync(BEFORE, JSON.stringify({ ...result, failures }, null, 1));

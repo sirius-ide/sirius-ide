@@ -55,6 +55,16 @@
 // Usage, on Gemini's stream: every chunk carries usageMetadata, the ones before the last with the
 // prompt's count only (12), as Gemini sends them; the last, with the finishReason, the whole of it
 // (12 in, 3 out) — so a stream stopped part-way has given a count that is not the answer's.
+// Conversations, on Anthropic's shape: a tool's result and the round count are the current
+// question's — what came after the last user message with text — so a later question in a
+// conversation that used tools gets its own answer. Every thinking or redacted block the stub sends
+// is kept; a request whose history carries one it did not send, or one altered, is refused with
+// Anthropic's 400, and the request's record says what came back (`history`). A chat that says
+// "use <tool>", offered that tool, calls it with { text: "marco" } (each call its own id), and
+// "use <tool> then <tool>" the second in the next round (Anthropic, Gemini and Ollama). As the API
+// does, Anthropic refuses with its 400 a repeated tool_use id, one outside ^[a-zA-Z0-9_-]+$, input
+// that is not an object, and a call and its result that do not pair up. Ollama's and Gemini's
+// answers too are the current question's.
 // Errors, on Anthropic's shape: a chat that says "overloaded" is answered HTTP 529 with Anthropic's
 // overloaded_error body; one that says "overloaded midway", streamed, starts its answer ("Half an
 // answer") and then sends the stream's `error` event with that body and ends, as Anthropic does.
@@ -123,26 +133,40 @@ const GOOGLE_BAD_KEY = {
 
 const blockText = content => typeof content === 'string' ? content : (content ?? []).filter(b => b?.type === 'text' || typeof b?.text === 'string').map(b => b.text).join('');
 
-/** The last user text, the names of the tools offered, and the last tool result — in each vendor's shape. */
+/** Where the current question starts: the last user message with text of its own, not only tool results. */
+function questionAt(messages) {
+	for (let i = messages.length - 1; i >= 0; i--) {
+		const m = messages[i];
+		if (m.role === 'user' && (typeof m.content === 'string' ? m.content.trim() : (m.content ?? []).some(b => b?.type === 'text' && b.text?.trim()))) {
+			return i;
+		}
+	}
+	return -1;
+}
+
+/**
+ * The last user text, the names of the tools offered, and the current question's last tool result
+ * and how many it has had — in each vendor's shape.
+ */
 function anthropicAsk(body) {
 	const messages = body.messages ?? [];
 	const last = [...messages].reverse().find(m => m.role === 'user');
-	const results = messages.flatMap(m => Array.isArray(m.content) ? m.content.filter(b => b.type === 'tool_result') : []);
+	const results = messages.slice(questionAt(messages) + 1).flatMap(m => Array.isArray(m.content) ? m.content.filter(b => b.type === 'tool_result') : []);
 	const result = results.length ? blockText(results[results.length - 1].content) : undefined;
-	return { text: blockText(last?.content), tools: (body.tools ?? []).map(t => t.name), result };
+	return { text: blockText(messages[questionAt(messages)]?.content ?? last?.content), tools: (body.tools ?? []).map(t => t.name), result, rounds: results.length };
 }
 function geminiAsk(body) {
 	const contents = body.contents ?? [];
 	const last = [...contents].reverse().find(c => c.role === 'user' && (c.parts ?? []).some(p => typeof p.text === 'string'));
-	const responses = contents.flatMap(c => (c.parts ?? []).filter(p => p.functionResponse));
+	const responses = contents.slice(contents.lastIndexOf(last) + 1).flatMap(c => (c.parts ?? []).filter(p => p.functionResponse));
 	const result = responses.length ? JSON.stringify(responses[responses.length - 1].functionResponse.response?.result ?? responses[responses.length - 1].functionResponse.response) : undefined;
-	return { text: (last?.parts ?? []).map(p => p.text ?? '').join(''), tools: (body.tools?.[0]?.functionDeclarations ?? []).map(d => d.name), result };
+	return { text: (last?.parts ?? []).map(p => p.text ?? '').join(''), tools: (body.tools?.[0]?.functionDeclarations ?? []).map(d => d.name), result, rounds: responses.length };
 }
 function ollamaAsk(body) {
 	const messages = body.messages ?? [];
-	const last = [...messages].reverse().find(m => m.role === 'user');
-	const result = [...messages].reverse().find(m => m.role === 'tool')?.content;
-	return { text: typeof last?.content === 'string' ? last.content : '', tools: (body.tools ?? []).map(t => t.function?.name), result };
+	const at = questionAt(messages);
+	const results = messages.slice(at + 1).filter(m => m.role === 'tool');
+	return { text: typeof messages[at]?.content === 'string' ? messages[at].content : '', tools: (body.tools ?? []).map(t => t.function?.name), result: results[results.length - 1]?.content, rounds: results.length };
 }
 
 /** A hostile answer: each line would run code, post a key away or restyle the page if it got through. */
@@ -175,6 +199,12 @@ const INJECT = [
 
 /** What to answer: a tool call, the tool's result echoed, or pong. */
 function reply(ask) {
+	// "use <tool>" calls it; "use <tool> then <tool>" calls the second in the next round.
+	const chain = /\buse ([\w.-]+)(?: then ([\w.-]+))?/i.exec(ask.text);
+	const next = chain ? [chain[1], chain[2]].filter(Boolean)[ask.rounds ?? 0] : undefined;
+	if (next && ask.tools.includes(next)) {
+		return { call: { name: next, args: { text: 'marco' } } };
+	}
 	if (ask.result !== undefined) {
 		return { text: `pong tool ${ask.result}`.trim() };
 	}
@@ -229,7 +259,64 @@ const promptOf = body => blockText([...(body.messages ?? [])].reverse().find(m =
 /** Whether this request gets reasoning: asked to think, with thinking on. */
 const thinks = body => /\bthink\b/i.test(promptOf(body)) && ['adaptive', 'enabled'].includes(body.thinking?.type);
 /** Which tool round a request is: how many tool results it carries. */
-const roundOf = body => (body.messages ?? []).flatMap(m => Array.isArray(m.content) ? m.content.filter(b => b.type === 'tool_result') : []).length;
+const roundOf = body => (body.messages ?? []).slice(questionAt(body.messages ?? []) + 1).flatMap(m => Array.isArray(m.content) ? m.content.filter(b => b.type === 'tool_result') : []).length;
+
+/**
+ * What Anthropic refuses in a history's tool calls, as it says it: a repeated tool_use id, an id
+ * outside its pattern, input that is not an object, a tool_use without its tool_result in the next
+ * user message, a tool_result for a call the previous message did not make.
+ */
+function toolUseRefusal(messages) {
+	const seen = new Set();
+	for (const [n, m] of messages.entries()) {
+		const blocks = Array.isArray(m.content) ? m.content : [];
+		const uses = m.role === 'assistant' ? blocks.filter(b => b.type === 'tool_use') : [];
+		for (const use of uses) {
+			if (seen.has(use.id)) {
+				return 'messages: `tool_use` ids must be unique';
+			}
+			seen.add(use.id);
+			if (!/^[a-zA-Z0-9_-]+$/.test(use.id ?? '')) {
+				return `messages.${n}.content: String should match pattern '^[a-zA-Z0-9_-]+$'`;
+			}
+			if (!use.input || typeof use.input !== 'object' || Array.isArray(use.input)) {
+				return `messages.${n}.content.input: Input should be a valid dictionary`;
+			}
+		}
+		const answers = new Set((Array.isArray(messages[n + 1]?.content) ? messages[n + 1].content : []).filter(b => b.type === 'tool_result').map(b => b.tool_use_id));
+		const missing = uses.filter(use => !answers.has(use.id)).map(use => use.id);
+		if (missing.length) {
+			return `messages.${n}: \`tool_use\` ids were found without \`tool_result\` blocks immediately after: ${missing.join(', ')}`;
+		}
+		if (m.role === 'user') {
+			const made = new Set((Array.isArray(messages[n - 1]?.content) ? messages[n - 1].content : []).filter(b => b.type === 'tool_use').map(b => b.id));
+			const stray = blocks.filter(b => b.type === 'tool_result' && !made.has(b.tool_use_id)).map(b => b.tool_use_id);
+			if (stray.length) {
+				return `messages.${n}.content: unexpected \`tool_use_id\` found in \`tool_result\` blocks: ${stray.join(', ')}. Each \`tool_result\` block must have a corresponding \`tool_use\` block in the previous message.`;
+			}
+		}
+	}
+	return undefined;
+}
+
+/** Every thinking block the stub sent, by signature (the texts sent under it), and every redacted one. */
+const EMITTED = new Map();
+const EMITTED_REDACTED = new Set();
+function remember(blocks) {
+	for (const block of blocks) {
+		if (block.type === 'redacted_thinking') {
+			EMITTED_REDACTED.add(block.data);
+		} else {
+			EMITTED.set(block.signature, new Set([...(EMITTED.get(block.signature) ?? []), block.thinking]));
+		}
+	}
+}
+/** The reasoning a request carries back, anywhere in its history: how much, and whether the stub sent each, unchanged. */
+function historyOf(body) {
+	const blocks = (body.messages ?? []).filter(m => m.role === 'assistant' && Array.isArray(m.content)).flatMap(m => m.content.filter(isReasoning));
+	const altered = blocks.filter(b => b.type === 'redacted_thinking' ? !EMITTED_REDACTED.has(b.data) : !EMITTED.get(b.signature)?.has(b.thinking));
+	return { blocks: blocks.length, genuine: blocks.length - altered.length, altered: altered.map(b => b.signature ?? b.data) };
+}
 const reasoningOf = round => `Stub reasoning for round ${round}: first the files, then the answer.`;
 /** What a block is bound to besides the messages: the system prompt and the set of tool names. */
 const bindingOf = body => createHash('sha256').update(JSON.stringify({ system: body.system ?? null, tools: (body.tools ?? []).map(t => t.name).sort() })).digest('hex').slice(0, 12);
@@ -299,6 +386,18 @@ async function anthropicMessages(body, res, record) {
 	const text = answer.hold ? 'holding' : answer.text;
 	const thinking = thinks(body);
 	const round = roundOf(body);
+	const refusal = toolUseRefusal(body.messages ?? []);
+	if (refusal) {
+		json(res, 400, { type: 'error', error: { type: 'invalid_request_error', message: refusal } });
+		return;
+	}
+	if (body.thinking) {
+		record.history = historyOf(body);
+		if (record.history.altered.length) {
+			json(res, 400, { type: 'error', error: { type: 'invalid_request_error', message: 'messages: Invalid `signature` in `thinking` block.' } });
+			return;
+		}
+	}
 	if (thinking && round > 0) {
 		record.replay = replayOf(body);
 		if (body.thinking.type === 'enabled' && !record.replay.kept) {
@@ -311,12 +410,14 @@ async function anthropicMessages(body, res, record) {
 		}
 	}
 	const reasoning = thinking ? reasoningBlocks(body, round, bindingOf(body)) : [];
+	remember(reasoning);
+	const callId = `toolu_stub_${record.n}`;
 	if (!body.stream) {
 		if (answer.hold) { await hold(res, record); }
 		const content = [
 			...reasoning,
 			...(answer.call
-				? [{ type: 'tool_use', id: 'toolu_stub_1', name: answer.call.name, input: answer.call.args }]
+				? [{ type: 'tool_use', id: callId, name: answer.call.name, input: answer.call.args }]
 				: [{ type: 'text', text }])
 		];
 		json(res, 200, { id: 'msg_stub', type: 'message', role: 'assistant', model: body.model, content, stop_reason: answer.call ? 'tool_use' : 'end_turn', stop_sequence: null, usage: { input_tokens: 12, cache_creation_input_tokens: 30, cache_read_input_tokens: 100, output_tokens: 3 } });
@@ -350,7 +451,7 @@ async function anthropicMessages(body, res, record) {
 		index++;
 	}
 	if (answer.call) {
-		event('content_block_start', { index, content_block: { type: 'tool_use', id: 'toolu_stub_1', name: answer.call.name, input: {} } });
+		event('content_block_start', { index, content_block: { type: 'tool_use', id: callId, name: answer.call.name, input: {} } });
 		event('content_block_delta', { index, delta: { type: 'input_json_delta', partial_json: JSON.stringify(answer.call.args) } });
 	} else {
 		event('content_block_start', { index, content_block: { type: 'text', text: '' } });

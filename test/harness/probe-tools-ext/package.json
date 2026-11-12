@@ -1,0 +1,47 @@
+{
+	"name": "harness-tools",
+	"displayName": "Harness Tools",
+	"description": "A tool another extension offers, for the harness's probes of Sirius's panel.",
+	"publisher": "sirius-harness",
+	"version": "0.0.1",
+	"license": "MIT",
+	"engines": {
+		"vscode": "^1.100.0"
+	},
+	"main": "./extension.js",
+	"activationEvents": [
+		"onStartupFinished"
+	],
+	"contributes": {
+		"languageModelTools": [
+			{
+				"name": "harness_ping",
+				"displayName": "Ping",
+				"modelDescription": "Answers with ping:<text>. For tests.",
+				"inputSchema": {
+					"type": "object",
+					"properties": {
+						"text": {
+							"type": "string",
+							"description": "What to send back"
+						}
+					}
+				}
+			},
+			{
+				"name": "harness_picture",
+				"displayName": "Picture",
+				"modelDescription": "Answers with a small picture and a line of text. For tests.",
+				"inputSchema": {
+					"type": "object",
+					"properties": {
+						"text": {
+							"type": "string",
+							"description": "Ignored"
+						}
+					}
+				}
+			}
+		]
+	}
+}

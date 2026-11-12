@@ -13,7 +13,9 @@
 # in SIRIUS_PROBE_OPENED, for the probe to read, and the app gets a D-Bus session of its own, so a
 # file shown in the file manager goes nowhere. The profile's settings always draw dialogs in the
 # window (a probe answers them there) and never name an outside browser; SIRIUS_PROBE_SETTINGS
-# (JSON) is laid over the defaults.
+# (JSON) is laid over the defaults. SIRIUS_PROBE_SEED=<dir> is copied into the workspace and
+# SIRIUS_PROBE_USER=<dir> into the profile's User folder (an mcp.json) before the app starts;
+# SIRIUS_PROBE_EXTRA_EXT=<dir> loads one more development extension (probe-tools-ext).
 
 set -euo pipefail
 APP=${1:?vscode dir, e.g. ~/.cache/sirius-verify/vscode-1.146.0/VSCode-linux-x64}
@@ -40,6 +42,8 @@ if curl -s -o /dev/null "http://127.0.0.1:$PORT/json/version"; then
 fi
 rm -f "$OUT"
 mkdir -p "$WORK/user/User" "$WORK/ws" "$WORK/extensions" "$WORK/bin"
+[ -n "${SIRIUS_PROBE_SEED:-}" ] && cp -r "$SIRIUS_PROBE_SEED"/. "$WORK/ws/"
+[ -n "${SIRIUS_PROBE_USER:-}" ] && cp -r "$SIRIUS_PROBE_USER"/. "$WORK/user/User/"
 for opener in xdg-open xdg-email; do
 	printf '#!/bin/sh\nprintf "%%s\\n" "$*" >> "%s"\n' "$WORK/opened.log" > "$WORK/bin/$opener"
 	chmod +x "$WORK/bin/$opener"
@@ -63,7 +67,7 @@ sleep 2
 
 env -u WAYLAND_DISPLAY DBUS_SESSION_BUS_ADDRESS="$BUS" PATH="$WORK/bin:$PATH" SIRIUS_PROBE_SCRIPT="$PROBE" SIRIUS_PROBE_OUT="$OUT" SIRIUS_PROBE_CDP_PORT="$PORT" SIRIUS_PROBE_USER_DIR="$WORK/user" SIRIUS_PROBE_OPENED="$WORK/opened.log" DISPLAY=:97 \
 	"$APP/bin/code" --ozone-platform=x11 --user-data-dir="$WORK/user" --extensions-dir="$WORK/extensions" \
-	--extensionDevelopmentPath="$EDITION" --extensionDevelopmentPath="$HERE/probe-ext" \
+	--extensionDevelopmentPath="$EDITION" --extensionDevelopmentPath="$HERE/probe-ext" ${SIRIUS_PROBE_EXTRA_EXT:+--extensionDevelopmentPath="$SIRIUS_PROBE_EXTRA_EXT"} \
 	--no-sandbox --disable-gpu --disable-workspace-trust --use-inmemory-secretstorage \
 	--skip-welcome --skip-release-notes --remote-debugging-port="$PORT" "$WORK/ws" >"$OUT.app.log" 2>&1 &
 

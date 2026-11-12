@@ -5,7 +5,9 @@
 # Gemini's and Ollama's shapes, port 11992) and the OpenAI-compatible stub (port 11991): builds the
 # edition (extensions/sirius-ai/esbuild-edition.mts), then runs vscode-run.sh. Prints the probe's
 # JSON, then every request the stubs saw; the probe reads the OpenAI stub's log
-# (SIRIUS_PROBE_STUBLOG) to see what each request carried.
+# (SIRIUS_PROBE_STUBLOG) to see what each request carried. The workspace is seeds/edition; the
+# profile's mcp.json names one MCP server, sirius-stub (mcp-stub.mjs: echo, read-only, and
+# write_note, which VS Code asks about); probe-tools-ext adds another extension's tool.
 #   test/harness/edition-stub.sh <vscode-dir> <probe.js> [result.json]
 # Probes written for it: probes/panel.js — Sirius's panel: the walkthrough, setup, every provider
 # family, thinking, replay, modes and effort, Copy, errors, Stop, Retry, the send key,
@@ -19,6 +21,10 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 ROOT=$(cd "$HERE/../.." && pwd)
 HOSTEDLOG=$(mktemp)
 STUBLOG=$(mktemp)
+USERDIR=$(mktemp -d)
+cat > "$USERDIR/mcp.json" <<JSON
+{ "servers": { "sirius-stub": { "type": "stdio", "command": "$(command -v node)", "args": ["$HERE/mcp-stub.mjs"] } } }
+JSON
 
 ( cd "$ROOT/extensions/sirius-ai" && node esbuild-edition.mts >/dev/null )
 if curl -s -o /dev/null http://127.0.0.1:11992/__requests || curl -s -o /dev/null http://127.0.0.1:11991/v1/models; then
@@ -27,7 +33,7 @@ if curl -s -o /dev/null http://127.0.0.1:11992/__requests || curl -s -o /dev/nul
 fi
 node "$HERE/hosted-stub.mjs" 11992 good-key >"$HOSTEDLOG" 2>&1 & HOSTED=$!
 node "$HERE/openai-stub.mjs" 11991 good-key >"$STUBLOG" 2>&1 & STUB=$!
-trap 'kill "$HOSTED" "$STUB" 2>/dev/null || true; rm -f "$HOSTEDLOG" "$STUBLOG"' EXIT
+trap 'kill "$HOSTED" "$STUB" 2>/dev/null || true; rm -rf "$HOSTEDLOG" "$STUBLOG" "$USERDIR"' EXIT
 for _ in $(seq 1 50); do
 	curl -sf -o /dev/null http://127.0.0.1:11992/__requests && curl -s -o /dev/null http://127.0.0.1:11991/v1/models && break
 	sleep 0.2
@@ -36,10 +42,12 @@ kill -0 "$HOSTED" 2>/dev/null || { echo "the hosted stub did not start: $(cat "$
 kill -0 "$STUB" 2>/dev/null || { echo "the OpenAI-compatible stub did not start: $(cat "$STUBLOG")" >&2; exit 1; }
 
 rm -f "$OUT.before-reload.json"
-export SIRIUS_PROBE_STUBLOG="$STUBLOG"
-"$HERE/vscode-run.sh" "$APP" "$ROOT/extensions/sirius-ai/dist/edition" "$PROBE" "$OUT" "${SIRIUS_PROBE_WAIT:-150}"
+export SIRIUS_PROBE_STUBLOG="$STUBLOG" SIRIUS_PROBE_SEED="$HERE/seeds/edition" SIRIUS_PROBE_USER="$USERDIR" SIRIUS_PROBE_EXTRA_EXT="$HERE/probe-tools-ext"
+status=0
+"$HERE/vscode-run.sh" "$APP" "$ROOT/extensions/sirius-ai/dist/edition" "$PROBE" "$OUT" "${SIRIUS_PROBE_WAIT:-450}" || status=$?
 echo
 echo "── hosted-stub requests ──"
 cat "$HOSTEDLOG"
 echo "── openai-stub requests ──"
 cat "$STUBLOG"
+exit "$status"
