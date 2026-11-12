@@ -11,7 +11,7 @@ import type { ChatMessage, ProviderType, ThinkingConfig } from '../types';
 import { ModelRouter } from '../providers/modelRouter';
 import { ModelCatalog } from './models';
 import { panelFace } from './panelFace';
-import { EFFORTS, MODES, type Effort, type Mode, type PanelState, type ToWebview, type View, toHost } from './protocol';
+import { EFFORTS, MODES, type Effort, type Mode, type PanelState, type SendWith, type ToWebview, type View, toHost } from './protocol';
 import { SessionStore, type StoredSession, type StoredTurn, newId, titleOf, turnView } from './sessions';
 
 export const VIEW_ID = 'sirius.panel';
@@ -21,6 +21,11 @@ const MODEL = 'sirius.panel.model';
 const MODE = 'sirius.panel.mode';
 const EFFORT = 'sirius.panel.effort';
 const LAST_SESSION = 'sirius.panel.lastSession';
+const SEND_WITH = 'sirius.panel.sendWith';
+/** Set while some model can be asked; the walkthrough's "Add a model" step completes on it. */
+const MODEL_AVAILABLE = 'sirius.panel.modelAvailable';
+/** Set once a question was sent; the walkthrough's "Ask, Edit or Agent" step completes on it. */
+const ASKED = 'sirius.panel.asked';
 
 const PROMPT =
 	'You are Sirius, an AI engineer working inside the user\'s VS Code. Answer directly and concisely in markdown, ' +
@@ -51,10 +56,21 @@ export class PanelHost implements vscode.WebviewViewProvider, vscode.WebviewPane
 	private readonly output = vscode.window.createOutputChannel('Sirius');
 	private refreshing: Promise<void> | undefined;
 	private viewClient: Client | undefined;
+	/**
+	 * What a command asked of the side panel before it existed: VS Code resolves a view only
+	 * after focusing it, so Models and Keys or a new conversation waits here for it.
+	 */
+	private pending: { view?: View; fresh?: boolean } = {};
+	private asked = false;
 
 	constructor(private readonly context: vscode.ExtensionContext) {
 		this.sessions = new SessionStore(context.workspaceState);
 		this.catalog = new ModelCatalog(context.secrets, context.globalState, new ModelRouter());
+		context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(event => {
+			if (event.affectsConfiguration(SEND_WITH)) {
+				this._broadcast();
+			}
+		}));
 		void this.refreshModels();
 	}
 
@@ -68,7 +84,9 @@ export class PanelHost implements vscode.WebviewViewProvider, vscode.WebviewPane
 	// ─── Webviews ────────────────────────────────────────────────────────────
 
 	resolveWebviewView(view: vscode.WebviewView): void {
-		const client = this._attach(view.webview, this.context.workspaceState.get<string>(LAST_SESSION));
+		const { view: wanted, fresh } = this.pending;
+		this.pending = {};
+		const client = this._attach(view.webview, fresh ? undefined : this.context.workspaceState.get<string>(LAST_SESSION), wanted);
 		this.viewClient = client;
 		view.onDidDispose(() => { this.clients.delete(client); this.viewClient = undefined; });
 	}
@@ -89,15 +107,29 @@ export class PanelHost implements vscode.WebviewViewProvider, vscode.WebviewPane
 		if (client) {
 			this._open(client, undefined);
 		} else {
-			await vscode.commands.executeCommand(`${VIEW_ID}.focus`);
+			this.pending = { ...this.pending, fresh: true };
+			await this._focusView();
 		}
 	}
 
 	async showSetup(): Promise<void> {
-		await vscode.commands.executeCommand(`${VIEW_ID}.focus`);
+		if (!this.viewClient) {
+			this.pending = { ...this.pending, view: 'setup' };
+		}
+		await this._focusView();
 		if (this.viewClient) {
 			this.viewClient.view = 'setup';
 			this._post(this.viewClient, { type: 'state', state: this._state(this.viewClient) });
+		}
+	}
+
+	/** Shows the side panel; what was asked of it is dropped if it cannot be shown. */
+	private async _focusView(): Promise<void> {
+		try {
+			await vscode.commands.executeCommand(`${VIEW_ID}.focus`);
+		} catch (error) {
+			this.pending = {};
+			throw error;
 		}
 	}
 
@@ -116,9 +148,9 @@ export class PanelHost implements vscode.WebviewViewProvider, vscode.WebviewPane
 		};
 	}
 
-	private _attach(webview: vscode.Webview, sessionId: string | undefined): Client {
+	private _attach(webview: vscode.Webview, sessionId: string | undefined, view: View = 'chat'): Client {
 		webview.options = this._options(false);
-		const client: Client = { webview, sessionId: sessionId && this.sessions.get(sessionId) ? sessionId : newId(), view: 'chat' };
+		const client: Client = { webview, sessionId: sessionId && this.sessions.get(sessionId) ? sessionId : newId(), view };
 		this.clients.add(client);
 		webview.onDidReceiveMessage(raw => this._receive(client, raw));
 		webview.html = this._html(webview);
@@ -128,12 +160,15 @@ export class PanelHost implements vscode.WebviewViewProvider, vscode.WebviewPane
 	private _html(webview: vscode.Webview): string {
 		const nonce = randomBytes(16).toString('base64');
 		const asset = (...path: string[]) => webview.asWebviewUri(vscode.Uri.joinPath(this.context.extensionUri, ...path));
+		// `default-src` does not cover where a form may post or what a <base> may point at.
 		const csp = [
 			`default-src 'none'`,
 			`script-src 'nonce-${nonce}'`,
 			`style-src ${webview.cspSource}`,
 			`font-src ${webview.cspSource}`,
-			`img-src ${webview.cspSource} data:`
+			`img-src ${webview.cspSource} data:`,
+			`form-action 'none'`,
+			`base-uri 'none'`
 		].join('; ');
 		return `<!DOCTYPE html>
 <html lang="en">
@@ -261,6 +296,7 @@ export class PanelHost implements vscode.WebviewViewProvider, vscode.WebviewPane
 			})();
 		}
 		await this.refreshing;
+		void vscode.commands.executeCommand('setContext', MODEL_AVAILABLE, this.catalog.models.length > 0);
 		this._broadcast();
 	}
 
@@ -308,7 +344,8 @@ export class PanelHost implements vscode.WebviewViewProvider, vscode.WebviewPane
 			mode: this._mode,
 			effort: this._effort,
 			providers: this.catalog.providers,
-			refreshing: !!this.refreshing
+			refreshing: !!this.refreshing,
+			sendWith: vscode.workspace.getConfiguration().get<SendWith>(SEND_WITH) === 'ctrlEnter' ? 'ctrlEnter' : 'enter'
 		};
 	}
 
@@ -321,6 +358,10 @@ export class PanelHost implements vscode.WebviewViewProvider, vscode.WebviewPane
 		const session: StoredSession = this.sessions.get(client.sessionId)
 			?? { id: client.sessionId, title: titleOf(text), created: Date.now(), updated: Date.now(), mode: this._mode, turns: [] };
 		session.turns.push({ id: newId(), role: 'user', text, at: Date.now() });
+		if (!this.asked) {
+			this.asked = true;
+			void vscode.commands.executeCommand('setContext', ASKED, true);
+		}
 		if (client === this.viewClient) {
 			void this.context.workspaceState.update(LAST_SESSION, session.id);
 		}

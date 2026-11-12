@@ -49,7 +49,8 @@ const main = el('main', { class: 'scroll' });
 const footer = el('footer', { class: 'composer' });
 app.append(header, main, footer);
 
-const input = el('textarea', { attrs: { rows: '3', placeholder: 'Ask Sirius… (Enter to send, Shift+Enter for a new line)', 'aria-label': 'Message' } });
+const input = el('textarea', { attrs: { rows: '3', 'aria-label': 'Message' } });
+const MOD = /Mac/.test(navigator.userAgent) ? 'Cmd' : 'Ctrl';
 const modeSelect = el('select', { title: 'Mode' });
 const modelSelect = el('select', { title: 'Model' });
 const effortSelect = el('select', { title: 'Thinking' });
@@ -58,7 +59,12 @@ const stopButton = iconButton('debug-stop', 'Stop', () => send({ type: 'stop' })
 footer.append(input, el('div', { class: 'row' }, modeSelect, modelSelect, effortSelect, el('span', { class: 'spacer' }), sendButton, stopButton));
 
 input.addEventListener('keydown', event => {
-	if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
+	if (event.key !== 'Enter' || event.isComposing) {
+		return;
+	}
+	// The setting `sirius.panel.sendWith`: Enter, or Ctrl/Cmd+Enter with Enter for a new line.
+	const sends = state?.sendWith === 'ctrlEnter' ? event.ctrlKey || event.metaKey : !event.shiftKey;
+	if (sends) {
 		event.preventDefault();
 		submit();
 	}
@@ -80,9 +86,38 @@ function submit(): void {
 
 marked.setOptions({ gfm: true, breaks: false });
 
+/**
+ * What a model may not put on the page, beyond what DOMPurify removes itself (scripts, event
+ * handlers, `javascript:` links): anything that takes input or submits it — a form asking for a
+ * key again is how a prompt-injected answer would phish it — stylesheets, which could restyle
+ * the panel's own controls, and image maps, whose areas are links no handler here sees.
+ */
+const FORBIDDEN_TAGS = ['form', 'button', 'textarea', 'select', 'option', 'optgroup', 'datalist', 'output', 'dialog', 'style', 'map', 'area'];
+
+// A model's classes would let it draw the panel's own parts — an error box asking for a key, a
+// message that looks like the user's. Only a code block's `language-*` stays.
+DOMPurify.addHook('uponSanitizeAttribute', (_node, attribute) => {
+	if (attribute.attrName === 'class') {
+		const kept = attribute.attrValue.split(/\s+/).filter(name => /^language-[\w#+.-]+$/.test(name));
+		if (kept.length) {
+			attribute.attrValue = kept.join(' ');
+		} else {
+			attribute.keepAttr = false;
+		}
+	}
+});
+
 function markdown(text: string): HTMLElement {
 	const body = el('div', { class: 'markdown' });
-	body.innerHTML = DOMPurify.sanitize(marked.parse(text, { async: false }) as string, { USE_PROFILES: { html: true }, FORBID_ATTR: ['style'] });
+	body.innerHTML = DOMPurify.sanitize(marked.parse(text, { async: false }) as string, { USE_PROFILES: { html: true }, FORBID_TAGS: FORBIDDEN_TAGS, FORBID_ATTR: ['style'] });
+	// A task list's checkbox is the one input markdown makes: kept, and never editable.
+	for (const field of Array.from(body.querySelectorAll('input'))) {
+		if (field.type === 'checkbox') {
+			field.disabled = true;
+		} else {
+			field.remove();
+		}
+	}
 	// Code blocks: themed monospace with a Copy button (Insert and Apply come with editing).
 	for (const pre of Array.from(body.querySelectorAll('pre'))) {
 		const code = pre.textContent ?? '';
@@ -96,7 +131,10 @@ function markdown(text: string): HTMLElement {
 document.addEventListener('click', event => {
 	const link = (event.target as HTMLElement).closest('a');
 	if (link) {
+		// VS Code's own webview script, listening on the window after this, would open the link
+		// as well — without asking, in a trusted workspace — so the click stops here.
 		event.preventDefault();
+		event.stopPropagation();
 		const href = link.getAttribute('href');
 		if (href) { send({ type: 'openLink', href }); }
 	}
@@ -249,6 +287,7 @@ function renderSetup(s: PanelState): void {
 
 function renderComposer(s: PanelState): void {
 	footer.hidden = s.view !== 'chat';
+	input.placeholder = s.sendWith === 'ctrlEnter' ? `Ask Sirius… (${MOD}+Enter to send)` : 'Ask Sirius… (Enter to send, Shift+Enter for a new line)';
 	const options = <T extends string>(select: HTMLSelectElement, values: readonly T[], labels: (v: T) => string, current?: string) => {
 		select.replaceChildren(...values.map(v => { const o = el('option', { text: labels(v) }); o.value = v; return o; }));
 		if (current !== undefined) { select.value = current; }

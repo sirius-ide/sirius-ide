@@ -11,6 +11,8 @@
 export type Mode = 'ask' | 'edit' | 'agent';
 export type Effort = 'off' | 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 export type View = 'chat' | 'sessions' | 'setup';
+/** The `sirius.panel.sendWith` setting: which key sends a message. */
+export type SendWith = 'enter' | 'ctrlEnter';
 
 export const MODES: readonly Mode[] = ['ask', 'edit', 'agent'];
 export const EFFORTS: readonly Effort[] = ['off', 'low', 'medium', 'high', 'xhigh', 'max'];
@@ -77,6 +79,7 @@ export interface PanelState {
 	readonly effort: Effort;
 	readonly providers: readonly ProviderView[];
 	readonly refreshing: boolean;
+	readonly sendWith: SendWith;
 }
 
 /** From the extension to the webview. */

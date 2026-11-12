@@ -68,6 +68,79 @@
 					"group": "navigation@1"
 				}
 			]
-		}
+		},
+		"configuration": {
+			"title": "Sirius",
+			"properties": {
+				"sirius.panel.sendWith": {
+					"type": "string",
+					"enum": [
+						"enter",
+						"ctrlEnter"
+					],
+					"enumDescriptions": [
+						"Enter sends; Shift+Enter starts a new line.",
+						"Ctrl+Enter (Cmd+Enter on macOS) sends; Enter starts a new line."
+					],
+					"default": "enter",
+					"description": "How a message is sent from Sirius's message box."
+				}
+			}
+		},
+		"walkthroughs": [
+			{
+				"id": "start",
+				"title": "Get started with Sirius",
+				"description": "Your own models in Sirius's chat, with their thinking shown as it streams.",
+				"icon": "media/sirius.svg",
+				"steps": [
+					{
+						"id": "open",
+						"title": "Open Sirius",
+						"description": "Sirius lives in the secondary side bar, on the right of the window. Open it here, or with **Sirius: Open Sirius** in the Command Palette.\n[Open Sirius](command:sirius.open)",
+						"completionEvents": [
+							"onCommand:sirius.open",
+							"onView:sirius.panel"
+						],
+						"media": {
+							"markdown": "media/walkthrough/open.md"
+						}
+					},
+					{
+						"id": "models",
+						"title": "Add a model",
+						"description": "In **Models and Keys**, add Anthropic, Gemini, OpenAI or another provider with your own key. It goes into your system keyring, never into your settings or the chat's page. Ollama, LM Studio and llama.cpp on their usual ports are found without adding anything.\n[Open Models and Keys](command:sirius.panel.setup)",
+						"completionEvents": [
+							"onContext:sirius.panel.modelAvailable"
+						],
+						"media": {
+							"markdown": "media/walkthrough/models.md"
+						}
+					},
+					{
+						"id": "ask",
+						"title": "Ask, Edit or Agent",
+						"description": "Under the message box, pick a mode, a model and how hard it thinks. **Ask** answers questions about your code, **Edit** proposes changes as ready-to-apply code, **Agent** works through a task step by step. Enter sends; to send with Ctrl+Enter (Cmd+Enter on macOS) instead, change **Sirius › Panel: Send With**.\n[Open Sirius](command:sirius.open)\n[Send With](command:workbench.action.openSettings?%22sirius.panel.sendWith%22)",
+						"completionEvents": [
+							"onContext:sirius.panel.asked"
+						],
+						"media": {
+							"markdown": "media/walkthrough/ask.md"
+						}
+					},
+					{
+						"id": "conversations",
+						"title": "Keep your conversations",
+						"description": "Every conversation is kept for this workspace and comes back after a reload. Open an earlier one from **Conversations**, or give Sirius a tab of its own.\n[Open in New Tab](command:sirius.panel.openInTab)",
+						"completionEvents": [
+							"onCommand:sirius.panel.openInTab"
+						],
+						"media": {
+							"markdown": "media/walkthrough/conversations.md"
+						}
+					}
+				]
+			}
+		]
 	}
 }

@@ -6,8 +6,8 @@
 
 // Builds the VS Code edition into dist/edition: its manifest (vscode-edition/package.json), the
 // extension (src/vscode/extension.ts, for Node) and the panel's webview (src/panel/webview, for
-// the browser), its stylesheet and icon, Microsoft's codicons, and the licences of the code it
-// bundles. The folder runs as is with `code --extensionDevelopmentPath=dist/edition`.
+// the browser), its stylesheet and icon, the walkthrough's pages, Microsoft's codicons, and the
+// licences of the code it bundles. The folder runs as is with `code --extensionDevelopmentPath=dist/edition`.
 //   node esbuild-edition.mts [--dev]
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -21,6 +21,7 @@ const dev = process.argv.includes('--dev');
 fs.rmSync(out, { recursive: true, force: true });
 fs.mkdirSync(path.join(out, 'dist'), { recursive: true });
 fs.mkdirSync(path.join(out, 'media', 'codicons'), { recursive: true });
+fs.mkdirSync(path.join(out, 'media', 'walkthrough'), { recursive: true });
 fs.mkdirSync(path.join(out, 'licenses'), { recursive: true });
 
 const common = { bundle: true, minify: !dev, sourcemap: dev, logLevel: 'warning' as const, logOverride: { 'import-is-undefined': 'error' as const } };
@@ -41,6 +42,9 @@ const copy = (from: string, to: string) => fs.copyFileSync(from, path.join(out, 
 copy(path.join(here, 'vscode-edition', 'package.json'), 'package.json');
 copy(path.join(here, 'vscode-edition', 'media', 'sirius.svg'), path.join('media', 'sirius.svg'));
 copy(path.join(here, 'src', 'panel', 'webview', 'panel.css'), path.join('media', 'panel.css'));
+for (const page of fs.readdirSync(path.join(here, 'vscode-edition', 'media', 'walkthrough'))) {
+	copy(path.join(here, 'vscode-edition', 'media', 'walkthrough', page), path.join('media', 'walkthrough', page));
+}
 const codicons = path.join(repo, 'node_modules', '@vscode', 'codicons', 'dist');
 copy(path.join(codicons, 'codicon.css'), path.join('media', 'codicons', 'codicon.css'));
 copy(path.join(codicons, 'codicon.ttf'), path.join('media', 'codicons', 'codicon.ttf'));
