@@ -5,7 +5,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createHash } from 'crypto';
-import type { ChatMessage, ProviderType } from '../types';
+import type { ChatMessage, ImagePart, ProviderType } from '../types';
 import type { StoredTurn } from './sessions';
 
 /** A rough characters-per-token figure, for sizing what fits rather than counting it. */
@@ -25,14 +25,19 @@ const IMAGE_CHARS = 1_600 * CHARS_PER_TOKEN;
  *   from the front, which is the one place a history can lose turns without the later reasoning
  *   being refused.
  */
-export function buildHistory(turns: readonly StoredTurn[], current: StoredTurn, provider: ProviderType, contextWindow: number): ChatMessage[] {
+export function buildHistory(turns: readonly StoredTurn[], current: StoredTurn, provider: ProviderType, contextWindow: number, images: ReadonlyMap<string, ImagePart[]> = new Map()): ChatMessage[] {
 	const exchanges: ChatMessage[][] = [];
 	for (const turn of turns) {
 		if (turn === current) {
 			break;
 		}
 		if (turn.role === 'user') {
-			exchanges.push([{ role: 'user', content: turn.text, timestamp: turn.at }]);
+			// As it went to the model: what it carried, then its words, and its images — a recent
+			// question's only (`images`, read for it); an earlier one's are named, not sent again.
+			const pictures = images.get(turn.id) ?? [];
+			const earlier = (turn.images?.length ?? 0) - pictures.length;
+			const content = [turn.context, turn.text, earlier > 0 ? `[${earlier} picture${earlier === 1 ? '' : 's'} shared here earlier, not sent again]` : ''].filter(Boolean).join('\n\n');
+			exchanges.push([{ role: 'user', content, timestamp: turn.at, ...(pictures.length ? { images: pictures } : {}) }]);
 			continue;
 		}
 		const exchange = exchanges[exchanges.length - 1] ?? [];

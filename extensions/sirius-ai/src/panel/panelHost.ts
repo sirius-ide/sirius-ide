@@ -7,16 +7,18 @@
 import * as vscode from 'vscode';
 import { randomBytes } from 'crypto';
 import { type AgentToolCall, runAgent } from '../agent/core';
-import type { ProviderType, ThinkingBlock, ThinkingConfig } from '../types';
+import type { ImagePart, ProviderType, ThinkingBlock, ThinkingConfig } from '../types';
 import { ModelRouter } from '../providers/modelRouter';
 import { ModelCatalog } from './models';
 import { panelFace } from './panelFace';
-import { EDITS, EFFORTS, MODES, type Approval, type Decision, type Edits, type Effort, type Mode, type PanelState, type SendWith, type ToWebview, type TurnView, type View, toHost } from './protocol';
+import { EDITS, EFFORTS, MODES, type Approval, type Decision, type Edits, type Effort, type Mode, type PanelState, type SendWith, type ToHost, type ToWebview, type TurnView, type View, toHost } from './protocol';
 import { SessionStore, type StoredSession, type StoredTurn, newId, titleOf, turnView } from './sessions';
 import { answered, buildHistory } from './history';
 import { PanelTools } from './tools';
 import { ARM_MS, CHANGE_SCHEME, Diffs, PROPOSAL_SCHEME } from './edits';
 import { Kept } from './kept';
+import { EditorTracker, ImageStore, carry, findFiles } from './context';
+import * as nodePath from 'path';
 
 export const VIEW_ID = 'sirius.panel';
 export const TAB_TYPE = 'sirius.chat';
@@ -25,6 +27,10 @@ const MODEL = 'sirius.panel.model';
 const MODE = 'sirius.panel.mode';
 const EFFORT = 'sirius.panel.effort';
 const EDITS_KEY = 'sirius.panel.edits';
+/** How many of a conversation's latest questions with pictures send them again: older ones are named, not sent. */
+const RESENT_PICTURES = 2;
+/** Where a window with no folder keeps its pictures, in the extension's shared storage. */
+const IMAGES_FOLDER = 'sirius.panel.imagesFolder';
 const LAST_SESSION = 'sirius.panel.lastSession';
 const SEND_WITH = 'sirius.panel.sendWith';
 /** Set while some model can be asked; the walkthrough's "Add a model" step completes on it. */
@@ -54,6 +60,7 @@ interface Client {
 interface Running {
 	readonly controller: AbortController;
 	readonly turn: StoredTurn;
+	readonly session: StoredSession;
 }
 
 export class PanelHost implements vscode.WebviewViewProvider, vscode.WebviewPanelSerializer, vscode.Disposable {
@@ -80,12 +87,37 @@ export class PanelHost implements vscode.WebviewViewProvider, vscode.WebviewPane
 	private readonly deleted = new Set<string>();
 	/** Proposed changes waiting for the user's Accept or Reject, by card. */
 	private readonly decisions = new Map<string, { readonly session: string; decide(choice: Decision | 'stop'): void }>();
+	/** The text editor the user last worked in, for the composer's chips and what a question carries. */
+	private readonly editor: EditorTracker;
+	/** Files the user chose in VS Code's file picker, by the ids given to the webview that asked; spent when sent. */
+	private readonly picked = new Map<string, { readonly client: Client; readonly uri: vscode.Uri; readonly label: string }>();
+	/** The pictures questions carried, as files of their own. */
+	private readonly images: ImageStore;
+	/** Conversations whose question is being put together: a second one waits for it. */
+	private readonly preparing = new Set<string>();
+	/** Pictures stored for a question not yet in a saved conversation: a sweep keeps them. */
+	private readonly unsaved = new Set<string>();
+	private sweeping: Promise<void> = Promise.resolve();
 	/** The changes the diff editor can show; those still waiting are kept whatever their size. */
 	private readonly diffs = new Diffs(id => this.decisions.has(id));
 
 	constructor(private readonly context: vscode.ExtensionContext) {
 		this.sessions = new SessionStore(context.workspaceState);
 		this.choices = new Kept(context.globalState);
+		// A window with no folder has no storage of its own: its pictures get a folder of their own in the
+		// shared one, or one such window's sweep would delete another's.
+		let windowFolder = context.workspaceState.get<string>(IMAGES_FOLDER);
+		if (!context.storageUri && !windowFolder) {
+			windowFolder = newId();
+			void context.workspaceState.update(IMAGES_FOLDER, windowFolder);
+		}
+		this.images = new ImageStore(context.storageUri ? vscode.Uri.joinPath(context.storageUri, 'panel-images') : vscode.Uri.joinPath(context.globalStorageUri, 'panel-images', windowFolder!));
+		void this._sweepImages();
+		this.editor = new EditorTracker(editor => {
+			for (const client of this.clients) {
+				this._post(client, { type: 'editor', ...(editor ? { editor } : {}) });
+			}
+		});
 		this.catalog = new ModelCatalog(context.secrets, context.globalState, new ModelRouter());
 		context.subscriptions.push(
 			vscode.workspace.onDidChangeConfiguration(event => {
@@ -103,6 +135,7 @@ export class PanelHost implements vscode.WebviewViewProvider, vscode.WebviewPane
 		for (const { controller } of this.running.values()) {
 			controller.abort();
 		}
+		this.editor.dispose();
 		this.output.dispose();
 	}
 
@@ -113,7 +146,7 @@ export class PanelHost implements vscode.WebviewViewProvider, vscode.WebviewPane
 		this.pending = {};
 		const client = this._attach(view.webview, fresh ? undefined : this.context.workspaceState.get<string>(LAST_SESSION), wanted);
 		this.viewClient = client;
-		view.onDidDispose(() => { this.clients.delete(client); this.viewClient = undefined; });
+		view.onDidDispose(() => { this._detach(client); this.viewClient = undefined; });
 	}
 
 	async deserializeWebviewPanel(panel: vscode.WebviewPanel, state: unknown): Promise<void> {
@@ -162,7 +195,17 @@ export class PanelHost implements vscode.WebviewViewProvider, vscode.WebviewPane
 		panel.webview.options = this._options(false);
 		panel.iconPath = vscode.Uri.joinPath(this.context.extensionUri, 'media', 'sirius.svg');
 		const client = this._attach(panel.webview, sessionId);
-		panel.onDidDispose(() => this.clients.delete(client));
+		panel.onDidDispose(() => this._detach(client));
+	}
+
+	/** A webview is gone: so are the files picked in it and not sent. */
+	private _detach(client: Client): void {
+		this.clients.delete(client);
+		for (const [id, entry] of this.picked) {
+			if (entry.client === client) {
+				this.picked.delete(id);
+			}
+		}
 	}
 
 	private _options(retain: boolean): vscode.WebviewPanelOptions & vscode.WebviewOptions {
@@ -245,8 +288,25 @@ export class PanelHost implements vscode.WebviewViewProvider, vscode.WebviewPane
 			case 'ready':
 				break;
 			case 'send':
-				await this._send(client, message.text);
+				await this._send(client, message);
 				return;
+			case 'searchFiles':
+				this._post(client, { type: 'files', requestId: message.requestId, files: await findFiles(message.query) });
+				return;
+			case 'attach': {
+				const chosen = await vscode.window.showOpenDialog({ canSelectMany: true, openLabel: 'Attach', defaultUri: vscode.workspace.workspaceFolders?.[0]?.uri });
+				const files = (chosen ?? []).map(uri => {
+					const id = newId();
+					// A file outside the workspace goes by its name alone: its folder would tell a vendor the user's home.
+					const label = vscode.workspace.getWorkspaceFolder(uri) ? vscode.workspace.asRelativePath(uri) : nodePath.basename(uri.path);
+					this.picked.set(id, { client, uri, label });
+					return { id, label };
+				});
+				if (files.length) {
+					this._post(client, { type: 'attached', files });
+				}
+				return;
+			}
 			case 'stop':
 				this.running.get(client.sessionId)?.controller.abort();
 				return;
@@ -292,6 +352,7 @@ export class PanelHost implements vscode.WebviewViewProvider, vscode.WebviewPane
 				this.deleted.add(message.id);
 				this.running.get(message.id)?.controller.abort();
 				await this.sessions.delete(message.id);
+				void this._sweepImages();
 				for (const other of this._showing(message.id)) {
 					other.sessionId = newId();
 				}
@@ -353,6 +414,34 @@ export class PanelHost implements vscode.WebviewViewProvider, vscode.WebviewPane
 		if (id && !this.diffs.shownWithin(id, ARM_MS)) {
 			this.decisions.get(id)?.decide(choice);
 		}
+	}
+
+	/** The pictures of the last RESENT_PICTURES questions that carried any, read for the model: earlier ones are not sent again. */
+	private async _recentImages(turns: readonly StoredTurn[]): Promise<Map<string, ImagePart[]>> {
+		const recent = new Map<string, ImagePart[]>();
+		for (const turn of [...turns].reverse()) {
+			if (recent.size >= RESENT_PICTURES) {
+				break;
+			}
+			if (turn.role === 'user' && turn.images?.length) {
+				recent.set(turn.id, (await Promise.all(turn.images.map(image => this.images.get(image)))).filter((image): image is ImagePart => !!image));
+			}
+		}
+		return recent;
+	}
+
+	/** Deletes the pictures no kept conversation names; one sweep at a time. */
+	private _sweepImages(): Promise<void> {
+		this.sweeping = this.sweeping.then(() => this._sweep(), () => this._sweep());
+		return this.sweeping;
+	}
+
+	private async _sweep(): Promise<void> {
+		// Asked afresh for each picture: a question may be stored, or answered and saved, while the sweep goes.
+		const named = (ref: string): boolean => this.unsaved.has(ref)
+			|| [...this.running.values()].some(running => running.session.turns.some(turn => turn.images?.some(image => image.ref === ref)))
+			|| this.sessions.list().some(summary => this.sessions.get(summary.id)?.turns.some(turn => turn.images?.some(image => image.ref === ref)));
+		await this.images.sweep(named);
 	}
 
 	/** Every card of a conversation, its answer in progress included. */
@@ -436,19 +525,70 @@ export class PanelHost implements vscode.WebviewViewProvider, vscode.WebviewPane
 			providers: this.catalog.providers,
 			refreshing: !!this.refreshing,
 			sendWith: vscode.workspace.getConfiguration().get<SendWith>(SEND_WITH) === 'ctrlEnter' ? 'ctrlEnter' : 'enter',
-			edits: this._edits
+			edits: this._edits,
+			...(this.editor.view ? { editor: this.editor.view } : {})
 		};
 	}
 
 	// ─── Requests ────────────────────────────────────────────────────────────
 
-	private async _send(client: Client, text: string): Promise<void> {
-		if (this.running.has(client.sessionId)) {
+	private async _send(client: Client, message: Extract<ToHost, { type: 'send' }>): Promise<void> {
+		const sessionId = client.sessionId;
+		if (this.running.has(sessionId) || this.preparing.has(sessionId)) {
 			return;
 		}
-		const session: StoredSession = this.sessions.get(client.sessionId)
-			?? { id: client.sessionId, title: titleOf(text), created: Date.now(), updated: Date.now(), mode: this._mode, turns: [] };
-		session.turns.push({ id: newId(), role: 'user', text, at: Date.now() });
+		// What the question carries is read now, as the user sees it: the editor, the files, the images.
+		// A picked file's id is this webview's, and spent.
+		const picked = message.attachments.map(id => {
+			const entry = this.picked.get(id);
+			this.picked.delete(id);
+			return entry?.client === client ? entry : undefined;
+		}).filter((entry): entry is NonNullable<typeof entry> => !!entry);
+		this.preparing.add(sessionId);
+		const reserved: string[] = [];
+		try {
+			await this._put(client, sessionId, message, picked, reserved);
+		} finally {
+			this.preparing.delete(sessionId);
+			// The question's pictures are in its conversation now, saved — or it went nowhere.
+			for (const ref of reserved) {
+				this.unsaved.delete(ref);
+			}
+		}
+	}
+
+	/** Puts the question together, stores it and answers it; `reserved` collects the picture names kept from a sweep meanwhile. */
+	private async _put(client: Client, sessionId: string, message: Extract<ToHost, { type: 'send' }>, picked: readonly { readonly uri: vscode.Uri; readonly label: string }[], reserved: string[]): Promise<void> {
+		const text = message.text;
+		const key = this._model;
+		const carried = await carry({
+			editor: this.editor.current,
+			file: message.file,
+			selection: message.selection,
+			mentions: message.mentions,
+			picked,
+			pasted: message.images,
+			contextWindow: (key ? this.catalog.reachable(key)?.model.contextWindow : undefined) ?? 128_000
+		});
+		// Reserved before they are written: a sweep running now must not take them.
+		for (const image of carried.images) {
+			const ref = ImageStore.refOf(image).ref;
+			reserved.push(ref);
+			this.unsaved.add(ref);
+		}
+		const stored = await Promise.all(carried.images.map(image => this.images.put(image)));
+		this.preparing.delete(sessionId);
+		if (this.running.has(sessionId) || this.deleted.has(sessionId)) {
+			return;
+		}
+		const session: StoredSession = this.sessions.get(sessionId)
+			?? { id: sessionId, title: titleOf(text), created: Date.now(), updated: Date.now(), mode: this._mode, turns: [] };
+		session.turns.push({
+			id: newId(), role: 'user', text, at: Date.now(),
+			...(carried.context ? { context: carried.context } : {}),
+			...(stored.length ? { images: stored } : {}),
+			...(carried.labels.length ? { attached: carried.labels } : {})
+		});
 		if (!this.asked) {
 			this.asked = true;
 			void vscode.commands.executeCommand('setContext', ASKED, true);
@@ -462,7 +602,7 @@ export class PanelHost implements vscode.WebviewViewProvider, vscode.WebviewPane
 	/** Answers the last question again, in place of the last answer. */
 	private async _retry(client: Client): Promise<void> {
 		const session = this.sessions.get(client.sessionId);
-		if (!session || this.running.has(session.id) || session.turns.length < 2 || session.turns[session.turns.length - 1].role !== 'assistant') {
+		if (!session || this.running.has(session.id) || this.preparing.has(session.id) || session.turns.length < 2 || session.turns[session.turns.length - 1].role !== 'assistant') {
 			return;
 		}
 		session.turns.pop();
@@ -482,7 +622,7 @@ export class PanelHost implements vscode.WebviewViewProvider, vscode.WebviewPane
 		}
 
 		const controller = new AbortController();
-		this.running.set(session.id, { controller, turn });
+		this.running.set(session.id, { controller, turn, session });
 		await this.sessions.save(session);
 		this._broadcast(session.id);
 
@@ -649,7 +789,7 @@ export class PanelHost implements vscode.WebviewViewProvider, vscode.WebviewPane
 			}
 		};
 		const token = { get isCancellationRequested() { return controller.signal.aborted; } };
-		const messages = buildHistory(session.turns, turn, reachable.model.provider, reachable.model.contextWindow);
+		const messages = buildHistory(session.turns, turn, reachable.model.provider, reachable.model.contextWindow, await this._recentImages(session.turns));
 		const before = messages.length;
 
 		try {

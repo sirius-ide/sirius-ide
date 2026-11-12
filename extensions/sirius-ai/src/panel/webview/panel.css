@@ -124,7 +124,18 @@ select { background: var(--vscode-dropdown-background); color: var(--vscode-drop
 .setup button.secondary, .field button.secondary { background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); }
 
 /* Composer */
-.composer { border-top: 1px solid var(--vscode-panel-border, transparent); padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+.composer { position: relative; border-top: 1px solid var(--vscode-panel-border, transparent); padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+.chips, .attached { display: flex; flex-wrap: wrap; gap: 4px; }
+.attached { justify-content: flex-end; margin-top: 3px; }
+.chip { display: inline-flex; align-items: center; max-width: 100%; border: 1px solid var(--vscode-input-border, var(--vscode-panel-border, transparent)); border-radius: 3px; background: var(--vscode-badge-background); color: var(--vscode-badge-foreground); font-size: 0.9em; }
+.attached .chip { padding: 1px 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chip.off { background: transparent; color: var(--vscode-descriptionForeground); text-decoration: line-through; }
+.chip-label { border: none; background: none; color: inherit; padding: 1px 6px; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 260px; }
+.chip-label:disabled { cursor: default; }
+button.icon.chip-remove { width: 18px; height: 18px; color: inherit; }
+.suggest { position: absolute; left: 8px; right: 8px; bottom: calc(100% - 4px); margin: 0; padding: 2px 0; list-style: none; max-height: 220px; overflow-y: auto; z-index: 10; background: var(--vscode-quickInput-background, var(--vscode-editorWidget-background)); color: var(--vscode-quickInput-foreground, var(--vscode-foreground)); border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, transparent)); border-radius: 4px; box-shadow: 0 2px 8px var(--vscode-widget-shadow, transparent); }
+.suggestion { padding: 3px 8px; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--vscode-editor-font-family); font-size: 0.9em; }
+.suggestion.active, .suggestion:hover { background: var(--vscode-list-activeSelectionBackground); color: var(--vscode-list-activeSelectionForeground); }
 .composer textarea { resize: vertical; min-height: 44px; max-height: 40vh; }
 .composer .row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
 button.icon.primary { width: 28px; height: 28px; background: var(--vscode-button-background); color: var(--vscode-button-foreground); }

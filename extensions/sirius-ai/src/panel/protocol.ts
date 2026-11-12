@@ -52,6 +52,29 @@ export interface Usage {
 	readonly thinking?: number;
 }
 
+/** The text editor the user last worked in, as the composer's chips show it. */
+export interface EditorView {
+	/** The file, as the workspace names it. */
+	readonly path: string;
+	/** The selected lines, 1-based, when something is selected. */
+	readonly selection?: { readonly start: number; readonly end: number };
+}
+
+/** An image pasted into the message box. */
+export interface PastedImage {
+	readonly mimeType: string;
+	/** Its bytes, base64, with no `data:` prefix. */
+	readonly base64: string;
+}
+
+/** The images every vision model takes. */
+export const IMAGE_MIME_TYPES: readonly string[] = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
+/** A pasted image's base64 at most: 3.75 MB of picture (the extension caps what a message carries further). */
+export const MAX_PASTED_BASE64 = 5_000_000;
+/** At most this many pasted images, mentioned files and picked files in one message. */
+export const MAX_PASTED = 8;
+export const MAX_FILES = 20;
+
 export const APPROVALS = ['once', 'session', 'deny'] as const;
 export type Approval = typeof APPROVALS[number];
 export const DECISIONS = ['accept', 'reject'] as const;
@@ -93,6 +116,8 @@ export interface TurnView {
 	readonly id: string;
 	readonly role: 'user' | 'assistant';
 	readonly text: string;
+	/** What a question carried, by name: the open file or selection, files, images. */
+	readonly attached?: readonly string[];
 	readonly thinking?: { readonly text: string; readonly ms?: number };
 	readonly tools?: readonly ToolView[];
 	/** Something the user should know about the answer, such as tools that were left out. */
@@ -124,18 +149,31 @@ export interface PanelState {
 	readonly refreshing: boolean;
 	readonly sendWith: SendWith;
 	readonly edits: Edits;
+	readonly editor?: EditorView;
 }
 
 /** From the extension to the webview. */
 export type ToWebview =
 	| { readonly type: 'state'; readonly state: PanelState }
 	| { readonly type: 'delta'; readonly turnId: string; readonly kind: 'text' | 'thinking'; readonly text: string }
-	| { readonly type: 'turn'; readonly turn: TurnView };
+	| { readonly type: 'turn'; readonly turn: TurnView }
+	/** The text editor the user last worked in changed, or its selection did. */
+	| { readonly type: 'editor'; readonly editor?: EditorView }
+	/** Workspace files for an @-mention, answering `searchFiles`. */
+	| { readonly type: 'files'; readonly requestId: number; readonly files: readonly string[] }
+	/** Files the user chose in VS Code's file picker, by ids of the host's: a path from the webview is never trusted. */
+	| { readonly type: 'attached'; readonly files: readonly { readonly id: string; readonly label: string }[] };
 
 /** From the webview to the extension. */
 export type ToHost =
 	| { readonly type: 'ready' }
-	| { readonly type: 'send'; readonly text: string }
+	| {
+		readonly type: 'send'; readonly text: string;
+		/** Whether the open file and the selection go with it (the composer's chips). */
+		readonly file: boolean; readonly selection: boolean;
+		/** Workspace files @-mentioned; picked files by the ids `attached` gave; pasted images. */
+		readonly mentions: readonly string[]; readonly attachments: readonly string[]; readonly images: readonly PastedImage[];
+	}
 	| { readonly type: 'stop' }
 	| { readonly type: 'retry' }
 	| { readonly type: 'newSession' }
@@ -157,10 +195,15 @@ export type ToHost =
 	| { readonly type: 'decide'; readonly callId: string; readonly choice: Decision }
 	/** Accept all or Reject all on a round's changes. */
 	| { readonly type: 'decideAll'; readonly batch: string; readonly choice: Decision }
-	| { readonly type: 'showDiff'; readonly callId: string };
+	| { readonly type: 'showDiff'; readonly callId: string }
+	| { readonly type: 'searchFiles'; readonly requestId: number; readonly query: string }
+	| { readonly type: 'attach' };
 
 const MAX_TEXT = 200_000;
 const str = (value: unknown, max = MAX_TEXT): value is string => typeof value === 'string' && value.length <= max;
+/** A list of at most `max` items each `ok` accepts (none when absent), or undefined when it is not one. */
+const list = (value: unknown, max: number, ok: (item: unknown) => boolean): unknown[] | undefined =>
+	value === undefined ? [] : Array.isArray(value) && value.length <= max && value.every(ok) ? value : undefined;
 
 /** A message from the webview, or undefined when it is not one of ours. */
 export function toHost(value: unknown): ToHost | undefined {
@@ -169,10 +212,27 @@ export function toHost(value: unknown): ToHost | undefined {
 	}
 	const m = value as Record<string, unknown>;
 	switch (m.type) {
-		case 'ready': case 'stop': case 'retry': case 'newSession': case 'refreshModels':
+		case 'ready': case 'stop': case 'retry': case 'newSession': case 'refreshModels': case 'attach':
 			return { type: m.type };
-		case 'send':
-			return str(m.text) && m.text.trim() ? { type: 'send', text: m.text } : undefined;
+		case 'send': {
+			if (!str(m.text) || !m.text.trim()) {
+				return undefined;
+			}
+			const mentions = list(m.mentions, MAX_FILES, item => str(item, 1_000));
+			const attachments = list(m.attachments, MAX_FILES, item => str(item, 100));
+			const images = list(m.images, MAX_PASTED, item => {
+				const image = item as Record<string, unknown> | null;
+				return typeof image === 'object' && image !== null && IMAGE_MIME_TYPES.includes(image.mimeType as string)
+					&& str(image.base64, MAX_PASTED_BASE64) && /^[A-Za-z0-9+/]+={0,2}$/.test(image.base64);
+			});
+			return mentions && attachments && images ? {
+				type: 'send', text: m.text, file: m.file !== false, selection: m.selection !== false,
+				mentions: mentions as string[], attachments: attachments as string[],
+				images: (images as PastedImage[]).map(image => ({ mimeType: image.mimeType, base64: image.base64 }))
+			} : undefined;
+		}
+		case 'searchFiles':
+			return typeof m.requestId === 'number' && Number.isSafeInteger(m.requestId) && str(m.query, 500) ? { type: 'searchFiles', requestId: m.requestId, query: m.query } : undefined;
 		case 'openSession': case 'deleteSession':
 			return str(m.id, 100) ? { type: m.type, id: m.id } : undefined;
 		case 'setModel':

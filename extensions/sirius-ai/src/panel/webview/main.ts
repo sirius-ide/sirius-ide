@@ -10,7 +10,7 @@
 
 import { marked } from '../../../../../src/vs/base/common/marked/marked.js';
 import DOMPurify from '../../../../../src/vs/base/browser/dompurify/dompurify.js';
-import type { Edits, Effort, Mode, ModelEntry, PanelState, ProviderView, ToHost, ToolView, ToWebview, TurnView } from '../protocol';
+import { IMAGE_MIME_TYPES, MAX_FILES, MAX_PASTED, MAX_PASTED_BASE64, type EditorView, type Edits, type Effort, type Mode, type ModelEntry, type PanelState, type PastedImage, type ProviderView, type ToHost, type ToolView, type ToWebview, type TurnView } from '../protocol';
 
 declare function acquireVsCodeApi(): { postMessage(message: ToHost): void; setState(state: unknown): void; getState(): unknown };
 const vscode = acquireVsCodeApi();
@@ -66,9 +66,164 @@ const effortSelect = el('select', { title: 'Thinking' });
 const editsSelect = el('select', { title: 'Edits' });
 const sendButton = iconButton('send', 'Send', () => submit(), 'primary');
 const stopButton = iconButton('debug-stop', 'Stop', () => send({ type: 'stop' }), 'primary stop');
-footer.append(input, el('div', { class: 'row' }, modeSelect, modelSelect, effortSelect, editsSelect, el('span', { class: 'spacer' }), sendButton, stopButton));
+const attachButton = iconButton('attach', 'Attach files', () => send({ type: 'attach' }));
+/** What the next question carries: the open file and selection (switched off here), mentions, files, images. */
+const chips = el('div', { class: 'chips' });
+const suggest = el('ul', { class: 'suggest', attrs: { role: 'listbox', 'aria-label': 'Files' } });
+suggest.hidden = true;
+footer.append(chips, suggest, input, el('div', { class: 'row' }, modeSelect, modelSelect, effortSelect, editsSelect, el('span', { class: 'spacer' }), attachButton, sendButton, stopButton));
+
+// ─── What a question carries ─────────────────────────────────────────────────
+
+let editor: EditorView | undefined;
+/** The chips the user switched off stay off until switched on again. */
+let useFile = true;
+let useSelection = true;
+let mentions: string[] = [];
+let picked: { id: string; label: string }[] = [];
+let pasted: (PastedImage & { size: number })[] = [];
+
+function chip(text: string, title: string, on: boolean, toggle: (() => void) | undefined, remove: (() => void) | undefined): HTMLElement {
+	const node = el('span', { class: `chip${on ? '' : ' off'}`, attrs: { 'data-chip': text } });
+	const label = el('button', { class: 'chip-label', text, title });
+	label.setAttribute('aria-pressed', String(on));
+	if (toggle) {
+		label.addEventListener('click', toggle);
+	} else {
+		label.disabled = true;
+	}
+	node.append(label);
+	if (remove) {
+		node.append(iconButton('close', `Remove ${text}`, remove, 'chip-remove'));
+	}
+	return node;
+}
+
+function renderChips(): void {
+	const nodes: HTMLElement[] = [];
+	if (editor) {
+		nodes.push(chip(editor.path, useFile ? 'The open file goes with your message: click to leave it out' : 'Left out: click to send the open file with your message', useFile, () => { useFile = !useFile; renderChips(); }, undefined));
+		if (editor.selection) {
+			const lines = editor.selection.start === editor.selection.end ? `line ${editor.selection.start}` : `lines ${editor.selection.start}-${editor.selection.end}`;
+			nodes.push(chip(lines, useSelection ? 'The selection goes with your message: click to leave it out' : 'Left out: click to send the selection with your message', useSelection, () => { useSelection = !useSelection; renderChips(); }, undefined));
+		}
+	}
+	for (const path of mentions) {
+		// Removing the chip takes the @-mention out of the message too.
+		nodes.push(chip(`@${path}`, path, true, undefined, () => {
+			mentions = mentions.filter(m => m !== path);
+			input.value = input.value.split(`@${path}`).join('').replace(/ {2,}/g, ' ');
+			renderChips();
+		}));
+	}
+	for (const file of picked) {
+		nodes.push(chip(file.label, file.label, true, undefined, () => { picked = picked.filter(p => p !== file); renderChips(); }));
+	}
+	pasted.forEach((image, i) => {
+		nodes.push(chip(`image ${i + 1} (${Math.max(1, Math.round(image.size / 1024))} KB)`, image.mimeType, true, undefined, () => { pasted = pasted.filter(p => p !== image); renderChips(); }));
+	});
+	chips.replaceChildren(...nodes);
+	chips.hidden = nodes.length === 0;
+}
+
+// @-mentions: what follows an @ before the cursor asks the extension for files; one picked joins the question.
+let suggestions: string[] = [];
+let active = 0;
+let searchId = 0;
+let searchTimer: ReturnType<typeof setTimeout> | undefined;
+
+function mentionAtCursor(): { start: number; query: string } | undefined {
+	const before = input.value.slice(0, input.selectionStart ?? input.value.length);
+	const match = /(^|\s)@([^\s@]*)$/.exec(before);
+	return match ? { start: before.length - match[2].length - 1, query: match[2] } : undefined;
+}
+
+function closeSuggest(): void {
+	suggestions = [];
+	suggest.hidden = true;
+	suggest.replaceChildren();
+}
+
+function renderSuggest(): void {
+	suggest.replaceChildren(...suggestions.map((path, i) => {
+		const item = el('li', { class: `suggestion${i === active ? ' active' : ''}`, text: path, attrs: { role: 'option', 'aria-selected': String(i === active) } });
+		item.addEventListener('mousedown', event => { event.preventDefault(); pick(path); });
+		return item;
+	}));
+	suggest.hidden = suggestions.length === 0;
+}
+
+function pick(path: string): void {
+	const at = mentionAtCursor();
+	if (at) {
+		const end = input.selectionStart ?? input.value.length;
+		input.value = `${input.value.slice(0, at.start)}@${path} ${input.value.slice(end)}`;
+		const caret = at.start + path.length + 2;
+		input.setSelectionRange(caret, caret);
+	}
+	if (!mentions.includes(path) && mentions.length + picked.length < MAX_FILES) {
+		mentions.push(path);
+	}
+	closeSuggest();
+	renderChips();
+	input.focus();
+}
+
+input.addEventListener('input', () => {
+	const at = mentionAtCursor();
+	clearTimeout(searchTimer);
+	// A list from the query before is not offered for this one: Enter would take a file not asked for.
+	closeSuggest();
+	if (!at) {
+		return;
+	}
+	searchTimer = setTimeout(() => send({ type: 'searchFiles', requestId: ++searchId, query: at.query }), 80);
+});
+input.addEventListener('blur', () => setTimeout(closeSuggest, 150));
+
+// A pasted image goes with the question, for a model that can see; one too large is left out.
+input.addEventListener('paste', event => {
+	const files = [...(event.clipboardData?.items ?? [])].filter(item => item.kind === 'file' && IMAGE_MIME_TYPES.includes(item.type)).map(item => item.getAsFile()).filter((file): file is File => !!file);
+	if (!files.length) {
+		return;
+	}
+	event.preventDefault();
+	for (const file of files) {
+		if (pasted.length >= MAX_PASTED) {
+			break;
+		}
+		const reader = new FileReader();
+		reader.addEventListener('load', () => {
+			const base64 = String(reader.result).replace(/^data:[^,]*,/, '');
+			if (base64.length <= MAX_PASTED_BASE64 && pasted.length < MAX_PASTED) {
+				pasted.push({ mimeType: file.type, base64, size: file.size });
+				renderChips();
+			}
+		});
+		reader.readAsDataURL(file);
+	}
+});
 
 input.addEventListener('keydown', event => {
+	// While files are suggested, the arrows choose, Enter or Tab takes one, Escape closes the list.
+	if (!suggest.hidden && suggestions.length && !event.isComposing && !event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey) {
+		if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+			event.preventDefault();
+			active = (active + (event.key === 'ArrowDown' ? 1 : suggestions.length - 1)) % suggestions.length;
+			renderSuggest();
+			return;
+		}
+		if (event.key === 'Enter' || event.key === 'Tab') {
+			event.preventDefault();
+			pick(suggestions[active]);
+			return;
+		}
+		if (event.key === 'Escape') {
+			event.preventDefault();
+			closeSuggest();
+			return;
+		}
+	}
 	if (event.key !== 'Enter' || event.isComposing) {
 		return;
 	}
@@ -89,8 +244,14 @@ function submit(): void {
 	if (!text.trim() || state?.session.running) {
 		return;
 	}
-	send({ type: 'send', text });
+	// A mention whose @path was deleted from the message is not sent.
+	send({ type: 'send', text, file: useFile, selection: useSelection, mentions: mentions.filter(path => text.includes(`@${path}`)), attachments: picked.map(file => file.id), images: pasted.map(image => ({ mimeType: image.mimeType, base64: image.base64 })) });
 	input.value = '';
+	mentions = [];
+	picked = [];
+	pasted = [];
+	closeSuggest();
+	renderChips();
 }
 
 // ─── Markdown ────────────────────────────────────────────────────────────────
@@ -300,7 +461,11 @@ function usageLine(turn: TurnView, models: readonly ModelEntry[]): string {
 
 function turnElement(turn: TurnView, last: boolean): HTMLElement {
 	if (turn.role === 'user') {
-		return el('div', { class: 'turn user', attrs: { 'data-turn': turn.id } }, el('div', { class: 'bubble', text: turn.text }));
+		const node = el('div', { class: 'turn user', attrs: { 'data-turn': turn.id } }, el('div', { class: 'bubble', text: turn.text }));
+		if (turn.attached?.length) {
+			node.append(el('div', { class: 'attached' }, ...turn.attached.map(label => el('span', { class: 'chip', text: label }))));
+		}
+		return node;
 	}
 	const stream = live.get(turn.id);
 	const text = turn.streaming && stream ? stream.text : turn.text;
@@ -475,8 +640,35 @@ function schedule(): void {
 
 window.addEventListener('message', (event: MessageEvent<ToWebview>) => {
 	const message = event.data;
+	if (message.type === 'editor') {
+		editor = message.editor;
+		renderChips();
+		return;
+	}
+	if (message.type === 'files') {
+		if (message.requestId === searchId && mentionAtCursor()) {
+			suggestions = [...message.files];
+			active = 0;
+			renderSuggest();
+		}
+		return;
+	}
+	if (message.type === 'attached') {
+		for (const file of message.files) {
+			if (mentions.length + picked.length < MAX_FILES) {
+				picked.push(file);
+			}
+		}
+		renderChips();
+		return;
+	}
 	if (message.type === 'state') {
+		const first = !state;
 		state = message.state;
+		if (first || message.state.editor?.path !== editor?.path || message.state.editor?.selection?.start !== editor?.selection?.start || message.state.editor?.selection?.end !== editor?.selection?.end) {
+			editor = message.state.editor;
+			renderChips();
+		}
 		vscode.setState({ sessionId: state.session.id });
 		for (const turn of state.session.turns) {
 			if (turn.streaming) {

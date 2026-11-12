@@ -6,6 +6,7 @@
 
 import type * as vscode from 'vscode';
 import type { ChatMessage, ThinkingBlock } from '../types';
+import type { StoredImage } from './context';
 import type { Mode, SessionSummary, ToolView, TurnView, Usage } from './protocol';
 
 /**
@@ -16,8 +17,14 @@ import type { Mode, SessionSummary, ToolView, TurnView, Usage } from './protocol
 export interface StoredTurn {
 	id: string;
 	role: 'user' | 'assistant';
-	/** What the answer showed, every round's text in order. */
+	/** What the answer showed, every round's text in order; a question's words. */
 	text: string;
+	/** What a question carried before its words — the open file, the selection, files — as it went to the model. */
+	context?: string;
+	/** The images a question carried, kept as files of their own (context.ts `ImageStore`). */
+	images?: StoredImage[];
+	/** What a question carried, by name, for its bubble. */
+	attached?: string[];
 	thinking?: { text: string; ms?: number };
 	/**
 	 * The answer's tool rounds as they went to and came from the model — each assistant turn with
@@ -68,6 +75,7 @@ export function titleOf(text: string): string {
 export function turnView(turn: StoredTurn, streaming = false): TurnView {
 	return {
 		id: turn.id, role: turn.role, text: turn.text, at: turn.at,
+		...(turn.attached?.length ? { attached: turn.attached } : {}),
 		...(turn.thinking ? { thinking: turn.thinking } : {}),
 		...(turn.tools?.length ? { tools: turn.tools } : {}),
 		...(turn.notice ? { notice: turn.notice } : {}),
