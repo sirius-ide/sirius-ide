@@ -9,6 +9,7 @@ import { activeEditorContext, loadProjectRules } from './projectContext';
 import { selectDefaultModel } from '../lm/defaultModel';
 import { resolveWorkspacePath } from '../tools/workspacePath';
 import { TOOL_DEFINITIONS } from '../tools/toolExecutor';
+import { CREATE_FILE, EDIT_FILE, locate } from '../tools/editTools';
 import * as path from 'path';
 import { randomBytes } from 'crypto';
 import { knownModel, providerOf, registerStop, siriusModels } from '../lm/vendors';
@@ -483,45 +484,21 @@ function createLocalTools(stream: vscode.ChatResponseStream): LocalTool[] {
 	const created = new Set<string>();
 	return [
 		{
-			name: 'edit_file',
-			description: 'Replace an exact span of text in an existing file. The search text must match exactly and appear exactly once.',
-			inputSchema: {
-				type: 'object',
-				properties: {
-					path: { type: 'string', description: 'Path relative to the workspace root' },
-					search: { type: 'string', description: 'Exact text to find' },
-					replace: { type: 'string', description: 'Text to put in its place' }
-				},
-				required: ['path', 'search', 'replace']
-			},
+			...EDIT_FILE,
 			async run(input) {
 				const uri = await workspaceUri(String(input.path ?? ''));
 				const document = await vscode.workspace.openTextDocument(uri);
-				const content = document.getText();
-				const search = String(input.search ?? '');
-				const first = content.indexOf(search);
-				if (first === -1) {
-					return 'Search text not found. Read the file again — it may have changed.';
+				const found = locate(document.getText(), String(input.search ?? ''));
+				if (typeof found === 'string') {
+					return found;
 				}
-				if (content.indexOf(search, first + 1) !== -1) {
-					return 'Search text appears more than once; include more surrounding context to make it unique.';
-				}
-				const range = new vscode.Range(document.positionAt(first), document.positionAt(first + search.length));
+				const range = new vscode.Range(document.positionAt(found.start), document.positionAt(found.end));
 				stream.textEdit(uri, [vscode.TextEdit.replace(range, String(input.replace ?? ''))]);
 				return `Edited ${input.path}.`;
 			}
 		},
 		{
-			name: 'create_file',
-			description: 'Create a new file with the given contents. Fails if the file already exists — use edit_file for that.',
-			inputSchema: {
-				type: 'object',
-				properties: {
-					path: { type: 'string', description: 'Path relative to the workspace root' },
-					content: { type: 'string', description: 'Full contents of the new file' }
-				},
-				required: ['path', 'content']
-			},
+			...CREATE_FILE,
 			async run(input) {
 				const uri = await workspaceUri(String(input.path ?? ''));
 				// `createFile` with ignoreIfExists reported success on a path that

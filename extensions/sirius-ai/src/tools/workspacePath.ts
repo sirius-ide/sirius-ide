@@ -36,7 +36,7 @@ function lexicallyInside(root: vscode.Uri, candidate: vscode.Uri): boolean {
 }
 
 /** The real path of a file, or of its nearest existing ancestor joined with the rest (for a file not yet created). */
-async function realPath(fsPath: string): Promise<string> {
+export async function realPath(fsPath: string): Promise<string> {
 	let existing = fsPath;
 	const rest: string[] = [];
 	for (; ;) {
