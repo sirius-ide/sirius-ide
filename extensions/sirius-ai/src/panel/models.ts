@@ -8,6 +8,7 @@ import type * as vscode from 'vscode';
 import type { IAIProvider, ProviderType, SiriusModel } from '../types';
 import { KEYED_PROVIDERS, OPTIONAL_KEY_PROVIDERS, PROVIDER_LABELS } from '../auth/secretStore';
 import { DEFAULT_URLS, ModelRouter } from '../providers/modelRouter';
+import { OPENAI_COMPATIBLE_ENDPOINTS } from '../providers/openaiCompatible';
 import { PROVIDER_ORDER, LOCAL_PROVIDERS } from '../lm/vendors';
 import type { ModelEntry, ProviderView } from './protocol';
 
@@ -93,8 +94,11 @@ export class ModelCatalog {
 		const apiKey = await this.secrets.get(KEY(id));
 		const url = this.global.get<string>(URL_KEY(id)) || undefined;
 		const takesKey = KEYED_PROVIDERS.includes(id) || OPTIONAL_KEY_PROVIDERS.includes(id);
-		const provider = this.router.createProvider(id, { ...(apiKey ? { apiKey } : {}), ...(url ? { url } : {}) });
 		const defaultUrl = DEFAULT_URLS[id] ?? BASE_URLS[id];
+		// Every provider gets its address here — the one saved on this page, or its own — so none
+		// falls back to a setting: the edition declares none, and VS Code would take a workspace's.
+		const address = url || DEFAULT_URLS[id] || BASE_URLS[id] || OPENAI_COMPATIBLE_ENDPOINTS.find(endpoint => endpoint.id === id)?.defaultBaseUrl;
+		const provider = this.router.createProvider(id, { ...(apiKey ? { apiKey } : {}), ...(address ? { url: address } : {}) });
 		const base = {
 			id, label: PROVIDER_LABELS[id], kind, hasKey: !!apiKey, takesKey,
 			takesUrl: kind !== 'hosted' || BASE_URLS[id] !== undefined,

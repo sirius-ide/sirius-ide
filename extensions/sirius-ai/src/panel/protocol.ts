@@ -49,11 +49,29 @@ export interface Usage {
 	readonly thinking?: number;
 }
 
+export const APPROVALS = ['once', 'session', 'deny'] as const;
+export type Approval = typeof APPROVALS[number];
+
+/** A tool call as its card shows it: `at` is where in the answer's text it ran. */
+export interface ToolView {
+	readonly id: string;
+	readonly name: string;
+	readonly label: string;
+	readonly status: 'running' | 'waiting' | 'done' | 'failed' | 'denied' | 'stopped';
+	/** What it was called with, as JSON. */
+	readonly input?: string;
+	readonly output?: string;
+	readonly at: number;
+}
+
 export interface TurnView {
 	readonly id: string;
 	readonly role: 'user' | 'assistant';
 	readonly text: string;
 	readonly thinking?: { readonly text: string; readonly ms?: number };
+	readonly tools?: readonly ToolView[];
+	/** Something the user should know about the answer, such as tools that were left out. */
+	readonly notice?: string;
 	readonly usage?: Usage;
 	readonly error?: string;
 	readonly stopped?: boolean;
@@ -106,7 +124,8 @@ export type ToHost =
 	| { readonly type: 'saveUrl'; readonly provider: string; readonly url: string }
 	| { readonly type: 'refreshModels' }
 	| { readonly type: 'openLink'; readonly href: string }
-	| { readonly type: 'copy'; readonly text: string };
+	| { readonly type: 'copy'; readonly text: string }
+	| { readonly type: 'approve'; readonly turnId: string; readonly callId: string; readonly choice: Approval };
 
 const MAX_TEXT = 200_000;
 const str = (value: unknown, max = MAX_TEXT): value is string => typeof value === 'string' && value.length <= max;
@@ -142,6 +161,8 @@ export function toHost(value: unknown): ToHost | undefined {
 			return str(m.href, 4000) ? { type: 'openLink', href: m.href } : undefined;
 		case 'copy':
 			return str(m.text) ? { type: 'copy', text: m.text } : undefined;
+		case 'approve':
+			return str(m.turnId, 100) && str(m.callId, 200) && APPROVALS.includes(m.choice as Approval) ? { type: 'approve', turnId: m.turnId, callId: m.callId, choice: m.choice as Approval } : undefined;
 		default:
 			return undefined;
 	}

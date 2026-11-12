@@ -6,13 +6,15 @@
 
 import * as vscode from 'vscode';
 import { randomBytes } from 'crypto';
-import { runAgent } from '../agent/core';
-import type { ChatMessage, ProviderType, ThinkingConfig } from '../types';
+import { type AgentToolCall, runAgent } from '../agent/core';
+import type { ProviderType, ThinkingBlock, ThinkingConfig } from '../types';
 import { ModelRouter } from '../providers/modelRouter';
 import { ModelCatalog } from './models';
 import { panelFace } from './panelFace';
-import { EFFORTS, MODES, type Effort, type Mode, type PanelState, type SendWith, type ToWebview, type View, toHost } from './protocol';
+import { EFFORTS, MODES, type Approval, type Effort, type Mode, type PanelState, type SendWith, type ToWebview, type View, toHost } from './protocol';
 import { SessionStore, type StoredSession, type StoredTurn, newId, titleOf, turnView } from './sessions';
+import { answered, buildHistory } from './history';
+import { PanelTools } from './tools';
 
 export const VIEW_ID = 'sirius.panel';
 export const TAB_TYPE = 'sirius.chat';
@@ -29,11 +31,12 @@ const ASKED = 'sirius.panel.asked';
 
 const PROMPT =
 	'You are Sirius, an AI engineer working inside the user\'s VS Code. Answer directly and concisely in markdown, ' +
-	'with code in fenced blocks that name their language. When you are unsure, say so.';
+	'with code in fenced blocks that name their language. When you are unsure, say so. ' +
+	'Use tools only when the task needs them; call them through the tool-calling mechanism, never as JSON in your text.';
 const MODE_RULES: Record<Mode, string> = {
-	ask: 'You are in Ask mode: explain and answer questions about the user\'s code.',
-	edit: 'You are in Edit mode: propose changes to the user\'s code as complete, ready-to-apply code blocks.',
-	agent: 'You are in Agent mode: work through the task step by step and say what you would do next.'
+	ask: 'You are in Ask mode: explain and answer. You can read and search the workspace with your tools, but not change it — when a change is needed, describe it; the user can switch to Edit or Agent mode.',
+	edit: 'You are in Edit mode: read the workspace with your tools and propose changes to the user\'s code as complete, ready-to-apply code blocks.',
+	agent: 'You are in Agent mode: work through the task step by step with your tools. Tools from MCP servers and other extensions run only once the user allows them; if the user declines one, carry on without it.'
 };
 
 /** One webview showing the panel: the side panel, or a tab. */
@@ -62,6 +65,12 @@ export class PanelHost implements vscode.WebviewViewProvider, vscode.WebviewPane
 	 */
 	private pending: { view?: View; fresh?: boolean } = {};
 	private asked = false;
+	/** Calls waiting for the user's yes or no, by `<session>:<card>`. */
+	private readonly approvals = new Map<string, (choice: Approval | 'stop') => void>();
+	/** Tools the user allowed for a conversation, by conversation; kept until the window closes. */
+	private readonly allowed = new Map<string, Set<string>>();
+	/** Conversations deleted while they answered: the answer, ending, must not save them again. */
+	private readonly deleted = new Set<string>();
 
 	constructor(private readonly context: vscode.ExtensionContext) {
 		this.sessions = new SessionStore(context.workspaceState);
@@ -220,6 +229,9 @@ export class PanelHost implements vscode.WebviewViewProvider, vscode.WebviewPane
 			case 'stop':
 				this.running.get(client.sessionId)?.controller.abort();
 				return;
+			case 'approve':
+				this.approvals.get(`${client.sessionId}:${message.callId}`)?.(message.choice);
+				return;
 			case 'retry':
 				await this._retry(client);
 				return;
@@ -230,6 +242,7 @@ export class PanelHost implements vscode.WebviewViewProvider, vscode.WebviewPane
 				this._open(client, message.id);
 				return;
 			case 'deleteSession':
+				this.deleted.add(message.id);
 				this.running.get(message.id)?.controller.abort();
 				await this.sessions.delete(message.id);
 				for (const other of this._showing(message.id)) {
@@ -335,7 +348,8 @@ export class PanelHost implements vscode.WebviewViewProvider, vscode.WebviewPane
 			session: {
 				id: client.sessionId,
 				title: session?.title ?? 'New conversation',
-				turns: (session?.turns ?? []).map(turn => turnView(turn, running?.turn === turn || running?.turn.id === turn.id)),
+				// The store keeps a copy taken at the last save; the answer in progress is the live turn.
+				turns: (session?.turns ?? []).map(turn => running && turn.id === running.turn.id ? turnView(running.turn, true) : turnView(turn)),
 				running: !!running
 			},
 			sessions: this.sessions.list(),
@@ -395,9 +409,11 @@ export class PanelHost implements vscode.WebviewViewProvider, vscode.WebviewPane
 		await this.sessions.save(session);
 		this._broadcast(session.id);
 
+		const mode = this._mode;
 		const effort = this._effort;
 		const thinking: ThinkingConfig = { enabled: effort !== 'off', effort: effort === 'off' ? 'high' : effort };
-		const reasoning: NonNullable<StoredTurn['reasoning']> = [];
+		const reasoning: ThinkingBlock[] = [];
+		const roundReasoning = new Set<ThinkingBlock>();
 		const usage = { input: 0, output: 0, thinking: 0 };
 		let thinkingFrom: number | undefined;
 		let textFrom: number | undefined;
@@ -406,16 +422,87 @@ export class PanelHost implements vscode.WebviewViewProvider, vscode.WebviewPane
 				this._post(client, { type: 'delta', turnId: turn.id, kind, text });
 			}
 		};
+		const show = () => this._broadcast(session.id);
+
+		const opened = new Set(session.opened ?? []);
+		const allowed = this.allowed.get(session.id) ?? new Set<string>();
+		this.allowed.set(session.id, allowed);
+		/** Saves the answer as it would end if stopped now: the rounds so far, the round in hand answered, cards stopped. */
+		const checkpoint = () => {
+			if (this.deleted.has(session.id)) {
+				return;
+			}
+			const done = messages.slice(before);
+			const inHand = tools.stoppedRound();
+			const last = done[done.length - 1];
+			const rounds = inHand && last?.role === 'assistant' && last.toolCalls?.length ? [...done, inHand] : answered(done);
+			const stopped: StoredTurn = {
+				...turn,
+				stopped: true,
+				...(rounds.length ? { rounds } : {}),
+				...(turn.tools ? { tools: turn.tools.map(tool => tool.status === 'waiting' || tool.status === 'running' ? { ...tool, status: 'stopped' } : tool) } : {}),
+				...(usage.input || usage.output ? { usage: { input: usage.input, output: usage.output, ...(usage.thinking ? { thinking: usage.thinking } : {}) } } : {})
+			};
+			void this.sessions.save({ ...session, turns: session.turns.map(t => t === turn ? stopped : t) });
+		};
+		// A card's id is the panel's own: some vendors start their call ids again every round.
+		const cards = new Map<AgentToolCall, string>();
+		const card = (call: AgentToolCall) => cards.get(call) ?? '';
+		const update = (id: string, change: Partial<NonNullable<StoredTurn['tools']>[number]>) => {
+			turn.tools = (turn.tools ?? []).map(tool => tool.id === id ? { ...tool, ...change } : tool);
+			show();
+		};
+		const tools = new PanelTools(mode, reachable.model, this.context.extension.id, allowed, opened, {
+			start: (call, label, ask, input) => {
+				const id = newId();
+				cards.set(call, id);
+				turn.tools = [...(turn.tools ?? []), { id, name: call.name, label, status: ask ? 'waiting' : 'running', at: turn.text.length, ...(input && input !== '{}' ? { input } : {}) }];
+				show();
+			},
+			approve: call => new Promise(resolve => {
+				if (controller.signal.aborted) {
+					resolve('stop');
+					return;
+				}
+				const key = `${session.id}:${card(call)}`;
+				const done = (choice: Approval | 'stop') => {
+					this.approvals.delete(key);
+					controller.signal.removeEventListener('abort', stop);
+					if (choice === 'once' || choice === 'session') {
+						update(card(call), { status: 'running' });
+					}
+					resolve(choice);
+				};
+				const stop = () => done('stop');
+				controller.signal.addEventListener('abort', stop);
+				this.approvals.set(key, done);
+				// A card may wait for hours, and VS Code drops what an extension saves as it shuts
+				// down: the answer is kept now as it would end if stopped, the rounds that ran included.
+				checkpoint();
+			}),
+			finish: (call, status, output) => update(card(call), { status, ...(output ? { output } : {}) })
+		});
+		if (tools.droppedSources.length) {
+			turn.notice = `Not offered to ${reachable.model.name || reachable.model.id}: ${tools.droppedSources.map(source => `${source.label} (${source.tools.length} tools)`).join(', ')} — more tool sources than this model's tools hold.`;
+		}
 
 		const face = panelFace({
 			router: new ModelRouter(),
 			provider: reachable.provider,
 			model: reachable.model,
-			systemPrompt: `${PROMPT}\n\n${MODE_RULES[this._mode]}`,
+			systemPrompt: `${PROMPT}\n\n${MODE_RULES[mode]}`,
 			thinking,
 			signal: controller.signal,
+			tools,
 			onReasoning: block => reasoning.push(block),
-			onUsage: u => { usage.input += u.input; usage.output += u.output; usage.thinking += u.thinking ?? 0; }
+			onUsage: u => { usage.input += u.input; usage.output += u.output; usage.thinking += u.thinking ?? 0; },
+			onRound: () => {
+				// The round's reasoning rides in its assistant turn; what comes after is the last round's.
+				for (const block of reasoning) {
+					roundReasoning.add(block);
+				}
+				turn.finalFrom = turn.text.length;
+			}
 		});
 		const sink = {
 			markdown: (text: string) => {
@@ -433,9 +520,11 @@ export class PanelHost implements vscode.WebviewViewProvider, vscode.WebviewPane
 			}
 		};
 		const token = { get isCancellationRequested() { return controller.signal.aborted; } };
+		const messages = buildHistory(session.turns, turn, reachable.model.provider, reachable.model.contextWindow);
+		const before = messages.length;
 
 		try {
-			await runAgent(this._history(session, turn), face, sink, token, line => this.output.appendLine(line));
+			await runAgent(messages, face, sink, token, line => this.output.appendLine(line));
 		} catch (error) {
 			if (!controller.signal.aborted) {
 				turn.error = error instanceof Error ? error.message : String(error);
@@ -447,14 +536,24 @@ export class PanelHost implements vscode.WebviewViewProvider, vscode.WebviewPane
 			if (controller.signal.aborted) {
 				turn.stopped = true;
 			}
-			if (reasoning.length) {
-				turn.reasoning = reasoning;
+			const rounds = answered(messages.slice(before));
+			if (rounds.length) {
+				turn.rounds = rounds;
+			}
+			const last = reasoning.filter(block => !roundReasoning.has(block));
+			if (last.length) {
+				turn.reasoning = last;
 			}
 			if (usage.input || usage.output) {
 				turn.usage = { input: usage.input, output: usage.output, ...(usage.thinking ? { thinking: usage.thinking } : {}) };
 			}
+			if (opened.size) {
+				session.opened = [...opened];
+			}
 			this.running.delete(session.id);
-			await this.sessions.save(session);
+			if (!this.deleted.has(session.id)) {
+				await this.sessions.save(session);
+			}
 			for (const client of this._showing(session.id)) {
 				this._post(client, { type: 'turn', turn: turnView(turn) });
 			}
@@ -462,19 +561,4 @@ export class PanelHost implements vscode.WebviewViewProvider, vscode.WebviewPane
 		}
 	}
 
-	/** The conversation so far, in Sirius's own shape: each answer with its reasoning, to go back unchanged. */
-	private _history(session: StoredSession, current: StoredTurn): ChatMessage[] {
-		const messages: ChatMessage[] = [];
-		for (const turn of session.turns) {
-			if (turn === current) {
-				break;
-			}
-			if (turn.role === 'user') {
-				messages.push({ role: 'user', content: turn.text, timestamp: turn.at });
-			} else if (turn.text) {
-				messages.push({ role: 'assistant', content: turn.text, timestamp: turn.at, ...(turn.reasoning?.length ? { thinkingBlocks: turn.reasoning } : {}) });
-			}
-		}
-		return messages;
-	}
 }

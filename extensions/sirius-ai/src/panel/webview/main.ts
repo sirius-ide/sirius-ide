@@ -10,7 +10,7 @@
 
 import { marked } from '../../../../../src/vs/base/common/marked/marked.js';
 import DOMPurify from '../../../../../src/vs/base/browser/dompurify/dompurify.js';
-import type { Effort, Mode, ModelEntry, PanelState, ProviderView, ToHost, ToWebview, TurnView } from '../protocol';
+import type { Effort, Mode, ModelEntry, PanelState, ProviderView, ToHost, ToolView, ToWebview, TurnView } from '../protocol';
 
 declare function acquireVsCodeApi(): { postMessage(message: ToHost): void; setState(state: unknown): void; getState(): unknown };
 const vscode = acquireVsCodeApi();
@@ -24,6 +24,14 @@ let state: PanelState | undefined;
 const live = new Map<string, { text: string; thinking: string }>();
 /** Thinking blocks the user opened or closed by hand, by turn id: their choice holds. */
 const opened = new Map<string, boolean>();
+/** Tool cards the user opened, by `<turn>:<call>`. */
+const openedTools = new Map<string, boolean>();
+/**
+ * When each waiting card was first drawn, by card. Its buttons wait this long before they take a
+ * click: a card drawn where the last one was would otherwise take a second click meant for that.
+ */
+const waitingSince = new Map<string, number>();
+const ARM_MS = 500;
 
 // ─── Elements ────────────────────────────────────────────────────────────────
 
@@ -164,6 +172,50 @@ function thinkingBlock(turn: TurnView, text: string, streaming: boolean, answeri
 	return box;
 }
 
+const TOOL_ICONS: Record<ToolView['status'], string> = { running: 'loading codicon-modifier-spin', waiting: 'question', done: 'check', failed: 'error', denied: 'circle-slash', stopped: 'debug-stop' };
+const TOOL_STATUS: Record<ToolView['status'], string> = { running: 'Running…', waiting: 'Waiting for you', done: '', failed: 'Failed', denied: 'Declined', stopped: 'Stopped' };
+const APPROVE = [['once', 'Allow once'], ['session', 'Allow for this conversation'], ['deny', 'Deny']] as const;
+
+/** A tool call: what it does and how it went; its output on a click; the user's choice while it waits. */
+function toolCard(turn: TurnView, tool: ToolView): HTMLElement {
+	const key = `${turn.id}:${tool.id}`;
+	const open = openedTools.get(key) ?? false;
+	const head = el('button', { class: 'tool-head', attrs: { 'aria-expanded': String(open) } },
+		el('span', { class: `codicon codicon-${TOOL_ICONS[tool.status]}` }),
+		el('span', { class: 'tool-label', text: tool.label }),
+		el('span', { class: 'tool-status', text: TOOL_STATUS[tool.status] }));
+	head.addEventListener('click', () => { openedTools.set(key, !open); render(); });
+	const card = el('div', { class: `tool ${tool.status}${open ? ' open' : ''}`, attrs: { 'data-call': tool.id } }, head);
+	if (tool.status === 'waiting') {
+		// What it will run with, before it is allowed: a tool's name alone says too little.
+		const row = el('div', { class: 'tool-ask' }, el('span', { text: `Run ${tool.name}?` }));
+		if (tool.input) {
+			row.append(el('pre', { class: 'tool-input', text: tool.input }));
+		}
+		const since = waitingSince.get(tool.id) ?? performance.now();
+		waitingSince.set(tool.id, since);
+		const waited = performance.now() - since;
+		if (waited < ARM_MS) {
+			setTimeout(schedule, ARM_MS - waited + 20);
+		}
+		card.dataset.waitedMs = String(Math.round(waited));
+		for (const [choice, label] of APPROVE) {
+			const button = el('button', { class: choice === 'deny' ? 'secondary' : 'allow', text: label });
+			button.disabled = waited < ARM_MS;
+			button.addEventListener('click', () => send({ type: 'approve', turnId: turn.id, callId: tool.id, choice }));
+			row.append(button);
+		}
+		card.append(row);
+	}
+	if (open && tool.input && tool.status !== 'waiting') {
+		card.append(el('pre', { class: 'tool-input', text: tool.input }));
+	}
+	if (open && tool.output) {
+		card.append(el('pre', { class: 'tool-output', text: tool.output }));
+	}
+	return card;
+}
+
 function usageLine(turn: TurnView, models: readonly ModelEntry[]): string {
 	const parts: string[] = [];
 	if (turn.usage) {
@@ -187,9 +239,22 @@ function turnElement(turn: TurnView, last: boolean): HTMLElement {
 	if (thought) {
 		node.append(thinkingBlock(turn, thought, !!turn.streaming, text.length > 0));
 	}
-	if (text) {
-		node.append(markdown(text));
-	} else if (turn.streaming && !thought) {
+	if (turn.notice) {
+		node.append(el('div', { class: 'notice', text: turn.notice }));
+	}
+	// Each round's text, then the tools it ran: a card sits where in the answer its tool ran.
+	let from = 0;
+	for (const tool of [...(turn.tools ?? [])].sort((a, b) => a.at - b.at)) {
+		const at = Math.min(Math.max(tool.at, from), text.length);
+		if (text.slice(from, at).trim()) {
+			node.append(markdown(text.slice(from, at)));
+		}
+		node.append(toolCard(turn, tool));
+		from = at;
+	}
+	if (text.slice(from).trim()) {
+		node.append(markdown(text.slice(from)));
+	} else if (turn.streaming && !thought && !turn.tools?.length) {
 		node.append(el('div', { class: 'waiting', text: 'Waiting for the model…' }));
 	}
 	if (turn.error) {

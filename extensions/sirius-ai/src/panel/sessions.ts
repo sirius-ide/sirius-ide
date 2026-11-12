@@ -5,8 +5,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type * as vscode from 'vscode';
-import type { ThinkingBlock } from '../types';
-import type { Mode, SessionSummary, TurnView, Usage } from './protocol';
+import type { ChatMessage, ThinkingBlock } from '../types';
+import type { Mode, SessionSummary, ToolView, TurnView, Usage } from './protocol';
 
 /**
  * A turn as kept. An answer keeps the reasoning blocks the model produced, whole, so the next
@@ -16,9 +16,21 @@ import type { Mode, SessionSummary, TurnView, Usage } from './protocol';
 export interface StoredTurn {
 	id: string;
 	role: 'user' | 'assistant';
+	/** What the answer showed, every round's text in order. */
 	text: string;
 	thinking?: { text: string; ms?: number };
+	/**
+	 * The answer's tool rounds as they went to and came from the model — each assistant turn with
+	 * its reasoning, text and calls, then the results — sent back whole on the next turn: a model
+	 * that binds its reasoning to the conversation refuses it on an edited history.
+	 */
+	rounds?: ChatMessage[];
+	/** The last round's text, from where it starts in `text` (the earlier rounds' is in `rounds`). */
+	finalFrom?: number;
+	/** The last round's reasoning; the earlier rounds' rides in `rounds`. */
 	reasoning?: ThinkingBlock[];
+	tools?: ToolView[];
+	notice?: string;
 	usage?: Usage;
 	error?: string;
 	stopped?: boolean;
@@ -33,6 +45,8 @@ export interface StoredSession {
 	updated: number;
 	mode: Mode;
 	turns: StoredTurn[];
+	/** The tool sources the model opened in this conversation (chat/externalTools.ts); they stay open. */
+	opened?: string[];
 }
 
 const INDEX = 'sirius.panel.sessions';
@@ -55,6 +69,8 @@ export function turnView(turn: StoredTurn, streaming = false): TurnView {
 	return {
 		id: turn.id, role: turn.role, text: turn.text, at: turn.at,
 		...(turn.thinking ? { thinking: turn.thinking } : {}),
+		...(turn.tools?.length ? { tools: turn.tools } : {}),
+		...(turn.notice ? { notice: turn.notice } : {}),
 		...(turn.usage ? { usage: turn.usage } : {}),
 		...(turn.error ? { error: turn.error } : {}),
 		...(turn.stopped ? { stopped: true } : {}),
