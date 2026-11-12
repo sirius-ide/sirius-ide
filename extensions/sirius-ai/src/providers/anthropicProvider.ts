@@ -43,7 +43,12 @@ interface AnthropicStreamEvent {
 		partial_json?: string;
 		stop_reason?: string;
 	};
+	/** `message_start`: the message so far; its `usage` holds the input counts. */
+	message?: { usage?: AnthropicUsage };
+	/** `message_delta`: the counts so far, cumulative; see `mergeUsage`. */
 	usage?: AnthropicUsage;
+	/** `error`: the stream failed after it started (overloaded, say), and ends. */
+	error?: { type?: string; message?: string };
 }
 
 /** One Anthropic wire message. Content is a string or an array of blocks. */
@@ -57,10 +62,10 @@ interface AnthropicWireMessage {
  * true input is that plus both cache figures.
  */
 interface AnthropicUsage {
-	input_tokens?: number;
-	output_tokens?: number;
-	cache_creation_input_tokens?: number;
-	cache_read_input_tokens?: number;
+	input_tokens?: number | null;
+	output_tokens?: number | null;
+	cache_creation_input_tokens?: number | null;
+	cache_read_input_tokens?: number | null;
 }
 
 /** The vendor's API, unless a gateway or proxy that speaks it is configured. */
@@ -608,7 +613,11 @@ export class AnthropicProvider implements IAIProvider {
 		// arrives just before it closes. It goes out whole when it closes.
 		let reasoning: ThinkingBlock | undefined;
 		let stopReason: StopReason = 'end_turn';
-		let usage: ChatChunk['usage'];
+		let usage: AnthropicUsage | undefined;
+		// The counts are the vendor's once a `message_delta` has given them. A stream cut off
+		// before that (Stop, a dropped connection, an error) reports none rather than half.
+		let counted = false;
+		const summary = () => counted && usage ? this._summariseUsage(usage) : undefined;
 
 		while (true) {
 			const { done, value } = await reader.read();
@@ -628,6 +637,19 @@ export class AnthropicProvider implements IAIProvider {
 					event = JSON.parse(data) as AnthropicStreamEvent;
 				} catch {
 					continue; // Skip malformed JSON
+				}
+
+				if (event.type === 'message_start') {
+					// Its `output_tokens` is a placeholder; the delta brings the real one.
+					usage = mergeUsage(usage, event.message?.usage, INPUT_COUNTS);
+					continue;
+				}
+
+				if (event.type === 'error') {
+					// What streamed stays; the error follows it. A tool call cut off here never runs.
+					const failure = event.error;
+					yield { content: `\n\n⚠️ Anthropic stopped mid-answer${failure?.type ? ` (${failure.type})` : ''}: ${failure?.message || 'the stream failed'}`, done: true, stopReason: 'error' };
+					return;
 				}
 
 				if (event.type === 'content_block_start') {
@@ -683,18 +705,19 @@ export class AnthropicProvider implements IAIProvider {
 
 				if (event.type === 'message_delta') {
 					stopReason = this._toStopReason(event.delta?.stop_reason);
-					usage = this._summariseUsage(event.usage);
+					usage = mergeUsage(usage, event.usage);
+					counted = true;
 					continue;
 				}
 
 				if (event.type === 'message_stop') {
-					yield { content: '', done: true, stopReason, usage, toolCalls: this._collectToolCalls(pendingTools) };
+					yield { content: '', done: true, stopReason, usage: summary(), toolCalls: this._collectToolCalls(pendingTools) };
 					return;
 				}
 			}
 		}
 
-		yield { content: '', done: true, stopReason, usage, toolCalls: this._collectToolCalls(pendingTools) };
+		yield { content: '', done: true, stopReason, usage: summary(), toolCalls: this._collectToolCalls(pendingTools) };
 	}
 
 	/**
@@ -870,12 +893,29 @@ function atMost(effort: ThinkingEffort, cap: ThinkingEffort): ThinkingEffort {
 	return EFFORT_LEVELS.indexOf(effort) > EFFORT_LEVELS.indexOf(cap) ? cap : effort;
 }
 
+const INPUT_COUNTS = ['input_tokens', 'cache_creation_input_tokens', 'cache_read_input_tokens'] as const;
+const USAGE_COUNTS = [...INPUT_COUNTS, 'output_tokens'] as const;
+
 /**
- * Anthropic content is a string or a block array. It stays a string when there
- * are no images — that is the shape every existing request already sends — and
- * becomes blocks only when an image has to ride along. An empty text block is
- * rejected by the API, so text is only emitted when present.
+ * Lays the numbers in `update` over `known`, for the counts named. A stream's `message_delta`
+ * gives the counts so far, cumulative, which replace the earlier ones. It usually carries only
+ * `output_tokens`, may carry the input counts too (server tools do), and may send a count as
+ * null, which leaves the known one.
  */
+function mergeUsage(known: AnthropicUsage | undefined, update: AnthropicUsage | undefined, counts: readonly (keyof AnthropicUsage)[] = USAGE_COUNTS): AnthropicUsage | undefined {
+	if (!update) {
+		return known;
+	}
+	const merged: AnthropicUsage = { ...known };
+	for (const count of counts) {
+		const value = update[count];
+		if (typeof value === 'number') {
+			merged[count] = value;
+		}
+	}
+	return merged;
+}
+
 /**
  * A fingerprint of what a thinking block is bound to besides the messages: the system prompt
  * and the tool set, which Anthropic binds as a set (order does not matter, content does).
@@ -885,6 +925,12 @@ function bindingOf(systemPrompt: string | undefined, tools: ReadonlyArray<{ read
 	return createHash('sha256').update(JSON.stringify({ system: systemPrompt ?? '', tools: set })).digest('base64url').slice(0, 22);
 }
 
+/**
+ * Anthropic content is a string or a block array. It stays a string when there
+ * are no images — that is the shape every existing request already sends — and
+ * becomes blocks only when an image has to ride along. An empty text block is
+ * rejected by the API, so text is only emitted when present.
+ */
 function anthropicBlocks(text: string, images: ImagePart[] | undefined): string | unknown[] {
 	if (!images?.length) {
 		return text;

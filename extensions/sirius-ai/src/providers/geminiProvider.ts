@@ -396,6 +396,16 @@ export class GeminiProvider implements IAIProvider {
 		const toolCalls: ToolCallRequest[] = [];
 		let buffer = '';
 		let stopReason: StopReason = 'end_turn';
+		// Each chunk may carry the counts so far; the last chunk, the one that gives the reason the
+		// answer finished, carries the final ones. A stream cut off before it reports none.
+		let usage: ChatChunk['usage'];
+		let finished = false;
+		const end = (): ChatChunk => ({
+			content: '', done: true,
+			stopReason: toolCalls.length > 0 ? 'tool_use' : stopReason,
+			toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
+			...(finished && usage ? { usage } : {})
+		});
 
 		while (true) {
 			const { done, value } = await reader.read();
@@ -409,11 +419,7 @@ export class GeminiProvider implements IAIProvider {
 				if (!line.startsWith('data: ')) { continue; }
 				const data = line.slice(6).trim();
 				if (data === '[DONE]') {
-					yield {
-						content: '', done: true,
-						stopReason: toolCalls.length > 0 ? 'tool_use' : stopReason,
-						toolCalls: toolCalls.length > 0 ? toolCalls : undefined
-					};
+					yield end();
 					return;
 				}
 
@@ -427,6 +433,10 @@ export class GeminiProvider implements IAIProvider {
 				const candidate = parsed.candidates?.[0];
 				if (candidate?.finishReason) {
 					stopReason = this._toStopReason(candidate.finishReason);
+					finished = true;
+				}
+				if (parsed.usageMetadata) {
+					usage = usageOf(parsed.usageMetadata);
 				}
 
 				const parts = parsed.candidates?.[0]?.content?.parts || [];
@@ -436,11 +446,7 @@ export class GeminiProvider implements IAIProvider {
 			}
 		}
 
-		yield {
-			content: '', done: true,
-			stopReason: toolCalls.length > 0 ? 'tool_use' : stopReason,
-			toolCalls: toolCalls.length > 0 ? toolCalls : undefined
-		};
+		yield end();
 	}
 
 	/**
@@ -489,12 +495,7 @@ export class GeminiProvider implements IAIProvider {
 			done: true,
 			stopReason: toolCalls.length > 0 ? 'tool_use' : this._toStopReason(result.candidates?.[0]?.finishReason),
 			toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
-			usage: {
-				promptTokens: result.usageMetadata?.promptTokenCount || 0,
-				completionTokens: result.usageMetadata?.candidatesTokenCount || 0,
-				totalTokens: result.usageMetadata?.totalTokenCount || 0,
-				thinkingTokens: result.usageMetadata?.thoughtsTokenCount || 0
-			}
+			usage: usageOf(result.usageMetadata)
 		};
 	}
 
@@ -626,4 +627,14 @@ export class GeminiProvider implements IAIProvider {
 /** Images as Gemini `inlineData` parts; empty when there are none. */
 function geminiImageParts(images: ImagePart[] | undefined): Array<Record<string, unknown>> {
 	return (images ?? []).map(image => ({ inlineData: { mimeType: image.mimeType, data: image.base64 } }));
+}
+
+/** Gemini's counts as Sirius reports them; the thinking is counted apart from the answer. */
+function usageOf(meta: GeminiGenerateResponse['usageMetadata']): NonNullable<ChatChunk['usage']> {
+	return {
+		promptTokens: meta?.promptTokenCount || 0,
+		completionTokens: meta?.candidatesTokenCount || 0,
+		totalTokens: meta?.totalTokenCount || 0,
+		thinkingTokens: meta?.thoughtsTokenCount || 0
+	};
 }

@@ -33,6 +33,15 @@ export interface OpenAICompatibleConfig {
 	fallbackModelIds?: string[];
 	/** Context window reported for discovered models, which carry no metadata. */
 	assumedContextWindow?: number;
+	/**
+	 * Takes `stream_options.include_usage`, OpenAI's way to have a stream end with its token
+	 * counts — set only where the service documents it, since a strict server refuses a field it
+	 * does not know, which would cost the answer, not just its count. `'vendor'`: the vendor's
+	 * own API takes it, so it goes only to the default address (a gateway put in its place may
+	 * not); `'server'`: the server software takes it, wherever it runs. OpenRouter sends the
+	 * counts unasked; Mistral does not list the field.
+	 */
+	streamUsage?: 'vendor' | 'server';
 }
 
 /** Every OpenAI-shaped service Sirius ships with. */
@@ -43,7 +52,8 @@ export const OPENAI_COMPATIBLE_ENDPOINTS: OpenAICompatibleConfig[] = [
 		defaultBaseUrl: 'https://api.openai.com/v1',
 		requiresKey: true,
 		keyUrl: 'https://platform.openai.com/api-keys',
-		assumedContextWindow: 128000
+		assumedContextWindow: 128000,
+		streamUsage: 'vendor'
 	},
 	{
 		id: 'openrouter',
@@ -64,7 +74,8 @@ export const OPENAI_COMPATIBLE_ENDPOINTS: OpenAICompatibleConfig[] = [
 		defaultBaseUrl: 'https://api.groq.com/openai/v1',
 		requiresKey: true,
 		keyUrl: 'https://console.groq.com/keys',
-		assumedContextWindow: 128000
+		assumedContextWindow: 128000,
+		streamUsage: 'vendor'
 	},
 	{
 		id: 'deepseek',
@@ -72,7 +83,8 @@ export const OPENAI_COMPATIBLE_ENDPOINTS: OpenAICompatibleConfig[] = [
 		defaultBaseUrl: 'https://api.deepseek.com/v1',
 		requiresKey: true,
 		keyUrl: 'https://platform.deepseek.com/api_keys',
-		assumedContextWindow: 128000
+		assumedContextWindow: 128000,
+		streamUsage: 'vendor'
 	},
 	{
 		id: 'mistral',
@@ -88,21 +100,24 @@ export const OPENAI_COMPATIBLE_ENDPOINTS: OpenAICompatibleConfig[] = [
 		defaultBaseUrl: 'https://api.x.ai/v1',
 		requiresKey: true,
 		keyUrl: 'https://console.x.ai',
-		assumedContextWindow: 128000
+		assumedContextWindow: 128000,
+		streamUsage: 'vendor'
 	},
 	{
 		id: 'lmstudio',
 		name: 'LM Studio (Local)',
 		defaultBaseUrl: 'http://localhost:1234/v1',
 		requiresKey: false,
-		assumedContextWindow: 32768
+		assumedContextWindow: 32768,
+		streamUsage: 'server'
 	},
 	{
 		id: 'llamacpp',
 		name: 'llama.cpp / vLLM (Local)',
 		defaultBaseUrl: 'http://localhost:8080/v1',
 		requiresKey: false,
-		assumedContextWindow: 32768
+		assumedContextWindow: 32768,
+		streamUsage: 'server'
 	},
 	{
 		id: 'custom',
@@ -237,6 +252,12 @@ export class OpenAICompatibleProvider implements IAIProvider {
 			max_tokens: request.maxTokens,
 			temperature: request.temperature
 		};
+
+		const usageAsked = this.config.streamUsage === 'server'
+			|| (this.config.streamUsage === 'vendor' && baseUrl === this.config.defaultBaseUrl.replace(/\/+$/, ''));
+		if (request.stream && usageAsked) {
+			body.stream_options = { include_usage: true };
+		}
 
 		if (request.tools?.length) {
 			body.tools = request.tools.map(t => ({
