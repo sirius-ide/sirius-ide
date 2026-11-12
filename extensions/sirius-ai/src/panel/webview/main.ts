@@ -10,7 +10,7 @@
 
 import { marked } from '../../../../../src/vs/base/common/marked/marked.js';
 import DOMPurify from '../../../../../src/vs/base/browser/dompurify/dompurify.js';
-import type { Effort, Mode, ModelEntry, PanelState, ProviderView, ToHost, ToolView, ToWebview, TurnView } from '../protocol';
+import type { Edits, Effort, Mode, ModelEntry, PanelState, ProviderView, ToHost, ToolView, ToWebview, TurnView } from '../protocol';
 
 declare function acquireVsCodeApi(): { postMessage(message: ToHost): void; setState(state: unknown): void; getState(): unknown };
 const vscode = acquireVsCodeApi();
@@ -18,6 +18,7 @@ const send = (message: ToHost) => vscode.postMessage(message);
 
 const MODE_LABELS: Record<Mode, string> = { ask: 'Ask', edit: 'Edit', agent: 'Agent' };
 const EFFORT_LABELS: Record<Effort, string> = { off: 'Thinking off', low: 'Low', medium: 'Medium', high: 'High', xhigh: 'Extra high', max: 'Max' };
+const EDITS_LABELS: Record<Edits, string> = { ask: 'Ask before edits', auto: 'Auto-accept edits' };
 
 let state: PanelState | undefined;
 /** Turns as streamed since the last state, by id: deltas land here between full states. */
@@ -62,9 +63,10 @@ const MOD = /Mac/.test(navigator.userAgent) ? 'Cmd' : 'Ctrl';
 const modeSelect = el('select', { title: 'Mode' });
 const modelSelect = el('select', { title: 'Model' });
 const effortSelect = el('select', { title: 'Thinking' });
+const editsSelect = el('select', { title: 'Edits' });
 const sendButton = iconButton('send', 'Send', () => submit(), 'primary');
 const stopButton = iconButton('debug-stop', 'Stop', () => send({ type: 'stop' }), 'primary stop');
-footer.append(input, el('div', { class: 'row' }, modeSelect, modelSelect, effortSelect, el('span', { class: 'spacer' }), sendButton, stopButton));
+footer.append(input, el('div', { class: 'row' }, modeSelect, modelSelect, effortSelect, editsSelect, el('span', { class: 'spacer' }), sendButton, stopButton));
 
 input.addEventListener('keydown', event => {
 	if (event.key !== 'Enter' || event.isComposing) {
@@ -80,6 +82,7 @@ input.addEventListener('keydown', event => {
 modeSelect.addEventListener('change', () => send({ type: 'setMode', mode: modeSelect.value as Mode }));
 modelSelect.addEventListener('change', () => send({ type: 'setModel', key: modelSelect.value }));
 effortSelect.addEventListener('change', () => send({ type: 'setEffort', effort: effortSelect.value as Effort }));
+editsSelect.addEventListener('change', () => send({ type: 'setEdits', edits: editsSelect.value as Edits }));
 
 function submit(): void {
 	const text = input.value;
@@ -192,16 +195,11 @@ function toolCard(turn: TurnView, tool: ToolView): HTMLElement {
 		if (tool.input) {
 			row.append(el('pre', { class: 'tool-input', text: tool.input }));
 		}
-		const since = waitingSince.get(tool.id) ?? performance.now();
-		waitingSince.set(tool.id, since);
-		const waited = performance.now() - since;
-		if (waited < ARM_MS) {
-			setTimeout(schedule, ARM_MS - waited + 20);
-		}
-		card.dataset.waitedMs = String(Math.round(waited));
+		const ready = armed(tool.id);
+		card.dataset.waitedMs = String(Math.round(performance.now() - waitingSince.get(tool.id)!));
 		for (const [choice, label] of APPROVE) {
 			const button = el('button', { class: choice === 'deny' ? 'secondary' : 'allow', text: label });
-			button.disabled = waited < ARM_MS;
+			button.disabled = !ready;
 			button.addEventListener('click', () => send({ type: 'approve', turnId: turn.id, callId: tool.id, choice }));
 			row.append(button);
 		}
@@ -214,6 +212,78 @@ function toolCard(turn: TurnView, tool: ToolView): HTMLElement {
 		card.append(el('pre', { class: 'tool-output', text: tool.output }));
 	}
 	return card;
+}
+
+/** How long a waiting card's buttons have waited, by `key`; they take a click once ARM_MS is over. */
+function armed(key: string): boolean {
+	const since = waitingSince.get(key) ?? performance.now();
+	waitingSince.set(key, since);
+	const waited = performance.now() - since;
+	if (waited < ARM_MS) {
+		setTimeout(schedule, ARM_MS - waited + 20);
+	}
+	return waited >= ARM_MS;
+}
+
+const EDIT_ICONS: Record<ToolView['status'], string> = { ...TOOL_ICONS, waiting: 'diff' };
+const EDIT_STATUS: Record<ToolView['status'], string> = { running: 'Applying…', waiting: 'Waiting for you', done: 'Accepted', failed: 'Failed', denied: 'Rejected', stopped: 'Stopped' };
+
+/** A change to a file: what it touches and by how much; Accept and Reject while it waits; its diff on a click. */
+function editCard(turn: TurnView, tool: ToolView): HTMLElement {
+	const edit = tool.edit!;
+	const key = `${turn.id}:${tool.id}`;
+	const open = openedTools.get(key) ?? false;
+	const head = el('button', { class: 'tool-head', attrs: { 'aria-expanded': String(open) } },
+		el('span', { class: `codicon codicon-${EDIT_ICONS[tool.status]}` }),
+		el('span', { class: 'tool-label', text: tool.label }),
+		el('span', { class: 'edit-counts' }, el('span', { class: 'added', text: `+${edit.added}` }), el('span', { class: 'removed', text: `−${edit.removed}` })),
+		el('span', { class: 'tool-status', text: tool.status === 'done' && edit.auto ? 'Applied' : EDIT_STATUS[tool.status] }));
+	head.addEventListener('click', () => { openedTools.set(key, !open); render(); });
+	const card = el('div', { class: `tool edit ${tool.status}${open ? ' open' : ''}`, attrs: { 'data-call': tool.id, 'data-batch': edit.batch } }, head);
+	const row = el('div', { class: 'tool-ask' });
+	if (tool.status === 'waiting' && edit.guarded) {
+		row.append(el('span', { class: 'edit-why', text: 'This file can run code or change how the workspace builds, so it is accepted only here: never by Accept all or Auto-accept edits.' }));
+	}
+	if (tool.status === 'waiting') {
+		const ready = armed(tool.id);
+		card.dataset.waitedMs = String(Math.round(performance.now() - waitingSince.get(tool.id)!));
+		for (const [choice, label] of [['accept', 'Accept'], ['reject', 'Reject']] as const) {
+			const button = el('button', { class: choice === 'reject' ? 'secondary' : 'allow', text: label });
+			button.disabled = !ready;
+			button.addEventListener('click', () => send({ type: 'decide', callId: tool.id, choice }));
+			row.append(button);
+		}
+	}
+	// A change that never reached the file has nothing to show beside it.
+	if (edit.diff && (tool.status === 'waiting' || tool.status === 'done')) {
+		const diff = el('button', { class: 'secondary', text: 'Show diff' });
+		diff.addEventListener('click', () => send({ type: 'showDiff', callId: tool.id }));
+		row.append(diff);
+	}
+	if (row.childNodes.length) {
+		card.append(row);
+	}
+	if (open && tool.output) {
+		card.append(el('pre', { class: 'tool-output', text: tool.output }));
+	}
+	return card;
+}
+
+/** Under a round's last waiting change, when several wait: decides them all — but accepts no file that can run code. */
+function batchBar(batch: string, waiting: readonly ToolView[]): HTMLElement {
+	const ready = armed(`batch:${batch}`);
+	const guarded = waiting.filter(tool => tool.edit?.guarded).length;
+	const all = guarded === waiting.length;
+	const left = all ? ' — each to accept on its own card' : guarded ? ` — Accept all leaves ${guarded === 1 ? 'one file' : `${guarded} files`} for ${guarded === 1 ? 'its' : 'their'} own card` : '';
+	const bar = el('div', { class: 'edit-batch', attrs: { 'data-batch': batch } }, el('span', { text: `${waiting.length} changes waiting${left}` }));
+	// Accept all would take none of them when each can run code: only Reject all is offered.
+	for (const [choice, label] of all ? [['reject', 'Reject all']] as const : [['accept', 'Accept all'], ['reject', 'Reject all']] as const) {
+		const button = el('button', { class: choice === 'reject' ? 'secondary' : 'allow', text: label });
+		button.disabled = !ready;
+		button.addEventListener('click', () => send({ type: 'decideAll', batch, choice }));
+		bar.append(button);
+	}
+	return bar;
 }
 
 function usageLine(turn: TurnView, models: readonly ModelEntry[]): string {
@@ -242,14 +312,21 @@ function turnElement(turn: TurnView, last: boolean): HTMLElement {
 	if (turn.notice) {
 		node.append(el('div', { class: 'notice', text: turn.notice }));
 	}
-	// Each round's text, then the tools it ran: a card sits where in the answer its tool ran.
+	// Each round's text, then the tools it ran: a card sits where in the answer its tool ran. A
+	// round's changes still waiting, when there are several, end with Accept all and Reject all.
 	let from = 0;
-	for (const tool of [...(turn.tools ?? [])].sort((a, b) => a.at - b.at)) {
+	const cards = [...(turn.tools ?? [])].sort((a, b) => a.at - b.at);
+	const waiting = (batch: string) => cards.filter(tool => tool.edit?.batch === batch && tool.status === 'waiting');
+	for (const tool of cards) {
 		const at = Math.min(Math.max(tool.at, from), text.length);
 		if (text.slice(from, at).trim()) {
 			node.append(markdown(text.slice(from, at)));
 		}
-		node.append(toolCard(turn, tool));
+		node.append(tool.edit ? editCard(turn, tool) : toolCard(turn, tool));
+		const batch = tool.edit && tool.status === 'waiting' ? waiting(tool.edit.batch) : [];
+		if (batch.length > 1 && batch[batch.length - 1] === tool) {
+			node.append(batchBar(tool.edit!.batch, batch));
+		}
 		from = at;
 	}
 	if (text.slice(from).trim()) {
@@ -367,6 +444,8 @@ function renderComposer(s: PanelState): void {
 	const thinking = s.models.find(m => m.key === s.model)?.thinking ?? false;
 	options(effortSelect, ['off', 'low', 'medium', 'high', 'xhigh', 'max'] as const, e => EFFORT_LABELS[e], s.effort);
 	effortSelect.hidden = !thinking;
+	options(editsSelect, ['ask', 'auto'] as const, e => EDITS_LABELS[e], s.edits);
+	editsSelect.hidden = s.mode === 'ask';
 	sendButton.hidden = s.session.running;
 	stopButton.hidden = !s.session.running;
 }

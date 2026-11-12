@@ -58,6 +58,18 @@
 				"title": "Models and Keys",
 				"category": "Sirius",
 				"icon": "$(gear)"
+			},
+			{
+				"command": "sirius.panel.acceptChange",
+				"title": "Accept Change",
+				"category": "Sirius",
+				"icon": "$(check)"
+			},
+			{
+				"command": "sirius.panel.rejectChange",
+				"title": "Reject Change",
+				"category": "Sirius",
+				"icon": "$(close)"
 			}
 		],
 		"menus": {
@@ -66,6 +78,28 @@
 					"command": "sirius.panel.openInTab",
 					"when": "view == sirius.panel",
 					"group": "navigation@1"
+				}
+			],
+			"editor/title": [
+				{
+					"command": "sirius.panel.acceptChange",
+					"when": "resourceScheme == sirius-proposal",
+					"group": "navigation@1"
+				},
+				{
+					"command": "sirius.panel.rejectChange",
+					"when": "resourceScheme == sirius-proposal",
+					"group": "navigation@2"
+				}
+			],
+			"commandPalette": [
+				{
+					"command": "sirius.panel.acceptChange",
+					"when": "resourceScheme == sirius-proposal"
+				},
+				{
+					"command": "sirius.panel.rejectChange",
+					"when": "resourceScheme == sirius-proposal"
 				}
 			]
 		},
@@ -120,7 +154,7 @@
 					{
 						"id": "ask",
 						"title": "Ask, Edit or Agent",
-						"description": "Under the message box, pick a mode, a model and how hard it thinks. **Ask** answers questions about your code, **Edit** proposes changes as ready-to-apply code, **Agent** works through a task step by step. Enter sends; to send with Ctrl+Enter (Cmd+Enter on macOS) instead, change **Sirius › Panel: Send With**.\n[Open Sirius](command:sirius.open)\n[Send With](command:workbench.action.openSettings?%22sirius.panel.sendWith%22)",
+						"description": "Under the message box, pick a mode, a model and how hard it thinks. **Ask** answers questions about your code, **Edit** changes your files, **Agent** works through a task step by step. Each change opens as a diff to accept or reject — or, with **Auto-accept edits**, applies as it comes. Enter sends; to send with Ctrl+Enter (Cmd+Enter on macOS) instead, change **Sirius › Panel: Send With**.\n[Open Sirius](command:sirius.open)\n[Send With](command:workbench.action.openSettings?%22sirius.panel.sendWith%22)",
 						"completionEvents": [
 							"onContext:sirius.panel.asked"
 						],

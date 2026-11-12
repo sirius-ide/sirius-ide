@@ -20,7 +20,9 @@ export function activate(context: vscode.ExtensionContext): void {
 		vscode.commands.registerCommand('sirius.open', () => vscode.commands.executeCommand(`${VIEW_ID}.focus`)),
 		vscode.commands.registerCommand('sirius.panel.openInTab', () => host.openInTab()),
 		vscode.commands.registerCommand('sirius.panel.newConversation', () => host.newConversation()),
-		vscode.commands.registerCommand('sirius.panel.setup', () => host.showSetup())
+		vscode.commands.registerCommand('sirius.panel.setup', () => host.showSetup()),
+		vscode.commands.registerCommand('sirius.panel.acceptChange', (target?: unknown) => host.decideInEditor(target, 'accept')),
+		vscode.commands.registerCommand('sirius.panel.rejectChange', (target?: unknown) => host.decideInEditor(target, 'reject'))
 	);
 }
 

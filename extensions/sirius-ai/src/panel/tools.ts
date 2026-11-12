@@ -9,7 +9,9 @@ import type { AgentToolCall } from '../agent/core';
 import { EXTERNAL_BUDGET, MAX_TOOLS_PER_REQUEST, type ExternalSource, activationResult, fit, isExtendedTier, offerExternal, offeredName, promptTsxText } from '../chat/externalTools';
 import { SiriusToolExecutor, TOOL_DEFINITIONS, describeInvocation } from '../tools/toolExecutor';
 import type { ChatMessage, ImagePart, SiriusModel, ToolCallResult, ToolDefinition } from '../types';
-import type { Approval, Mode, ToolView } from './protocol';
+import { EDIT_NAMES, EDIT_TOOLS, type Proposal, Round, apply, propose } from './edits';
+import { newId } from './sessions';
+import type { Approval, Decision, EditView, Mode, ToolView } from './protocol';
 
 const MAX_TOOL_RESULT_CHARS = 24_000;
 /** What a card keeps of a tool's output, to show. What a call runs with is shown whole. */
@@ -30,11 +32,22 @@ export interface ToolEvents {
 	/** Asks the user; `stop` when the answer was stopped first. */
 	approve(call: AgentToolCall): Promise<Approval | 'stop'>;
 	finish(call: AgentToolCall, status: ToolStatus, output: string): void;
+	/** A change to a file: its card appears, waiting for the user — or, under Auto-accept edits, applying. */
+	propose(call: AgentToolCall, label: string, edit: EditView, proposal: Proposal): void;
+	/** The user's decision on a proposed change, whenever it comes; `stop` when the answer was stopped first. */
+	decide(call: AgentToolCall): Promise<Decision | 'stop'>;
+	/** A round's changes are all proposed: the first is shown in the diff editor. */
+	review(call: AgentToolCall): void;
 }
 
 /** Sirius's own tools, read-only and kept inside the workspace: in every mode, never asked about. */
 const OWN: readonly ToolDefinition[] = TOOL_DEFINITIONS.map(definition => ({ ...definition, name: `sirius_${definition.name}` }));
 const OWN_NAMES: ReadonlySet<string> = new Set(OWN.map(tool => tool.name));
+
+/** What a card says a change does. */
+function editLabel(name: string, path: string): string {
+	return `${name === 'sirius_create_file' ? 'Create' : 'Edit'} ${path}`;
+}
 
 /** A call's arguments as every tool takes them: an object, whatever the model sent (none, `null`, a list). */
 export function asObject(input: unknown): Record<string, unknown> {
@@ -160,6 +173,15 @@ export class PanelTools {
 	private outsideCount = 0;
 	/** The round being run: its calls, and the results of those done so far. */
 	private running: { readonly calls: readonly AgentToolCall[]; readonly results: ToolCallResult[] } | undefined;
+	/** Sirius's tools in this mode: the read tools, and in Edit and Agent the two that change files. */
+	private readonly own: readonly ToolDefinition[];
+	private readonly ownNames: ReadonlySet<string>;
+	/** The round's changes to files, by call: each settles once the user decided and it was applied. */
+	private readonly outcomes = new Map<AgentToolCall, Promise<ToolCallResult>>();
+	/** Those settled, by call: what a stop keeps, a change applied before it included. */
+	private readonly settled = new Map<AgentToolCall, ToolCallResult>();
+	/** The changes proposed in the tool round being run: one asked for twice is refused. */
+	private seen = new Set<string>();
 
 	constructor(
 		private readonly mode: Mode,
@@ -169,10 +191,14 @@ export class PanelTools {
 		private readonly allowed: Set<string>,
 		/** The sources the model opened in this conversation; added to as it opens more. */
 		private readonly remembered: Set<string>,
-		private readonly events: ToolEvents
+		private readonly events: ToolEvents,
+		/** Whether changes to files apply as they come (Auto-accept edits), asked as each is made. */
+		private readonly autoAccept: () => boolean
 	) {
+		this.own = mode === 'ask' ? OWN : [...OWN, ...EDIT_TOOLS];
+		this.ownNames = new Set(this.own.map(tool => tool.name));
 		this.sources = mode === 'agent' ? outsideSources(self) : [];
-		this.hardCap = MAX_TOOLS_PER_REQUEST - OWN.length;
+		this.hardCap = MAX_TOOLS_PER_REQUEST - this.own.length;
 		const offer = fit(this.sources, isExtendedTier(model, model.contextWindow) ? EXTERNAL_BUDGET.extended : EXTERNAL_BUDGET.core, remembered, this.hardCap);
 		this.opened = new Set(offer.expanded.map(source => source.key));
 		this.dropped = new Set(offer.dropped.map(source => source.key));
@@ -185,9 +211,9 @@ export class PanelTools {
 
 	/** Fixes this round's offer: Sirius's tools, then the outside ones. */
 	round(): { readonly definitions: readonly ToolDefinition[]; readonly names: ReadonlySet<string> } {
-		const outside = offerExternal(this.sources, this.opened, this.dropped, OWN_NAMES);
+		const outside = offerExternal(this.sources, this.opened, this.dropped, this.ownNames);
 		const definitions: ToolDefinition[] = [
-			...OWN,
+			...this.own,
 			...outside.tools.map(tool => ({ name: tool.name, description: tool.description, inputSchema: (tool.inputSchema ?? { type: 'object', properties: {} }) as ToolDefinition['inputSchema'] }))
 		];
 		this.current = { definitions, names: new Set(definitions.map(tool => tool.name)), realNames: outside.realNames, groups: outside.groups, closedTools: outside.closedTools };
@@ -199,12 +225,15 @@ export class PanelTools {
 	async run(calls: readonly AgentToolCall[], signal: AbortSignal): Promise<ChatMessage> {
 		const results: ToolCallResult[] = [];
 		this.running = { calls, results };
+		this.seen = new Set();
 		try {
-			for (const call of calls) {
-				results.push(await this._one(call, signal));
+			for (const [i, call] of calls.entries()) {
+				results.push(EDIT_NAMES.has(call.name) && this.current.names.has(call.name) ? await this._edit(calls, i, signal) : await this._one(call, signal));
 			}
 		} finally {
 			this.running = undefined;
+			this.outcomes.clear();
+			this.settled.clear();
 		}
 		return { role: 'tool', content: '', timestamp: Date.now(), toolResults: results };
 	}
@@ -220,9 +249,108 @@ export class PanelTools {
 		const { calls, results } = this.running;
 		return {
 			role: 'tool', content: '', timestamp: Date.now(),
-			toolResults: calls.map(call => results.find(result => result.id === call.callId)
+			toolResults: calls.map((call, i) => results[i] ?? this.settled.get(call)
 				?? { id: call.callId, name: call.name, content: 'Stopped by the user before it ran.', isError: true })
 		};
+	}
+
+	/**
+	 * A change to a file, to its result. Under Auto-accept edits it is applied as it comes, unless
+	 * the file can run code when written. Otherwise the change proposes, with it, the changes that
+	 * follow it in the round with no other tool between — another tool may change what they find —
+	 * so all wait on their cards at once; each is applied the moment the user accepts it, in
+	 * whatever order, and the model hears how each went in the order it asked.
+	 */
+	private async _edit(calls: readonly AgentToolCall[], at: number, signal: AbortSignal): Promise<ToolCallResult> {
+		const call = calls[at];
+		if (!this.outcomes.has(call)) {
+			if (this.autoAccept()) {
+				this.outcomes.set(call, this._auto(call, signal));
+			} else {
+				let end = at;
+				while (end < calls.length && EDIT_NAMES.has(calls[end].name) && this.current.names.has(calls[end].name)) {
+					end++;
+				}
+				await this._propose(calls.slice(at, end), signal);
+			}
+		}
+		return this.outcomes.get(call)!;
+	}
+
+	/** Proposes changes together; one that cannot be made fails on its card, unasked. */
+	private async _propose(calls: readonly AgentToolCall[], signal: AbortSignal): Promise<void> {
+		const batch = newId();
+		const round = new Round(this.seen);
+		let first: AgentToolCall | undefined;
+		for (const call of calls) {
+			const made = await this._make(call, round, signal);
+			if (made) {
+				this._ask(call, made, batch);
+				first ??= call;
+			}
+		}
+		if (first) {
+			this.events.review(first);
+		}
+	}
+
+	/** A call's proposal; when it cannot be made, its card fails — or stops — and the call has its result. */
+	private async _make(call: AgentToolCall, round: Round, signal: AbortSignal): Promise<Proposal | undefined> {
+		const input = asObject(call.input);
+		const made = signal.aborted ? undefined : await propose(call.name, input, round).catch(error => `Tool failed: ${error instanceof Error ? error.message : String(error)}`);
+		if (typeof made === 'object') {
+			return made;
+		}
+		this.events.start(call, editLabel(call.name, String(input.path ?? '')), false, '');
+		this.outcomes.set(call, Promise.resolve(this._settle(call, made === undefined ? 'stopped' : 'failed', made ?? 'Stopped by the user before it ran.')));
+		return undefined;
+	}
+
+	/** A change waits on its card for the user's Accept or Reject. */
+	private _ask(call: AgentToolCall, made: Proposal, batch: string): void {
+		this.events.propose(call, editLabel(call.name, made.path), { path: made.path, kind: made.kind, added: made.added, removed: made.removed, batch, ...(made.guarded ? { guarded: true } : {}) }, made);
+		this.outcomes.set(call, this.events.decide(call).then(choice => this._decided(call, made, choice)));
+	}
+
+	private async _decided(call: AgentToolCall, proposal: Proposal, choice: Decision | 'stop'): Promise<ToolCallResult> {
+		if (choice === 'stop') {
+			return this._settle(call, 'stopped', 'Stopped by the user before it ran.');
+		}
+		if (choice === 'reject') {
+			return this._settle(call, 'denied', `The user rejected this change to ${proposal.path}; the file is unchanged. Do not make it again; carry on without it, or ask the user.`);
+		}
+		try {
+			const outcome = await apply(proposal);
+			return this._settle(call, outcome.ok ? 'done' : 'failed', outcome.text);
+		} catch (error) {
+			return this._settle(call, 'failed', `Tool failed: ${error instanceof Error ? error.message : String(error)}`);
+		}
+	}
+
+	/**
+	 * A change under Auto-accept edits: applied at once, its diff a click away — or, for a file that
+	 * can run code when written, asked about all the same.
+	 */
+	private async _auto(call: AgentToolCall, signal: AbortSignal): Promise<ToolCallResult> {
+		const made = await this._make(call, new Round(this.seen), signal);
+		if (!made) {
+			return this.outcomes.get(call)!;
+		}
+		if (made.guarded) {
+			this._ask(call, made, newId());
+			this.events.review(call);
+			return this.outcomes.get(call)!;
+		}
+		this.events.propose(call, editLabel(call.name, made.path), { path: made.path, kind: made.kind, added: made.added, removed: made.removed, batch: newId(), auto: true }, made);
+		return this._decided(call, made, 'accept');
+	}
+
+	/** A change's card shows how it went, and the model hears the same; kept first, so a save made as the card changes has it. */
+	private _settle(call: AgentToolCall, status: ToolStatus, text: string): ToolCallResult {
+		const result: ToolCallResult = { id: call.callId, name: call.name, content: text, ...(status === 'done' ? {} : { isError: true }) };
+		this.settled.set(call, result);
+		this.events.finish(call, status, text);
+		return result;
 	}
 
 	/** One call, to its result: whatever happens, the call gets one, or the conversation could not go on. */

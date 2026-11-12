@@ -11,10 +11,12 @@ import type { ProviderType, ThinkingBlock, ThinkingConfig } from '../types';
 import { ModelRouter } from '../providers/modelRouter';
 import { ModelCatalog } from './models';
 import { panelFace } from './panelFace';
-import { EFFORTS, MODES, type Approval, type Effort, type Mode, type PanelState, type SendWith, type ToWebview, type View, toHost } from './protocol';
+import { EDITS, EFFORTS, MODES, type Approval, type Decision, type Edits, type Effort, type Mode, type PanelState, type SendWith, type ToWebview, type TurnView, type View, toHost } from './protocol';
 import { SessionStore, type StoredSession, type StoredTurn, newId, titleOf, turnView } from './sessions';
 import { answered, buildHistory } from './history';
 import { PanelTools } from './tools';
+import { ARM_MS, CHANGE_SCHEME, Diffs, PROPOSAL_SCHEME } from './edits';
+import { Kept } from './kept';
 
 export const VIEW_ID = 'sirius.panel';
 export const TAB_TYPE = 'sirius.chat';
@@ -22,6 +24,7 @@ export const TAB_TYPE = 'sirius.chat';
 const MODEL = 'sirius.panel.model';
 const MODE = 'sirius.panel.mode';
 const EFFORT = 'sirius.panel.effort';
+const EDITS_KEY = 'sirius.panel.edits';
 const LAST_SESSION = 'sirius.panel.lastSession';
 const SEND_WITH = 'sirius.panel.sendWith';
 /** Set while some model can be asked; the walkthrough's "Add a model" step completes on it. */
@@ -35,9 +38,11 @@ const PROMPT =
 	'Use tools only when the task needs them; call them through the tool-calling mechanism, never as JSON in your text.';
 const MODE_RULES: Record<Mode, string> = {
 	ask: 'You are in Ask mode: explain and answer. You can read and search the workspace with your tools, but not change it — when a change is needed, describe it; the user can switch to Edit or Agent mode.',
-	edit: 'You are in Edit mode: read the workspace with your tools and propose changes to the user\'s code as complete, ready-to-apply code blocks.',
-	agent: 'You are in Agent mode: work through the task step by step with your tools. Tools from MCP servers and other extensions run only once the user allows them; if the user declines one, carry on without it.'
+	edit: 'You are in Edit mode: read the workspace with your tools and change files with sirius_edit_file and sirius_create_file. You cannot run commands here.',
+	agent: 'You are in Agent mode: work through the task step by step with your tools; change files with sirius_edit_file and sirius_create_file. Tools from MCP servers and other extensions run only once the user allows them; if the user declines one, carry on without it.'
 };
+/** How changes to files are taken, said in both modes that make them. */
+const EDIT_RULE = 'The user reviews each change to a file before it is applied, unless they chose to accept changes as they come; each tool result says whether the change was applied. When a change is rejected, do not make it again.';
 
 /** One webview showing the panel: the side panel, or a tab. */
 interface Client {
@@ -56,6 +61,8 @@ export class PanelHost implements vscode.WebviewViewProvider, vscode.WebviewPane
 	private readonly running = new Map<string, Running>();
 	private readonly sessions: SessionStore;
 	private readonly catalog: ModelCatalog;
+	/** The mode, model, effort and edits chosen: global state, as this window wrote it (kept.ts). */
+	private readonly choices: Kept;
 	private readonly output = vscode.window.createOutputChannel('Sirius');
 	private refreshing: Promise<void> | undefined;
 	private viewClient: Client | undefined;
@@ -71,15 +78,24 @@ export class PanelHost implements vscode.WebviewViewProvider, vscode.WebviewPane
 	private readonly allowed = new Map<string, Set<string>>();
 	/** Conversations deleted while they answered: the answer, ending, must not save them again. */
 	private readonly deleted = new Set<string>();
+	/** Proposed changes waiting for the user's Accept or Reject, by card. */
+	private readonly decisions = new Map<string, { readonly session: string; decide(choice: Decision | 'stop'): void }>();
+	/** The changes the diff editor can show; those still waiting are kept whatever their size. */
+	private readonly diffs = new Diffs(id => this.decisions.has(id));
 
 	constructor(private readonly context: vscode.ExtensionContext) {
 		this.sessions = new SessionStore(context.workspaceState);
+		this.choices = new Kept(context.globalState);
 		this.catalog = new ModelCatalog(context.secrets, context.globalState, new ModelRouter());
-		context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(event => {
-			if (event.affectsConfiguration(SEND_WITH)) {
-				this._broadcast();
-			}
-		}));
+		context.subscriptions.push(
+			vscode.workspace.onDidChangeConfiguration(event => {
+				if (event.affectsConfiguration(SEND_WITH)) {
+					this._broadcast();
+				}
+			}),
+			vscode.workspace.registerTextDocumentContentProvider(PROPOSAL_SCHEME, this.diffs),
+			vscode.workspace.registerTextDocumentContentProvider(CHANGE_SCHEME, this.diffs)
+		);
 		void this.refreshModels();
 	}
 
@@ -220,6 +236,11 @@ export class PanelHost implements vscode.WebviewViewProvider, vscode.WebviewPane
 		if (!message) {
 			return;
 		}
+		// What the panel was asked, for a bug report: the choices and each question's arrival, never their text.
+		if (message.type === 'setMode' || message.type === 'setEffort' || message.type === 'setEdits' || message.type === 'setModel' || message.type === 'send') {
+			const choice = message.type === 'setMode' ? message.mode : message.type === 'setEffort' ? message.effort : message.type === 'setEdits' ? message.edits : message.type === 'setModel' ? message.key : '';
+			this.output.appendLine(`[panel] ${message.type} ${choice} (${client === this.viewClient ? 'side panel' : 'tab'})`.trimEnd());
+		}
 		switch (message.type) {
 			case 'ready':
 				break;
@@ -231,6 +252,32 @@ export class PanelHost implements vscode.WebviewViewProvider, vscode.WebviewPane
 				return;
 			case 'approve':
 				this.approvals.get(`${client.sessionId}:${message.callId}`)?.(message.choice);
+				return;
+			case 'decide': {
+				const waiting = this.decisions.get(message.callId);
+				if (waiting?.session === client.sessionId) {
+					waiting.decide(message.choice);
+				}
+				return;
+			}
+			case 'decideAll':
+				// In the cards' order, so the changes apply in the order the model asked for them. A file that
+				// can run code is accepted only on its own card.
+				for (const tool of this.running.get(client.sessionId)?.turn.tools ?? []) {
+					if (tool.edit?.batch === message.batch && !(message.choice === 'accept' && tool.edit.guarded)) {
+						this.decisions.get(tool.id)?.decide(message.choice);
+					}
+				}
+				return;
+			case 'showDiff':
+				if (this._cards(client.sessionId).some(tool => tool.id === message.callId) && !await this.diffs.show(message.callId, this.decisions.has(message.callId))) {
+					// Let go to make room: the card stops offering it.
+					this._broadcast(client.sessionId);
+				}
+				return;
+			case 'setEdits':
+				await this.choices.update(EDITS_KEY, message.edits);
+				this._broadcast();
 				return;
 			case 'retry':
 				await this._retry(client);
@@ -252,16 +299,16 @@ export class PanelHost implements vscode.WebviewViewProvider, vscode.WebviewPane
 				return;
 			case 'setModel':
 				if (this.catalog.reachable(message.key)) {
-					await this.context.globalState.update(MODEL, message.key);
+					await this.choices.update(MODEL, message.key);
 				}
 				this._broadcast();
 				return;
 			case 'setMode':
-				await this.context.globalState.update(MODE, message.mode);
+				await this.choices.update(MODE, message.mode);
 				this._broadcast();
 				return;
 			case 'setEffort':
-				await this.context.globalState.update(EFFORT, message.effort);
+				await this.choices.update(EFFORT, message.effort);
 				this._broadcast();
 				return;
 			case 'setView':
@@ -297,6 +344,22 @@ export class PanelHost implements vscode.WebviewViewProvider, vscode.WebviewPane
 		this._post(client, { type: 'state', state: this._state(client) });
 	}
 
+	/**
+	 * Accept or Reject from the diff editor's title bar: on the change it shows — unless that change
+	 * took the place of a decided one a moment ago, when the click was meant for the one before.
+	 */
+	decideInEditor(target: unknown, choice: Decision): void {
+		const id = target instanceof vscode.Uri ? this.diffs.idOf(target) : this.diffs.activeId();
+		if (id && !this.diffs.shownWithin(id, ARM_MS)) {
+			this.decisions.get(id)?.decide(choice);
+		}
+	}
+
+	/** Every card of a conversation, its answer in progress included. */
+	private _cards(sessionId: string) {
+		return [...(this.running.get(sessionId)?.turn.tools ?? []), ...(this.sessions.get(sessionId)?.turns ?? []).flatMap(turn => turn.tools ?? [])];
+	}
+
 	async refreshModels(): Promise<void> {
 		if (!this.refreshing) {
 			this.refreshing = (async () => {
@@ -325,18 +388,31 @@ export class PanelHost implements vscode.WebviewViewProvider, vscode.WebviewPane
 	// ─── State ───────────────────────────────────────────────────────────────
 
 	private get _mode(): Mode {
-		const mode = this.context.globalState.get<Mode>(MODE);
+		const mode = this.choices.get<Mode>(MODE);
 		return mode && MODES.includes(mode) ? mode : 'agent';
 	}
 
+	private get _edits(): Edits {
+		const edits = this.choices.get<Edits>(EDITS_KEY);
+		return edits && EDITS.includes(edits) ? edits : 'ask';
+	}
+
+	/** A turn as the webview shows it: a change's card says whether its diff can still be shown. */
+	private _view(turn: StoredTurn, streaming = false): TurnView {
+		const view = turnView(turn, streaming);
+		return view.tools?.some(tool => tool.edit)
+			? { ...view, tools: view.tools.map(tool => tool.edit ? { ...tool, edit: { ...tool.edit, diff: this.diffs.has(tool.id) } } : tool) }
+			: view;
+	}
+
 	private get _effort(): Effort {
-		const effort = this.context.globalState.get<Effort>(EFFORT);
+		const effort = this.choices.get<Effort>(EFFORT);
 		return effort && EFFORTS.includes(effort) ? effort : 'high';
 	}
 
 	/** The chosen model while it is reachable, otherwise the first one that is. */
 	private get _model(): string | undefined {
-		const chosen = this.context.globalState.get<string>(MODEL);
+		const chosen = this.choices.get<string>(MODEL);
 		return chosen && this.catalog.reachable(chosen) ? chosen : this.catalog.models[0]?.key;
 	}
 
@@ -349,7 +425,7 @@ export class PanelHost implements vscode.WebviewViewProvider, vscode.WebviewPane
 				id: client.sessionId,
 				title: session?.title ?? 'New conversation',
 				// The store keeps a copy taken at the last save; the answer in progress is the live turn.
-				turns: (session?.turns ?? []).map(turn => running && turn.id === running.turn.id ? turnView(running.turn, true) : turnView(turn)),
+				turns: (session?.turns ?? []).map(turn => running && turn.id === running.turn.id ? this._view(running.turn, true) : this._view(turn)),
 				running: !!running
 			},
 			sessions: this.sessions.list(),
@@ -359,7 +435,8 @@ export class PanelHost implements vscode.WebviewViewProvider, vscode.WebviewPane
 			effort: this._effort,
 			providers: this.catalog.providers,
 			refreshing: !!this.refreshing,
-			sendWith: vscode.workspace.getConfiguration().get<SendWith>(SEND_WITH) === 'ctrlEnter' ? 'ctrlEnter' : 'enter'
+			sendWith: vscode.workspace.getConfiguration().get<SendWith>(SEND_WITH) === 'ctrlEnter' ? 'ctrlEnter' : 'enter',
+			edits: this._edits
 		};
 	}
 
@@ -411,6 +488,7 @@ export class PanelHost implements vscode.WebviewViewProvider, vscode.WebviewPane
 
 		const mode = this._mode;
 		const effort = this._effort;
+		this.output.appendLine(`[panel] answer in ${mode} mode, ${key}, effort ${effort}, edits ${this._edits}`);
 		const thinking: ThinkingConfig = { enabled: effort !== 'off', effort: effort === 'off' ? 'high' : effort };
 		const reasoning: ThinkingBlock[] = [];
 		const roundReasoning = new Set<ThinkingBlock>();
@@ -480,8 +558,59 @@ export class PanelHost implements vscode.WebviewViewProvider, vscode.WebviewPane
 				// down: the answer is kept now as it would end if stopped, the rounds that ran included.
 				checkpoint();
 			}),
-			finish: (call, status, output) => update(card(call), { status, ...(output ? { output } : {}) })
-		});
+			finish: (call, status, output) => {
+				update(card(call), { status, ...(output ? { output } : {}) });
+				// A change to a file is saved as it went at once: the window may close before the answer ends,
+				// and the history must not say a change that reached the file never ran.
+				if (turn.tools?.some(tool => tool.id === card(call) && tool.edit)) {
+					checkpoint();
+				}
+			},
+			propose: (call, label, edit, proposal) => {
+				const id = newId();
+				cards.set(call, id);
+				this.diffs.keep(id, proposal);
+				turn.tools = [...(turn.tools ?? []), { id, name: call.name, label, status: edit.auto ? 'running' : 'waiting', at: turn.text.length, edit }];
+				show();
+			},
+			decide: call => new Promise(resolve => {
+				if (controller.signal.aborted) {
+					resolve('stop');
+					return;
+				}
+				const id = card(call);
+				const batch = turn.tools?.find(tool => tool.id === id)?.edit?.batch;
+				const done = (choice: Decision | 'stop') => {
+					if (!this.decisions.delete(id)) {
+						return;
+					}
+					controller.signal.removeEventListener('abort', stop);
+					if (choice === 'accept') {
+						update(id, { status: 'running' });
+					}
+					resolve(choice);
+					// The decided change's diff closes; if it was the one shown, the round's next waiting change takes its place.
+					void this.diffs.close(id).then(shown => {
+						const next = shown && choice !== 'stop' ? turn.tools?.find(tool => tool.edit?.batch === batch && this.decisions.has(tool.id)) : undefined;
+						if (next) {
+							void this.diffs.show(next.id, true);
+						}
+					});
+				};
+				const stop = () => done('stop');
+				controller.signal.addEventListener('abort', stop);
+				this.decisions.set(id, { session: session.id, decide: done });
+				checkpoint();
+			}),
+			// The first change still waiting is shown: one decided, or stopped, while the round was proposed is not.
+			review: call => {
+				const batch = turn.tools?.find(tool => tool.id === card(call))?.edit?.batch;
+				const next = this.decisions.has(card(call)) ? card(call) : turn.tools?.find(tool => tool.edit?.batch === batch && this.decisions.has(tool.id))?.id;
+				if (next) {
+					void this.diffs.show(next, true);
+				}
+			}
+		}, () => this._edits === 'auto');
 		if (tools.droppedSources.length) {
 			turn.notice = `Not offered to ${reachable.model.name || reachable.model.id}: ${tools.droppedSources.map(source => `${source.label} (${source.tools.length} tools)`).join(', ')} — more tool sources than this model's tools hold.`;
 		}
@@ -490,7 +619,7 @@ export class PanelHost implements vscode.WebviewViewProvider, vscode.WebviewPane
 			router: new ModelRouter(),
 			provider: reachable.provider,
 			model: reachable.model,
-			systemPrompt: `${PROMPT}\n\n${MODE_RULES[mode]}`,
+			systemPrompt: `${PROMPT}\n\n${MODE_RULES[mode]}${mode === 'ask' ? '' : ` ${EDIT_RULE}`}`,
 			thinking,
 			signal: controller.signal,
 			tools,
@@ -555,7 +684,7 @@ export class PanelHost implements vscode.WebviewViewProvider, vscode.WebviewPane
 				await this.sessions.save(session);
 			}
 			for (const client of this._showing(session.id)) {
-				this._post(client, { type: 'turn', turn: turnView(turn) });
+				this._post(client, { type: 'turn', turn: this._view(turn) });
 			}
 			this._broadcast(session.id);
 		}

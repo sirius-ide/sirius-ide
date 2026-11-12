@@ -65,6 +65,17 @@ button.link { background: none; border: none; color: var(--vscode-textLink-foreg
 .tool-input { flex-basis: 100%; margin: 0 0 4px; padding: 4px 8px; max-height: 160px; overflow: auto; white-space: pre-wrap; word-break: break-word; font-family: var(--vscode-editor-font-family); font-size: 0.9em; background: var(--vscode-textCodeBlock-background); border-radius: 3px; }
 .tool > .tool-input { margin: 0 6px 4px; }
 .tool-output { margin: 0; padding: 4px 8px 6px; max-height: 200px; overflow: auto; white-space: pre-wrap; word-break: break-word; font-family: var(--vscode-editor-font-family); font-size: 0.9em; color: var(--vscode-descriptionForeground); }
+.edit-counts { display: inline-flex; gap: 4px; font-family: var(--vscode-editor-font-family); font-size: 0.9em; }
+.edit-counts .added { color: var(--vscode-gitDecoration-addedResourceForeground, var(--vscode-testing-iconPassed, inherit)); }
+.edit-counts .removed { color: var(--vscode-gitDecoration-deletedResourceForeground, var(--vscode-errorForeground)); }
+.tool.edit.denied .tool-label { text-decoration: line-through; }
+.tool-ask .edit-why { flex-basis: 100%; color: var(--vscode-descriptionForeground); }
+.edit-batch { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 2px 0 6px; padding: 4px 6px; border: 1px dashed var(--vscode-focusBorder); border-radius: 4px; }
+.edit-batch span { flex: 1; color: var(--vscode-descriptionForeground); }
+.edit-batch button { border: none; border-radius: 2px; padding: 3px 8px; cursor: pointer; background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
+.edit-batch button:hover:not(:disabled) { background: var(--vscode-button-hoverBackground); }
+.edit-batch button:disabled { opacity: 0.5; cursor: default; }
+.edit-batch button.secondary { background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); }
 .notice { margin-bottom: 6px; padding: 4px 8px; border-left: 3px solid var(--vscode-editorWarning-foreground, var(--vscode-panel-border)); color: var(--vscode-descriptionForeground); }
 
 /* Markdown */
@@ -115,6 +126,6 @@ select { background: var(--vscode-dropdown-background); color: var(--vscode-drop
 /* Composer */
 .composer { border-top: 1px solid var(--vscode-panel-border, transparent); padding: 8px; display: flex; flex-direction: column; gap: 6px; }
 .composer textarea { resize: vertical; min-height: 44px; max-height: 40vh; }
-.composer .row { display: flex; align-items: center; gap: 4px; }
+.composer .row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
 button.icon.primary { width: 28px; height: 28px; background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
 button.icon.primary:hover { background: var(--vscode-button-hoverBackground); }

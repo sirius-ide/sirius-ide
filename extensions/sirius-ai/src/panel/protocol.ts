@@ -13,10 +13,13 @@ export type Effort = 'off' | 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 export type View = 'chat' | 'sessions' | 'setup';
 /** The `sirius.panel.sendWith` setting: which key sends a message. */
 export type SendWith = 'enter' | 'ctrlEnter';
+/** How a model's changes to files are taken: each reviewed first, or applied as they come. */
+export type Edits = 'ask' | 'auto';
 
 export const MODES: readonly Mode[] = ['ask', 'edit', 'agent'];
 export const EFFORTS: readonly Effort[] = ['off', 'low', 'medium', 'high', 'xhigh', 'max'];
 export const VIEWS: readonly View[] = ['chat', 'sessions', 'setup'];
+export const EDITS: readonly Edits[] = ['ask', 'auto'];
 
 /** A model the panel can talk to: `key` is `<provider>/<model id>`. */
 export interface ModelEntry {
@@ -51,6 +54,26 @@ export interface Usage {
 
 export const APPROVALS = ['once', 'session', 'deny'] as const;
 export type Approval = typeof APPROVALS[number];
+export const DECISIONS = ['accept', 'reject'] as const;
+export type Decision = typeof DECISIONS[number];
+
+/** A change to a file a model proposed, as its card shows it. */
+export interface EditView {
+	/** The file, as the workspace names it. */
+	readonly path: string;
+	readonly kind: 'edit' | 'create';
+	/** Lines the change adds and removes. */
+	readonly added: number;
+	readonly removed: number;
+	/** The round's changes, which Accept all and Reject all decide together. */
+	readonly batch: string;
+	/** Applied as it came, under Auto-accept edits. */
+	readonly auto?: boolean;
+	/** A file that can run code when written: asked about even under Auto-accept edits. */
+	readonly guarded?: boolean;
+	/** Whether its diff can still be shown: the panel keeps them until the window closes. Not stored. */
+	readonly diff?: boolean;
+}
 
 /** A tool call as its card shows it: `at` is where in the answer's text it ran. */
 export interface ToolView {
@@ -62,6 +85,8 @@ export interface ToolView {
 	readonly input?: string;
 	readonly output?: string;
 	readonly at: number;
+	/** Set on a proposed change to a file: the card is its review. */
+	readonly edit?: EditView;
 }
 
 export interface TurnView {
@@ -98,6 +123,7 @@ export interface PanelState {
 	readonly providers: readonly ProviderView[];
 	readonly refreshing: boolean;
 	readonly sendWith: SendWith;
+	readonly edits: Edits;
 }
 
 /** From the extension to the webview. */
@@ -125,7 +151,13 @@ export type ToHost =
 	| { readonly type: 'refreshModels' }
 	| { readonly type: 'openLink'; readonly href: string }
 	| { readonly type: 'copy'; readonly text: string }
-	| { readonly type: 'approve'; readonly turnId: string; readonly callId: string; readonly choice: Approval };
+	| { readonly type: 'approve'; readonly turnId: string; readonly callId: string; readonly choice: Approval }
+	| { readonly type: 'setEdits'; readonly edits: Edits }
+	/** Accept or Reject on one proposed change's card. */
+	| { readonly type: 'decide'; readonly callId: string; readonly choice: Decision }
+	/** Accept all or Reject all on a round's changes. */
+	| { readonly type: 'decideAll'; readonly batch: string; readonly choice: Decision }
+	| { readonly type: 'showDiff'; readonly callId: string };
 
 const MAX_TEXT = 200_000;
 const str = (value: unknown, max = MAX_TEXT): value is string => typeof value === 'string' && value.length <= max;
@@ -163,6 +195,14 @@ export function toHost(value: unknown): ToHost | undefined {
 			return str(m.text) ? { type: 'copy', text: m.text } : undefined;
 		case 'approve':
 			return str(m.turnId, 100) && str(m.callId, 200) && APPROVALS.includes(m.choice as Approval) ? { type: 'approve', turnId: m.turnId, callId: m.callId, choice: m.choice as Approval } : undefined;
+		case 'setEdits':
+			return EDITS.includes(m.edits as Edits) ? { type: 'setEdits', edits: m.edits as Edits } : undefined;
+		case 'decide':
+			return str(m.callId, 200) && DECISIONS.includes(m.choice as Decision) ? { type: 'decide', callId: m.callId, choice: m.choice as Decision } : undefined;
+		case 'decideAll':
+			return str(m.batch, 200) && DECISIONS.includes(m.choice as Decision) ? { type: 'decideAll', batch: m.batch, choice: m.choice as Decision } : undefined;
+		case 'showDiff':
+			return str(m.callId, 200) ? { type: 'showDiff', callId: m.callId } : undefined;
 		default:
 			return undefined;
 	}
