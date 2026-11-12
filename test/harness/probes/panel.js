@@ -62,8 +62,28 @@
 //   pictures  — a tool's picture reaches Anthropic as an image and Ollama's text-only model as a
 //               note that an image could not be shown.
 //   deleting  — a conversation deleted while a card waits stays deleted.
-//   addresses — the workspace's settings name another address for Groq; Groq's key goes to Groq's
-//               own API (answered inside the extension host), never to that address.
+//   edits     — the composer's Edits choice shows in Edit, not in Ask. Switched quickly through four
+//               modes, a question goes out in the last, Edit, offered Sirius's four read tools and the
+//               two that change files. A round of two changes waits on two cards with what each
+//               changes, their buttons idle for half a second, and Accept all and Reject all; the
+//               first opens in the diff editor, the file beside the change, with Accept Change and
+//               Reject Change in its title bar. A real click on that Accept Change applies it and the
+//               next change takes its place; a second click at once (a double-click) does not take
+//               that one; Reject on its card leaves README.md as it was; the model is told which was
+//               applied. Two changes to one file accepted in the other order both reach it; a change
+//               rejected before another does not ride with it — each is applied to the file as it is
+//               then. Accept all applies a new file and an edit. Undo in the file takes an accepted
+//               change back, and in a new file deletes it. A file in .git, a new file that exists, a
+//               path outside the workspace and text not in the file fail on their cards, never asked,
+//               each saying why. A change building on a new file in its round is proposed with it, and
+//               the same change asked twice is not. Under Auto-accept edits a change applies as it
+//               comes and Show diff shows it, with no Accept in the title bar; a change to
+//               .vscode/settings.json still waits, saying why; a file with unsaved changes gets the
+//               change but is not saved. Switched quickly back to Ask before edits, the next change
+//               waits; Stop while it waits leaves the file, closes the diff, and the next question is
+//               answered on that history. In Agent, a round of a change, another extension's tool and
+//               a change proposes the second change only after the tool ran. Every check reads the
+//               files on disk.
 //   copy      — a code block's Copy puts its code on the clipboard.
 //   errors    — Anthropic's HTTP 529 is shown with its message, and an error event mid-answer
 //               keeps the half answer and says what happened; Retry is offered on both.
@@ -86,10 +106,13 @@
 //               once: it asks first (the site is not a trusted one), nothing opens before Open, and
 //               then the system's opener — the harness's, which only records it — gets it once; a
 //               mailto: link opens nothing; the panel stays where it was.
-//   reload    — the window reloads while a card waits on the user (a two-round answer): after it,
+//   reload    — first, in the tab, a round of two changes: one accepted, the other left waiting. Then
+//               the window reloads while a card waits on the user (a two-round answer): after it,
 //               the side panel shows the last conversation again, that answer with its first round
 //               done and the waiting call stopped, and a next question is answered on that history;
-//               the MCP server's tools are known before anything starts it (VS Code keeps them).
+//               the MCP server's tools are known before anything starts it (VS Code keeps them). The
+//               tab comes back with the accepted change done and the other stopped, no diff of a
+//               waiting change left open, and its next question goes out on a history that says so.
 //   at rest   — no file in the profile's folder holds the key, while the conversations are there
 //               to be found (the run's keyring is held in memory, so this covers what VS Code
 //               writes to disk — settings, state and logs — not the keyring itself).
@@ -137,7 +160,8 @@ const SNAPSHOT = `({
 			role: t.classList.contains('user') ? 'user' : 'assistant',
 			streaming: t.classList.contains('streaming'),
 			text: t.classList.contains('user') ? t.querySelector('.bubble')?.textContent ?? '' : [...t.querySelectorAll(':scope > .markdown')].map(m => m.textContent).join(''),
-			tools: [...t.querySelectorAll(':scope > .tool')].map(c => ({ id: c.dataset.call, label: c.querySelector('.tool-label')?.textContent ?? '', status: ['running', 'waiting', 'done', 'failed', 'denied', 'stopped'].find(k => c.classList.contains(k)) ?? '', asks: [...c.querySelectorAll('.tool-ask button')].map(b => b.textContent), armed: [...c.querySelectorAll('.tool-ask button')].some(b => !b.disabled), waitedMs: Number(c.dataset.waitedMs ?? -1), input: c.querySelector('.tool-input')?.textContent ?? '' })),
+			tools: [...t.querySelectorAll(':scope > .tool')].map(c => ({ id: c.dataset.call, label: c.querySelector('.tool-label')?.textContent ?? '', status: ['running', 'waiting', 'done', 'failed', 'denied', 'stopped'].find(k => c.classList.contains(k)) ?? '', statusText: c.querySelector('.tool-status')?.textContent ?? '', asks: [...c.querySelectorAll('.tool-ask button')].map(b => b.textContent), armed: [...c.querySelectorAll('.tool-ask button.allow')].some(b => !b.disabled), waitedMs: Number(c.dataset.waitedMs ?? -1), input: c.querySelector('.tool-input')?.textContent ?? '', edit: c.classList.contains('edit'), counts: c.querySelector('.edit-counts')?.textContent ?? '', batch: c.dataset.batch ?? '' })),
+			batches: [...t.querySelectorAll(':scope > .edit-batch')].map(b => ({ batch: b.dataset.batch, text: b.querySelector('span')?.textContent ?? '', buttons: [...b.querySelectorAll('button')].map(x => x.textContent), armed: [...b.querySelectorAll('button')].some(x => !x.disabled) })),
 			thinking: thinking ? { open: thinking.classList.contains('open'), streaming: thinking.classList.contains('streaming'), label: thinking.querySelector('.label')?.textContent ?? '', text: thinking.querySelector('.thinking-body')?.textContent ?? '' } : null,
 			meta: t.querySelector('.meta')?.textContent ?? '',
 			error: t.querySelector('.error')?.textContent ?? '',
@@ -147,6 +171,7 @@ const SNAPSHOT = `({
 	}),
 	models: [...document.querySelectorAll('footer select[title="Model"] option')].map(o => o.value),
 	model: document.querySelector('footer select[title="Model"]')?.value ?? null,
+	edits: document.querySelector('footer select[title="Edits"]')?.hidden ? null : document.querySelector('footer select[title="Edits"]')?.value ?? null,
 	placeholder: document.querySelector('footer textarea')?.placeholder ?? '',
 	stop: !document.querySelector('button[title="Stop"]')?.hidden,
 	sessions: [...document.querySelectorAll('ul.sessions .session-title')].map(e => e.textContent),
@@ -157,7 +182,7 @@ const click = selector => `(() => { const b = document.querySelector(${js(select
 /** Types `text` into the message box and presses Enter, with the modifier keys in `keys`. */
 const press = (text, keys = {}) => `(() => { const t = document.querySelector('footer textarea'); t.value = ${js(text)}; t.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true, ...${js(keys)} })); return true; })()`;
 const sendText = text => press(text);
-const choose = (selector, value) => `(() => { const s = document.querySelector(${js(selector)}); s.value = ${js(value)}; s.dispatchEvent(new window.Event('change', { bubbles: true })); return s.value; })()`;
+const choose = (selector, value) => `(() => { const s = document.querySelector(${js(selector)}); if (!s) { return null; } s.value = ${js(value)}; s.dispatchEvent(new window.Event('change', { bubbles: true })); return s.value; })()`;
 const fill = (provider, field, value, button) => `(() => {
 	const row = document.querySelector('[data-provider=${js(provider)}]');
 	const input = row?.querySelector(${js(field)});
@@ -229,6 +254,23 @@ async function realClick(target, selector) {
 	await target.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: at.x, y: at.y, button: 'left', clickCount: 1 });
 	await target.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: at.x, y: at.y, button: 'left', clickCount: 1 });
 	return true;
+}
+
+/** The panel's lines in its output channel ("Sirius"), as VS Code wrote them to the profile's logs. */
+function panelLog() {
+	const lines = [];
+	const walk = folder => {
+		for (const entry of fs.readdirSync(folder, { withFileTypes: true })) {
+			const file = path.join(folder, entry.name);
+			if (entry.isDirectory()) {
+				walk(file);
+			} else if (/Sirius\.log$/.test(entry.name)) {
+				lines.push(...fs.readFileSync(file, 'utf8').split('\n').filter(line => line.includes('[panel]')));
+			}
+		}
+	};
+	try { walk(path.join(PROFILE ?? '', 'logs')); } catch { /* no logs yet */ }
+	return lines;
 }
 
 /** Every file under `dir` whose bytes hold `needle`, by its path under `dir`. */
@@ -336,6 +378,40 @@ exports.run = async function (vscode) {
 		check(nextRequest?.status === 200 && /pong a question after the reload/.test(next?.text ?? '') && /Stopped by the user/.test(stoppedResult), `reload: the next question was not answered on the kept history (${js(result.reload.next)})`);
 		result.mcpAfterReload = vscode.lm.tools.filter(tool => tool.tags.includes('mcp')).map(tool => tool.name);
 		check(result.mcpAfterReload.includes('mcp_sirius-stub_echo'), `reload: the MCP server's tools are not known after the reload without starting it (${js(result.mcpAfterReload)})`);
+		log('reload: the tab, its change applied before the reload kept as applied');
+		const ws = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
+		const fileNow = name => { try { return fs.readFileSync(path.join(ws, name), 'utf8'); } catch { return null; } };
+		const tabBack = await connectWebview(EXTENSION, 'webviewPanel', 20000).catch(error => ({ failed: String(error) }));
+		if (tabBack.failed) {
+			check(false, `reload: the tab did not come back (${tabBack.failed})`);
+		} else {
+			const tabUntil = async (ok, ms = 20000) => {
+				let s;
+				for (const deadline = Date.now() + ms; Date.now() < deadline;) {
+					s = await tabBack.evaluate(SNAPSHOT);
+					if (!s.noContent && ok(s)) { return s; }
+					await sleep(150);
+				}
+				return s;
+			};
+			const keptTab = await tabUntil(s => s.turns.length > 0 && !last(s).streaming, 20000);
+			const tabFrom = (await stubRequests()).length;
+			await tabBack.evaluate(sendText('a question in the tab after the reload'));
+			const tabNext = last(await tabUntil(s => s.turns.length >= keptTab.turns.length + 2 && !last(s).streaming && !s.stop, 20000));
+			const tabRequest = (await anthropicSince(tabFrom))[0];
+			const keptResults = (tabRequest?.body?.messages ?? []).flatMap(m => Array.isArray(m.content) ? m.content.filter(b => b.type === 'tool_result') : []).slice(-2)
+				.map(b => typeof b.content === 'string' ? b.content : (b.content ?? []).map(x => x.text ?? '').join(''));
+			result.reload.tab = {
+				cards: (last(keptTab)?.tools ?? []).map(c => [c.label, c.status]),
+				next: { status: tabRequest?.status, text: tabNext?.text?.slice(0, 60), results: keptResults.map(t => t.slice(0, 40)) },
+				files: { readme: fileNow('README.md') === result.tabReload?.readme, greet: fileNow('greet.js')?.includes('Hi there') ?? false },
+				proposalTabs: vscode.window.tabGroups.all.flatMap(g => g.tabs).filter(t => t.input?.modified?.scheme === 'sirius-proposal').map(t => t.label)
+			};
+			check(js(result.reload.tab.cards) === js([['Edit README.md', 'stopped'], ['Edit greet.js', 'done']]) && result.reload.tab.proposalTabs.length === 0, `reload: the tab did not keep the change applied before the reload as applied and the other as stopped, with no diff of the stopped one left open (${js(result.reload.tab)})`);
+			check(tabRequest?.status === 200 && /pong a question in the tab after the reload/.test(tabNext?.text ?? '') && /^Stopped by the user/.test(keptResults[0] ?? '') && keptResults[1] === 'Edited greet.js.', `reload: the tab's next question did not go out on a history that has the applied change as applied (${js(result.reload.tab.next)})`);
+			check(result.reload.tab.files.readme && result.reload.tab.files.greet, `reload: the files are not the applied change alone (${js(result.reload.tab.files)})`);
+			tabBack.close();
+		}
 		result.guardAfterReload = vendorCalls;
 		check(vendorCalls.length === 0, `guard: after the reload the panel called a vendor's API (${js(vendorCalls)})`);
 		panel.close();
@@ -346,7 +422,8 @@ exports.run = async function (vscode) {
 		log('at rest: the profile\'s folder');
 		if (PROFILE) {
 			const keyFiles = filesHolding(PROFILE, KEY);
-			const titleFiles = filesHolding(PROFILE, result.beforeReload?.title ?? 'slow: think about it');
+			// The conversation is kept as JSON: a title with quotes in it is on disk with them escaped.
+			const titleFiles = filesHolding(PROFILE, JSON.stringify(result.beforeReload?.title ?? 'slow: think about it').slice(1, -1));
 			result.atRest = { keyFiles, titleFiles };
 			check(keyFiles.length === 0, `at rest: the key is in the profile's folder (${keyFiles.join(', ')})`);
 			check(titleFiles.length > 0, 'at rest: the conversations are not in the profile\'s folder either, so the scan saw nothing');
@@ -760,6 +837,281 @@ exports.run = async function (vscode) {
 	await panel.evaluate(click('button[title="Back to the conversation"]'));
 	save();
 
+	// ── edits ─────────────────────────────────────────────────────────────────
+	log('edits: Edit mode proposes two changes; one accepted in the diff editor\'s title bar, one rejected on its card');
+	const WS = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
+	const onDisk = name => { try { return fs.readFileSync(path.join(WS, name), 'utf8'); } catch { return null; } };
+	/** Every diff editor's tab: what it compares, and whether it is the one shown. */
+	const diffTabs = () => vscode.window.tabGroups.all.flatMap(group => group.tabs.map(tab => ({ tab, group })))
+		.filter(({ tab }) => tab.input?.original && tab.input?.modified)
+		.map(({ tab, group }) => ({ label: tab.label, original: tab.input.original.toString(), modified: tab.input.modified.toString(), shown: tab.isActive && group.isActive }));
+	const proposalTabs = () => diffTabs().filter(t => t.modified.startsWith('sirius-proposal:'));
+	const textOf = async uri => (await vscode.workspace.openTextDocument(vscode.Uri.parse(uri))).getText();
+	const diffOf = async tab => tab ? { label: tab.label, scheme: tab.modified.split(':')[0], original: await textOf(tab.original), modified: await textOf(tab.modified) } : null;
+	const within = async (read, ok, ms = 10000) => {
+		let value;
+		for (const deadline = Date.now() + ms; Date.now() < deadline;) {
+			value = await read();
+			if (ok(value)) { return value; }
+			await sleep(150);
+		}
+		return value;
+	};
+	/** The results the model got for the last round, in the order it called. */
+	const resultsOf = request => {
+		const lastMessage = (request?.body?.messages ?? []).slice(-1)[0];
+		return (Array.isArray(lastMessage?.content) ? lastMessage.content : []).filter(b => b.type === 'tool_result')
+			.map(b => ({ text: typeof b.content === 'string' ? b.content : (b.content ?? []).map(x => x.text ?? '').join(''), error: b.is_error === true }));
+	};
+	const proposeText = changes => `propose ${js(changes)}`;
+	const cardsOf = s => last(s)?.tools ?? [];
+	const waitingCards = s => cardsOf(s).filter(c => c.status === 'waiting');
+	const onCard = (id, button) => panel.evaluate(clickText(`.turn:last-child .tool[data-call=${js(id)}] .tool-ask button`, button));
+	/** Sends the changes and waits until `n` of them wait on their cards, their buttons ready. */
+	const proposeAndWait = async (changes, n) => {
+		const before = (await snap()).turns.length;
+		await panel.evaluate(sendText(proposeText(changes)));
+		const first = await until(s => s.turns.length >= before + 2 && waitingCards(s).length === n, 30000);
+		const ready = await until(s => waitingCards(s).length === n && waitingCards(s).every(c => c.armed), 5000);
+		return { first, ready };
+	};
+	const HELLO = 'Hello, ${name}!';
+	const HI = 'Hi, ${name}!';
+	const greet0 = onDisk('greet.js');
+	const readme0 = onDisk('README.md');
+	result.edits = {};
+
+	await panel.evaluate(choose('footer select[title="Mode"]', 'ask'));
+	const inAskMode = await until(s => s.edits === null, 5000);
+	// Switched quickly, as a person might: the question goes out in the last mode chosen (VS Code
+	// echoes each write to global state back, and an echo of an earlier choice used to win).
+	for (const mode of ['edit', 'agent', 'ask', 'edit']) {
+		await panel.evaluate(choose('footer select[title="Mode"]', mode));
+	}
+	const inEditMode = await until(s => s.edits !== null, 5000);
+	result.edits.composer = { ask: inAskMode.edits, edit: inEditMode.edits };
+	check(inAskMode.edits === null && inEditMode.edits === 'ask', `edits: the composer's Edits choice is not hidden in Ask and "Ask before edits" in Edit (${js(result.edits.composer)})`);
+
+	from = (await stubRequests()).length;
+	const e1 = await proposeAndWait([{ edit: 'greet.js', search: HELLO, replace: HI }, { edit: 'README.md', search: 'A small workspace', replace: 'A tiny workspace' }], 2);
+	const e1Offered = ((await anthropicSince(from))[0]?.body?.tools ?? []).map(t => t.name).sort();
+	const e1Shown = (await within(async () => diffTabs(), tabs => tabs.some(t => t.shown && t.modified.startsWith('sirius-proposal:')))).find(t => t.shown);
+	const e1ShownAt = Date.now();
+	const e1Diff = await diffOf(e1Shown);
+	// The title bar's actions, as the window draws them for the diff shown.
+	const titleActions = await within(() => win.evaluate(`[...document.querySelectorAll('.editor-actions .action-label')].map(a => a.getAttribute('aria-label') ?? '')`), labels => labels.some(l => /^Accept Change/.test(l)), 5000);
+	// A diff's Accept takes no click for half a second after it appears, as a card's does: a person looks first.
+	await sleep(Math.max(0, 700 - (Date.now() - e1ShownAt)));
+	const titleClicked = await realClick(win, '.editor-actions .action-label[aria-label^="Accept Change"]');
+	const greetAfterTitle = await within(async () => onDisk('greet.js'), text => text?.includes(HI) ?? false);
+	const e1Next = (await within(async () => diffTabs(), tabs => tabs.some(t => t.shown && /README\.md/.test(t.modified)) && !tabs.some(t => /greet\.js/.test(t.modified) && t.modified.startsWith('sirius-proposal:')))).find(t => t.shown);
+	// The second click of a double-click lands on the change that took the first one's place: not taken.
+	const doubleClicked = await realClick(win, '.editor-actions .action-label[aria-label^="Accept Change"]');
+	await sleep(800);
+	const afterDouble = { clicked: doubleClicked, readme: onDisk('README.md') === readme0, card: cardsOf(await snap()).find(c => c.label === 'Edit README.md')?.status };
+	const readmeCard = cardsOf(e1.first).find(c => c.label === 'Edit README.md');
+	const e1Rejected = await onCard(readmeCard?.id, 'Reject');
+	const e1Done = await answered();
+	const e1Requests = await anthropicSince(from);
+	result.edits.reviewed = {
+		offered: e1Offered,
+		cards: cardsOf(e1.first).map(c => ({ label: c.label, status: c.status, counts: c.counts, asks: c.asks, armed: c.armed, waitedMs: c.waitedMs })),
+		batch: last(e1.ready)?.batches,
+		diff: e1Diff && { label: e1Diff.label, scheme: e1Diff.scheme, original: e1Diff.original === greet0, modified: e1Diff.modified === greet0.replace(HELLO, HI) },
+		titleActions, titleClicked, greet: greetAfterTitle?.includes(HI), next: e1Next?.modified,
+		rejected: e1Rejected, done: e1Done?.tools?.map(c => ({ status: c.status, statusText: c.statusText })), results: resultsOf(e1Requests[1]),
+		readmeKept: onDisk('README.md') === readme0, proposalTabs: proposalTabs().length, afterDouble
+	};
+	const e1System = js((await anthropicSince(from))[0]?.body?.system);
+	result.edits.reviewed.mode = /Edit mode/.test(e1System);
+	result.edits.reviewed.log = panelLog().slice(-12).map(line => line.replace(/^.*\[panel\] /, ''));
+	check(result.edits.reviewed.mode && js(e1Offered) === js(['sirius_create_file', 'sirius_edit_file', 'sirius_get_diagnostics', 'sirius_list_directory', 'sirius_read_file', 'sirius_search_files']), `edits: the question did not go out in Edit mode, the mode last chosen, offered Sirius's four read tools and the two that change files (${js({ mode: result.edits.reviewed.mode, offered: e1Offered })})`);
+	check(js(cardsOf(e1.first).map(c => [c.label, c.status, c.counts])) === js([['Edit greet.js', 'waiting', '+1−1'], ['Edit README.md', 'waiting', '+1−1']]), `edits: the round's two changes did not both wait on their cards, with what they change (${js(result.edits.reviewed.cards)})`);
+	check(cardsOf(e1.first).length === 2 && cardsOf(e1.first).every(c => c.armed === false || c.waitedMs >= 500), `edits: a new change's Accept took a click at once, or there was none (${js(result.edits.reviewed.cards)})`);
+	check(js(last(e1.ready)?.batches?.map(b => [b.text, b.buttons])) === js([['2 changes waiting', ['Accept all', 'Reject all']]]), `edits: the round's two changes had no Accept all and Reject all (${js(result.edits.reviewed.batch)})`);
+	check(e1Diff?.scheme === 'sirius-proposal' && /greet\.js/.test(e1Diff.label) && result.edits.reviewed.diff.original && result.edits.reviewed.diff.modified, `edits: the first change did not open in the diff editor with the file and the change (${js(result.edits.reviewed.diff)})`);
+	check(titleActions?.some(l => /^Accept Change/.test(l)) && titleActions.some(l => /^Reject Change/.test(l)), `edits: the diff editor's title bar has no Accept Change and Reject Change (${js(titleActions)})`);
+	check(titleClicked && result.edits.reviewed.greet, `edits: Accept Change in the diff editor's title bar did not apply the change to the file (${js({ titleClicked, greet: greetAfterTitle })})`);
+	check(/README\.md/.test(e1Next?.modified ?? '') && e1Next?.modified.startsWith('sirius-proposal:'), `edits: once the first change was decided, the next did not take its place in the diff editor (${js(diffTabs())})`);
+	check(afterDouble.clicked && afterDouble.readme && afterDouble.card === 'waiting', `edits: a double-click on Accept Change also accepted the change that took the first one's place (${js(afterDouble)})`);
+	check(e1Rejected && js(result.edits.reviewed.done) === js([{ status: 'done', statusText: 'Accepted' }, { status: 'denied', statusText: 'Rejected' }]), `edits: the cards do not say Accepted and Rejected (${js(result.edits.reviewed.done)})`);
+	const [appliedResult, rejectedResult] = result.edits.reviewed.results;
+	check(result.edits.reviewed.results.length === 2 && appliedResult.text === 'Edited greet.js.' && !appliedResult.error && /^The user rejected this change to README\.md/.test(rejectedResult.text) && rejectedResult.error, `edits: the model was not told the first change was applied and the second rejected (${js(result.edits.reviewed.results)})`);
+	check(result.edits.reviewed.readmeKept && onDisk('greet.js') === greet0.replace(HELLO, HI), `edits: the files on disk are not the accepted change alone (${js({ greet: onDisk('greet.js'), readme: onDisk('README.md') })})`);
+	check(e1Diff?.scheme === 'sirius-proposal' && result.edits.reviewed.proposalTabs === 0, `edits: a decided change's diff stayed open, or none was shown (${js(proposalTabs())})`);
+	save();
+
+	log('edits: two changes to one file, accepted in the other order, then one rejected and one accepted — each applied to the file as it is then');
+	const DEFAULT = 'export function greet(name = \'world\')';
+	const greetA = onDisk('greet.js');
+	const e2 = await proposeAndWait([{ edit: 'greet.js', search: HI, replace: 'Hey, ${name}!' }, { edit: 'greet.js', search: 'export function greet(name)', replace: DEFAULT }], 2);
+	const [e2a, e2b] = cardsOf(e2.ready);
+	await onCard(e2b?.id, 'Show diff');
+	const e2Shown = await diffOf((await within(async () => diffTabs(), tabs => tabs.some(t => t.shown && t.modified.includes(encodeURIComponent(e2b?.id ?? '-'))))).find(t => t.shown));
+	await onCard(e2b?.id, 'Accept');
+	await within(async () => onDisk('greet.js'), text => text?.includes(DEFAULT) ?? false);
+	await onCard(e2a?.id, 'Accept');
+	const e2Done = await answered();
+	const bothApplied = greetA.replace(HI, 'Hey, ${name}!').replace('export function greet(name)', DEFAULT);
+	// The second change is shown on the file as the first would leave it: the first is context on both sides.
+	result.edits.order = { shown: e2Shown && { scheme: e2Shown.scheme, original: e2Shown.original === greetA.replace(HI, 'Hey, ${name}!'), modified: e2Shown.modified === bothApplied }, cards: e2Done?.tools?.map(c => c.status), both: onDisk('greet.js') === bothApplied };
+	check(e2Shown?.scheme === 'sirius-proposal' && result.edits.order.shown.original && result.edits.order.shown.modified, `edits: Show diff on a waiting change did not show that change, on the file as the round's earlier change leaves it (${js(result.edits.order.shown)})`);
+	check(js(result.edits.order.cards) === js(['done', 'done']) && result.edits.order.both, `edits: two changes to one file, accepted in the other order, did not both reach the file (${js({ ...result.edits.order, greet: onDisk('greet.js') })})`);
+
+	const greetB = onDisk('greet.js');
+	const e3 = await proposeAndWait([{ edit: 'greet.js', search: DEFAULT, replace: 'export function greet(name = \'you\')' }, { edit: 'greet.js', search: 'Hey, ${name}!', replace: 'Hello again, ${name}!' }], 2);
+	const [e3a, e3b] = cardsOf(e3.ready);
+	await onCard(e3a?.id, 'Reject');
+	await until(s => cardsOf(s).find(c => c.id === e3a?.id)?.status === 'denied', 5000);
+	await onCard(e3b?.id, 'Accept');
+	const e3Done = await answered();
+	result.edits.rejectedFirst = { cards: e3Done?.tools?.map(c => c.status), greet: onDisk('greet.js') };
+	check(js(result.edits.rejectedFirst.cards) === js(['denied', 'done']) && onDisk('greet.js') === greetB.replace('Hey, ${name}!', 'Hello again, ${name}!'), `edits: a change rejected before another to the same file reached the file, or the other did not (${js(result.edits.rejectedFirst)})`);
+	save();
+
+	log('edits: Accept all, with a new file — and package.json, which Accept all leaves to its own card');
+	const NOTES = '# Notes\n\nWritten through the panel.\n';
+	from = (await stubRequests()).length;
+	const e4 = await proposeAndWait([{ create: 'notes.md', content: NOTES }, { edit: 'README.md', search: 'A small workspace', replace: 'A tiny workspace' }, { create: 'package.json', content: '{}\n' }], 3);
+	const e4Bar = await until(s => last(s)?.batches?.[0]?.armed === true, 5000);
+	const allClicked = await panel.evaluate(clickText('.turn:last-child .edit-batch button', 'Accept all'));
+	const e4Left = await until(s => cardsOf(s).filter(c => c.status === 'done').length === 2, 10000);
+	const packageCard = cardsOf(e4Left).find(c => c.label === 'Create package.json');
+	await onCard(packageCard?.id, 'Reject');
+	const e4Done = await answered();
+	const e4Results = resultsOf((await anthropicSince(from))[1]);
+	result.edits.all = { cards: cardsOf(e4.first).map(c => [c.label, c.counts]), bar: last(e4Bar)?.batches, clicked: allClicked, left: cardsOf(e4Left).map(c => c.status), done: e4Done?.tools?.map(c => c.status), results: e4Results.map(r => r.text.slice(0, 40)), notes: onDisk('notes.md'), readme: onDisk('README.md'), packageJson: onDisk('package.json') };
+	check(js(result.edits.all.cards) === js([['Create notes.md', '+3−0'], ['Edit README.md', '+1−1'], ['Create package.json', '+1−0']]), `edits: the new files' and the edit's cards are not as proposed (${js(result.edits.all.cards)})`);
+	check(/^3 changes waiting — Accept all leaves one file for its own card$/.test(last(e4Bar)?.batches?.[0]?.text ?? ''), `edits: the bar did not say Accept all leaves package.json to its own card (${js(result.edits.all.bar)})`);
+	check(allClicked && js(result.edits.all.left) === js(['done', 'done', 'waiting']) && js(result.edits.all.done) === js(['done', 'done', 'denied']) && result.edits.all.packageJson === null && js(e4Results.slice(0, 2).map(r => r.text)) === js(['Created notes.md.', 'Edited README.md.']), `edits: Accept all did not apply the two changes and leave package.json waiting (${js(result.edits.all)})`);
+	check(result.edits.all.notes === NOTES && result.edits.all.readme === readme0.replace('A small workspace', 'A tiny workspace'), `edits: after Accept all the files on disk are not as proposed (${js({ notes: result.edits.all.notes, readme: result.edits.all.readme })})`);
+
+	log('edits: Undo in the file takes an accepted change back');
+	const readmeUri = vscode.Uri.file(path.join(WS, 'README.md'));
+	const changedBeforeUndo = onDisk('README.md') !== readme0;
+	const readmeDoc = await vscode.workspace.openTextDocument(readmeUri);
+	await vscode.window.showTextDocument(readmeDoc, { preview: false });
+	await vscode.commands.executeCommand('undo');
+	const undone = await within(async () => readmeDoc.getText(), text => text === readme0, 5000);
+	await readmeDoc.save();
+	await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+	result.edits.undo = { changed: changedBeforeUndo, undone: undone === readme0, disk: onDisk('README.md') === readme0 };
+	check(changedBeforeUndo && result.edits.undo.undone && result.edits.undo.disk, `edits: Undo in the file did not take the accepted change back (${js({ changed: changedBeforeUndo, text: readmeDoc.getText(), disk: onDisk('README.md') })})`);
+	const notesDoc = onDisk('notes.md') === null ? undefined : await vscode.workspace.openTextDocument(vscode.Uri.file(path.join(WS, 'notes.md')));
+	await vscode.window.showTextDocument(notesDoc ?? readmeDoc, { preview: false });
+	// Not awaited: were VS Code to ask first, its dialog is answered here, not left to hang the run.
+	const undoing = Promise.resolve(vscode.commands.executeCommand('undo')).catch(() => undefined);
+	const notesGone = await within(async () => onDisk('notes.md'), text => text === null, 5000);
+	const undoDialog = await win.evaluate(`[...document.querySelectorAll('.monaco-dialog-box')].map(d => d.textContent).join(' | ')`);
+	if (undoDialog) {
+		await win.evaluate(clickText('.monaco-dialog-box .monaco-button', 'Cancel'));
+	}
+	await Promise.race([undoing, sleep(2000)]);
+	await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+	result.edits.undo.created = { gone: notesGone === null, dialog: undoDialog.slice(0, 160) };
+	check(notesDoc && notesGone === null && !undoDialog, `edits: Undo in a new file did not take its creation back (${js(result.edits.undo.created)})`);
+	save();
+
+	log('edits: changes that cannot be made fail on their cards, unasked');
+	// A .git folder, and a link to it under another name, as a repository could commit.
+	fs.mkdirSync(path.join(WS, '.git'), { recursive: true });
+	fs.writeFileSync(path.join(WS, '.git', 'config'), '[core]\n');
+	fs.symlinkSync('.git', path.join(WS, 'gitlink'));
+	from = (await stubRequests()).length;
+	const e5 = await ask(proposeText([{ create: '.git/hooks/pre-commit', content: 'echo ran\n' }, { edit: 'gitlink/config', search: '[core]', replace: '[core]\n\tfsmonitor = echo ran' }, { create: 'greet.js', content: 'x' }, { edit: '../outside.txt', search: 'a', replace: 'b' }, { edit: 'README.md', search: 'not in the file', replace: 'x' }]), 30000);
+	const e5Results = resultsOf((await anthropicSince(from))[1]);
+	result.edits.refused = { cards: e5?.tools?.map(c => [c.label, c.status, c.asks.length]), results: e5Results.map(r => r.text.slice(0, 70)), git: onDisk('.git/config') === '[core]\n' && onDisk('.git/hooks/pre-commit') === null, greet: onDisk('greet.js') === greetB.replace('Hey, ${name}!', 'Hello again, ${name}!'), readme: onDisk('README.md') === readme0 };
+	check(e5?.tools?.length === 5 && e5.tools.every(c => c.status === 'failed' && c.asks.length === 0) && result.edits.refused.git && result.edits.refused.greet && result.edits.refused.readme, `edits: a change that cannot be made was asked about, or touched a file (${js(result.edits.refused)})`);
+	check(/inside \.git/.test(e5Results[0]?.text ?? '') && /inside \.git/.test(e5Results[1]?.text ?? '') && /already exists/.test(e5Results[2]?.text ?? '') && /outside the workspace/.test(e5Results[3]?.text ?? '') && /not found/.test(e5Results[4]?.text ?? ''), `edits: the model was not told why each change could not be made — .git, also through a link to it (${js(result.edits.refused.results)})`);
+
+	log('edits: a change that builds on another in its round, and one asked for twice');
+	from = (await stubRequests()).length;
+	const e5b = await proposeAndWait([{ create: 'notes2.md', content: 'one\n' }, { edit: 'notes2.md', search: 'one', replace: 'one\ntwo' }, { edit: 'notes2.md', search: 'one', replace: 'one\ntwo' }], 2);
+	await until(s => last(s)?.batches?.[0]?.armed === true, 5000);
+	await panel.evaluate(clickText('.turn:last-child .edit-batch button', 'Accept all'));
+	const e5bDone = await answered();
+	const e5bResults = resultsOf((await anthropicSince(from))[1]);
+	result.edits.building = { proposed: cardsOf(e5b.ready).map(c => [c.label, c.status]), done: e5bDone?.tools?.map(c => c.status), results: e5bResults.map(r => r.text.slice(0, 70)), notes2: onDisk('notes2.md') };
+	check(js(result.edits.building.proposed) === js([['Create notes2.md', 'waiting'], ['Edit notes2.md', 'waiting'], ['Edit notes2.md', 'failed']]) && /repeats/.test(e5bResults[2]?.text ?? ''), `edits: a change building on another in its round was not proposed, or one asked for twice was (${js(result.edits.building)})`);
+	check(js(result.edits.building.done) === js(['done', 'done', 'failed']) && result.edits.building.notes2 === 'one\ntwo\n', `edits: Accept all did not make the new file and the change built on it, once (${js(result.edits.building)})`);
+
+	log('edits: Auto-accept edits applies as it comes, its diff a click away');
+	await panel.evaluate(choose('footer select[title="Edits"]', 'auto'));
+	await until(s => s.edits === 'auto', 5000);
+	const greetC = onDisk('greet.js');
+	const e6 = await ask(proposeText([{ edit: 'greet.js', search: 'Hello again, ${name}!', replace: HELLO }]), 30000);
+	const e6Card = e6?.tools?.[0];
+	await onCard(e6Card?.id, 'Show diff');
+	const e6Diff = await diffOf((await within(async () => diffTabs(), tabs => tabs.some(t => t.shown && t.modified.startsWith('sirius-change:')))).find(t => t.shown));
+	await sleep(500);
+	const e6Actions = await win.evaluate(`[...document.querySelectorAll('.editor-actions .action-label')].map(a => a.getAttribute('aria-label') ?? '')`);
+	await vscode.window.tabGroups.close(vscode.window.tabGroups.all.flatMap(g => g.tabs).filter(t => t.input?.modified?.scheme === 'sirius-change'));
+	log('edits: under Auto-accept edits, a file that can run code still asks; one with unsaved changes is not saved');
+	const settings0 = onDisk('.vscode/settings.json');
+	fs.symlinkSync('.vscode', path.join(WS, 'vslink'));
+	const guardedWait = await proposeAndWait([{ edit: '.vscode/settings.json', search: 'sirius.ai.groq.baseUrl', replace: 'sirius.ai.groq.baseUrlChanged' }, { edit: 'vslink/settings.json', search: 'sirius.ai.groq.baseUrl', replace: 'sirius.ai.groq.baseUrlLinked' }], 1);
+	const guardedCard = waitingCards(guardedWait.ready)[0];
+	const guardedNote = await panel.evaluate(`document.querySelector('.turn:last-child .tool.waiting .edit-why')?.textContent ?? ''`);
+	await onCard(guardedCard?.id, 'Reject');
+	const linkedWait = await until(s => waitingCards(s).length === 1 && waitingCards(s)[0].id !== guardedCard?.id && waitingCards(s)[0].armed, 15000);
+	const linkedCard = waitingCards(linkedWait)[0];
+	await onCard(linkedCard?.id, 'Reject');
+	const guardedDone = await answered();
+	result.edits.guarded = { cards: [guardedCard?.label, linkedCard?.label], note: guardedNote.slice(0, 80), done: guardedDone?.tools?.map(c => c.status), settings: onDisk('.vscode/settings.json') === settings0 };
+	check(guardedCard?.label === 'Edit .vscode/settings.json' && linkedCard?.label === 'Edit vslink/settings.json' && /accepted only here/.test(guardedNote) && js(result.edits.guarded.done) === js(['denied', 'denied']) && result.edits.guarded.settings, `edits: under Auto-accept edits a change to .vscode/settings.json, or to it through a link, did not wait for the user (${js(result.edits.guarded)})`);
+	const readmeE = onDisk('README.md');
+	const dirtyDoc = await vscode.workspace.openTextDocument(vscode.Uri.file(path.join(WS, 'README.md')));
+	const dirtyEditor = await vscode.window.showTextDocument(dirtyDoc, { preview: false });
+	await dirtyEditor.edit(b => b.insert(new vscode.Position(dirtyDoc.lineCount - 1, 0), 'A line the user is still writing\n'));
+	const dirtyAnswer = await ask(proposeText([{ edit: 'README.md', search: 'A small workspace', replace: 'A dirty workspace' }]), 30000);
+	result.edits.unsaved = { card: dirtyAnswer?.tools?.[0]?.status, disk: onDisk('README.md') === readmeE, buffer: dirtyDoc.getText().includes('A dirty workspace') && dirtyDoc.getText().includes('A line the user is still writing'), dirty: dirtyDoc.isDirty, told: /not saved/.test(dirtyAnswer?.text ?? '') };
+	await vscode.window.showTextDocument(dirtyDoc);
+	await vscode.commands.executeCommand('workbench.action.files.revert');
+	await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+	check(result.edits.unsaved.card === 'done' && result.edits.unsaved.disk && result.edits.unsaved.buffer && result.edits.unsaved.dirty && result.edits.unsaved.told, `edits: a change to a file with unsaved changes was saved with them, or not made (${js(result.edits.unsaved)})`);
+	// Switched back quickly: the next change must wait for the user, whatever VS Code echoes back.
+	for (const edits of ['ask', 'auto', 'ask']) {
+		await panel.evaluate(choose('footer select[title="Edits"]', edits));
+	}
+	await until(s => s.edits === 'ask', 5000);
+	result.edits.auto = { card: e6Card && { status: e6Card.status, statusText: e6Card.statusText, asks: e6Card.asks }, greet: onDisk('greet.js') === greetC.replace('Hello again, ${name}!', HELLO), diff: e6Diff && { scheme: e6Diff.scheme, original: e6Diff.original === greetC, modified: e6Diff.modified === onDisk('greet.js') }, titleActions: e6Actions };
+	check(e6Card?.status === 'done' && e6Card.statusText === 'Applied' && js(e6Card.asks) === js(['Show diff']) && result.edits.auto.greet, `edits: under Auto-accept edits the change did not apply as it came (${js(result.edits.auto)})`);
+	check(e6Diff?.scheme === 'sirius-change' && result.edits.auto.diff.original && result.edits.auto.diff.modified && !e6Actions.some(l => /^Accept Change/.test(l)), `edits: Show diff on an applied change did not show it, only to look at (${js(result.edits.auto)})`);
+	save();
+
+	log('edits: Stop while a change waits');
+	const readmeD = onDisk('README.md');
+	await proposeAndWait([{ edit: 'README.md', search: 'A small workspace', replace: 'A stopped workspace' }], 1);
+	await within(async () => proposalTabs(), tabs => tabs.length === 1, 5000);
+	await panel.evaluate(click('button[title="Stop"]'));
+	const e7 = last(await until(s => !s.stop && !last(s)?.streaming, 10000));
+	const e7Tabs = await within(async () => proposalTabs(), tabs => tabs.length === 0, 5000);
+	from = (await stubRequests()).length;
+	const e7Next = await ask('a plain question after the stopped change');
+	const e7Request = (await anthropicSince(from))[0];
+	const e7Kept = (e7Request?.body?.messages ?? []).flatMap(m => Array.isArray(m.content) ? m.content.filter(b => b.type === 'tool_result') : []).map(b => typeof b.content === 'string' ? b.content : js(b.content)).pop() ?? '';
+	result.edits.stop = { card: e7?.tools?.[0]?.status, readme: onDisk('README.md') === readmeD, tabs: e7Tabs.length, next: { status: e7Request?.status, text: e7Next?.text?.slice(0, 60), kept: e7Kept.slice(0, 60) } };
+	check(result.edits.stop.card === 'stopped' && result.edits.stop.readme && result.edits.stop.tabs === 0, `edits: Stop did not stop the waiting change, leave the file and close its diff (${js(result.edits.stop)})`);
+	check(e7Request?.status === 200 && /pong a plain question after the stopped change/.test(e7Next?.text ?? '') && /Stopped by the user/.test(e7Kept), `edits: the question after the stopped change was not answered on that history (${js(result.edits.stop.next)})`);
+	await panel.evaluate(choose('footer select[title="Mode"]', 'agent'));
+	await sleep(300);
+
+	log('edits: a round that mixes changes with another tool: a change after the tool waits for it');
+	await panel.evaluate(sendText(proposeText([{ edit: 'README.md', search: 'A small workspace', replace: 'A mixed workspace' }, { call: 'harness_ping' }, { edit: 'greet.js', search: HELLO, replace: HI }])));
+	await until(s => waitingCards(s).length >= 1 && waitingCards(s).every(c => c.armed), 30000);
+	await sleep(500);
+	const mixedFirst = await snap();
+	await onCard(waitingCards(mixedFirst)[0]?.id, 'Accept');
+	const mixedPing = await until(s => cardsOf(s).some(c => c.label === 'harness ping' && c.status === 'waiting' && c.armed), 15000);
+	const pingAllowed = await panel.evaluate(clickText('.turn:last-child .tool.waiting .tool-ask button', 'Allow once'));
+	const mixedLast = await until(s => cardsOf(s).some(c => c.label === 'Edit greet.js' && c.status === 'waiting' && c.armed), 15000);
+	await onCard(cardsOf(mixedLast).find(c => c.label === 'Edit greet.js')?.id, 'Accept');
+	const mixedDone = await answered();
+	result.edits.mixed = { first: cardsOf(mixedFirst).map(c => [c.label, c.status]), ping: cardsOf(mixedPing).map(c => [c.label, c.status]), allowed: pingAllowed, done: mixedDone?.tools?.map(c => [c.label, c.status]), readme: /A mixed workspace/.test(onDisk('README.md') ?? ''), greet: onDisk('greet.js')?.includes(HI) };
+	check(js(result.edits.mixed.first) === js([['Edit README.md', 'waiting']]) && js(result.edits.mixed.ping) === js([['Edit README.md', 'done'], ['harness ping', 'waiting']]), `edits: a change after another tool in its round was proposed before that tool ran (${js(result.edits.mixed)})`);
+	check(js(result.edits.mixed.done) === js([['Edit README.md', 'done'], ['harness ping', 'done'], ['Edit greet.js', 'done']]) && result.edits.mixed.readme && result.edits.mixed.greet, `edits: the mixed round did not run in its order and reach both files (${js(result.edits.mixed)})`);
+	save();
+
 	// ── copy ──────────────────────────────────────────────────────────────────
 	log('copy: a code block\'s Copy');
 	const shown = await ask('show me');
@@ -980,6 +1332,28 @@ exports.run = async function (vscode) {
 	save();
 
 	// ── reload ────────────────────────────────────────────────────────────────
+	log('reload: in the tab, one change applied while the other waits');
+	const tabAgain = await connectWebview(EXTENSION, 'webviewPanel');
+	const tabUntil = async (ok, ms = 20000) => {
+		let s;
+		for (const deadline = Date.now() + ms; Date.now() < deadline;) {
+			s = await tabAgain.evaluate(SNAPSHOT);
+			if (!s.noContent && ok(s)) { return s; }
+			await sleep(150);
+		}
+		return s;
+	};
+	result.tabReload = { readme: onDisk('README.md'), greet: onDisk('greet.js') };
+	await tabAgain.evaluate(sendText(proposeText([{ edit: 'README.md', search: 'A mixed workspace', replace: 'A waiting workspace' }, { edit: 'greet.js', search: HI, replace: 'Hi there, ${name}!' }])));
+	const tabWaiting = await tabUntil(s => waitingCards(s).length === 2 && waitingCards(s).every(c => c.armed), 30000);
+	const tabGreet = waitingCards(tabWaiting).find(c => c.label === 'Edit greet.js');
+	await tabAgain.evaluate(clickText(`.turn:last-child .tool[data-call=${js(tabGreet?.id ?? '-')}] .tool-ask button`, 'Accept'));
+	await within(async () => onDisk('greet.js'), text => text?.includes('Hi there') ?? false);
+	const tabApplied = await tabUntil(s => cardsOf(s).some(c => c.label === 'Edit greet.js' && c.status === 'done'), 5000);
+	result.tabReload.atReload = cardsOf(tabApplied).map(c => [c.label, c.status]);
+	check(js(result.tabReload.atReload) === js([['Edit README.md', 'waiting'], ['Edit greet.js', 'done']]), `reload: in the tab, the change accepted while the other waited was not applied (${js(result.tabReload)})`);
+	tabAgain.close();
+
 	log('reload: the window reloads while a card waits');
 	const reloadFrom = (await snap()).turns.length;
 	await panel.evaluate(sendText('use sirius_list_directory then harness_ping'));

@@ -10,8 +10,9 @@
 # write_note, which VS Code asks about); probe-tools-ext adds another extension's tool.
 #   test/harness/edition-stub.sh <vscode-dir> <probe.js> [result.json]
 # Probes written for it: probes/panel.js — Sirius's panel: the walkthrough, setup, every provider
-# family, thinking, replay, modes and effort, Copy, errors, Stop, Retry, the send key,
-# conversations, a tab, a reload, the page's security policy, the key at rest.
+# family, thinking, replay, modes and effort, tools and approvals, changes to files reviewed in the
+# diff editor, Copy, errors, Stop, Retry, the send key, conversations, a tab, a reload, the page's
+# security policy, the key at rest.
 
 set -euo pipefail
 APP=${1:?vscode dir, e.g. ~/.cache/sirius-verify/vscode-1.146.0/VSCode-linux-x64}

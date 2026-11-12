@@ -65,6 +65,11 @@
 // does, Anthropic refuses with its 400 a repeated tool_use id, one outside ^[a-zA-Z0-9_-]+$, input
 // that is not an object, and a call and its result that do not pair up. Ollama's and Gemini's
 // answers too are the current question's.
+// Changes to files, on Anthropic's shape: a chat that says "propose [...]", offered sirius_edit_file,
+// answers with one call per entry of that JSON list, all in one response — `{ "edit": <path>,
+// "search", "replace" }` calls sirius_edit_file, `{ "create": <path>, "content" }` sirius_create_file,
+// `{ "call": <tool> }` that tool with { text: "marco" } — and, given their results, "pong tool <the
+// last result>".
 // Errors, on Anthropic's shape: a chat that says "overloaded" is answered HTTP 529 with Anthropic's
 // overloaded_error body; one that says "overloaded midway", streamed, starts its answer ("Half an
 // answer") and then sends the stream's `error` event with that body and ends, as Anthropic does.
@@ -207,6 +212,15 @@ function reply(ask) {
 	}
 	if (ask.result !== undefined) {
 		return { text: `pong tool ${ask.result}`.trim() };
+	}
+	const changes = /\bpropose (\[[\s\S]*\])/.exec(ask.text);
+	if (changes && ask.tools.includes('sirius_edit_file')) {
+		const calls = JSON.parse(changes[1]).map(change => change.call !== undefined
+			? { name: change.call, args: { text: 'marco' } }
+			: change.create !== undefined
+				? { name: 'sirius_create_file', args: { path: change.create, content: change.content } }
+				: { name: 'sirius_edit_file', args: { path: change.edit, search: change.search, replace: change.replace } });
+		return { call: calls[0], calls };
 	}
 	if (ask.tools.includes('get_weather') && /weather/i.test(ask.text)) {
 		return { call: WEATHER_CALL };
@@ -412,12 +426,14 @@ async function anthropicMessages(body, res, record) {
 	const reasoning = thinking ? reasoningBlocks(body, round, bindingOf(body)) : [];
 	remember(reasoning);
 	const callId = `toolu_stub_${record.n}`;
+	// Each call its own id: the first as it always was, the others numbered after it.
+	const calls = (answer.calls ?? (answer.call ? [answer.call] : [])).map((call, n) => ({ ...call, id: n ? `${callId}_${n}` : callId }));
 	if (!body.stream) {
 		if (answer.hold) { await hold(res, record); }
 		const content = [
 			...reasoning,
-			...(answer.call
-				? [{ type: 'tool_use', id: callId, name: answer.call.name, input: answer.call.args }]
+			...(calls.length
+				? calls.map(call => ({ type: 'tool_use', id: call.id, name: call.name, input: call.args }))
 				: [{ type: 'text', text }])
 		];
 		json(res, 200, { id: 'msg_stub', type: 'message', role: 'assistant', model: body.model, content, stop_reason: answer.call ? 'tool_use' : 'end_turn', stop_sequence: null, usage: { input_tokens: 12, cache_creation_input_tokens: 30, cache_read_input_tokens: 100, output_tokens: 3 } });
@@ -450,9 +466,15 @@ async function anthropicMessages(body, res, record) {
 		event('content_block_stop', { index });
 		index++;
 	}
-	if (answer.call) {
-		event('content_block_start', { index, content_block: { type: 'tool_use', id: callId, name: answer.call.name, input: {} } });
-		event('content_block_delta', { index, delta: { type: 'input_json_delta', partial_json: JSON.stringify(answer.call.args) } });
+	if (calls.length) {
+		for (const [n, call] of calls.entries()) {
+			if (n) {
+				event('content_block_stop', { index });
+				index++;
+			}
+			event('content_block_start', { index, content_block: { type: 'tool_use', id: call.id, name: call.name, input: {} } });
+			event('content_block_delta', { index, delta: { type: 'input_json_delta', partial_json: JSON.stringify(call.args) } });
+		}
 	} else {
 		event('content_block_start', { index, content_block: { type: 'text', text: '' } });
 		event('content_block_delta', { index, delta: { type: 'text_delta', text } });
