@@ -4,12 +4,12 @@
  *  Licensed under the MIT License.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
 import {
 	IAIProvider, SiriusModel, ChatRequest, ChatChunk, ChatMessage, ImagePart,
 	ProviderType, StopReason, ToolCallRequest, KeySource
 } from '../types';
 import { ConnectionCheck, checkEndpoint, closeOnAbort } from './connection';
+import { userSetting } from './userSetting';
 
 /**
  * Describes one service that speaks the OpenAI chat-completions shape.
@@ -21,7 +21,7 @@ import { ConnectionCheck, checkEndpoint, closeOnAbort } from './connection';
 export interface OpenAICompatibleConfig {
 	id: ProviderType;
 	name: string;
-	/** Overridable per install via `sirius.ai.<id>.baseUrl`. */
+	/** Overridable per install via the user's own `sirius.ai.<id>.baseUrl` (never a workspace's). */
 	defaultBaseUrl: string;
 	/** Local runtimes accept any key, or none. */
 	requiresKey: boolean;
@@ -184,7 +184,7 @@ export class OpenAICompatibleProvider implements IAIProvider {
 	/** Filled by discovery; falls back to the configured ids. */
 	private _models: SiriusModel[] = [];
 
-	/** @param baseUrlOverride a configured endpoint; else `sirius.ai.<id>.baseUrl`, else the table's default. */
+	/** @param baseUrlOverride a configured endpoint; else the user's `sirius.ai.<id>.baseUrl`, else the table's default. */
 	constructor(
 		private readonly config: OpenAICompatibleConfig,
 		private readonly secrets: KeySource,
@@ -200,10 +200,7 @@ export class OpenAICompatibleProvider implements IAIProvider {
 	// ─── Configuration ───────────────────────────────────────────────────────
 
 	private _baseUrl(): string {
-		const configured = this.baseUrlOverride?.trim() || vscode.workspace
-			.getConfiguration(`sirius.ai.${this.config.id}`)
-			.get<string>('baseUrl', '')
-			.trim();
+		const configured = this.baseUrlOverride?.trim() || userSetting(`sirius.ai.${this.config.id}`, 'baseUrl');
 		return (configured || this.config.defaultBaseUrl).replace(/\/+$/, '');
 	}
 

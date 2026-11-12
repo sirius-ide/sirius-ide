@@ -7,6 +7,7 @@
 import * as vscode from 'vscode';
 import { IAIProvider, SiriusModel, ChatRequest, ChatChunk, ChatMessage, ImagePart, ProviderType, ToolCallRequest, ToolDefinition, StopReason } from '../types';
 import { ConnectionCheck, checkEndpoint, closeOnAbort } from './connection';
+import { userSetting } from './userSetting';
 
 /** A tool call as Ollama reports it. Ollama assigns no id, so we synthesise one. */
 interface OllamaToolCall {
@@ -39,12 +40,11 @@ export class OllamaProvider implements IAIProvider {
 	readonly name = 'Ollama (Local)';
 	readonly models: SiriusModel[] = []; // Dynamically populated
 
-	/** @param endpointOverride a configured Ollama on another host; else `sirius.ai.ollama.endpoint`. */
+	/** @param endpointOverride a configured Ollama on another host; else the user's `sirius.ai.ollama.endpoint`. */
 	constructor(private readonly endpointOverride?: string) { }
 
 	private getEndpoint(): string {
-		const endpoint = this.endpointOverride?.trim()
-			|| vscode.workspace.getConfiguration('sirius.ai.ollama').get<string>('endpoint', 'http://localhost:11434');
+		const endpoint = this.endpointOverride?.trim() || userSetting('sirius.ai.ollama', 'endpoint') || 'http://localhost:11434';
 		return endpoint.replace(/\/+$/, '');
 	}
 
