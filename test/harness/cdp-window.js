@@ -39,11 +39,16 @@ async function connect(target, wrap = expression => expression) {
 	await new Promise((resolve, reject) => { ws.onopen = resolve; ws.onerror = () => reject(new Error('CDP connection failed')); });
 	let id = 0;
 	const pending = new Map();
+	const listeners = new Map();
 	ws.onmessage = event => {
 		const message = JSON.parse(event.data);
 		if (message.id && pending.has(message.id)) {
 			pending.get(message.id)(message);
 			pending.delete(message.id);
+		} else if (message.method) {
+			for (const listener of listeners.get(message.method) ?? []) {
+				listener(message.params);
+			}
 		}
 	};
 	const call = (method, params) => new Promise(resolve => {
@@ -58,6 +63,10 @@ async function connect(target, wrap = expression => expression) {
 				throw new Error(`page: ${answer.result.exceptionDetails.exception?.description ?? answer.result.exceptionDetails.text}`);
 			}
 			return answer.result?.result?.value;
+		},
+		/** Calls `listener` with each `method` event's params (`Log.entryAdded` once `Log.enable` is sent). */
+		on(method, listener) {
+			listeners.set(method, [...(listeners.get(method) ?? []), listener]);
 		},
 		/** Any CDP method, for what `evaluate` does not cover (a screenshot: `Page.captureScreenshot`). */
 		async send(method, params = {}) {

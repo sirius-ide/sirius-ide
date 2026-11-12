@@ -18,6 +18,10 @@
 // first chunk and then held — the connection stays open until the client closes it, or for
 // 60 s — a line `{"holding":…}` says the hold began and `{"held":…,"released":"close"|"timeout",
 // "heldMs":…}` how it ended, so a probe can show that a stopped request ended at the server.
+// Usage, as OpenAI gives it: an unstreamed answer carries it; a streamed one ends with a chunk of
+// no choices and the usage (12 in, 3 out) only when the request asked with
+// `stream_options.include_usage` — the request's line says whether it did (`streamUsage`), and
+// which question it carried (`ask`, the last user message's first 80 characters).
 //
 //   node test/harness/openai-stub.mjs <port> <key>
 
@@ -58,7 +62,8 @@ http.createServer(async (req, res) => {
 	const body = JSON.parse(Buffer.concat(chunks).toString() || '{}');
 	const tools = (body.tools ?? []).map(t => t.function?.name).filter(Boolean);
 	const instructions = (body.messages ?? []).some(m => typeof m.content === 'string' && m.content.includes('STUB-INSTRUCTIONS'));
-	console.log(JSON.stringify({ method: req.method, url: req.url, authorized, ...(tools.length ? { tools, instructions } : {}) }));
+	const asked = [...(body.messages ?? [])].reverse().find(m => m.role === 'user');
+	console.log(JSON.stringify({ method: req.method, url: req.url, authorized, ...(tools.length ? { tools, instructions } : {}), ...(body.stream ? { streamUsage: body.stream_options?.include_usage === true } : {}), ...(typeof asked?.content === 'string' ? { ask: asked.content.slice(0, 80) } : {}) }));
 	if (!authorized) {
 		res.writeHead(401, { 'content-type': 'application/json' });
 		res.end(JSON.stringify({ error: { message: 'invalid api key' } }));
@@ -70,6 +75,13 @@ http.createServer(async (req, res) => {
 		return;
 	}
 	if (req.method === 'POST' && req.url === '/v1/chat/completions') {
+		const usage = { prompt_tokens: 12, completion_tokens: 3, total_tokens: 15 };
+		const end = () => {
+			if (body.stream_options?.include_usage === true) {
+				res.write(`data: ${JSON.stringify({ choices: [], usage })}\n\n`);
+			}
+			res.end('data: [DONE]\n\n');
+		};
 		const messages = body.messages ?? [];
 		const last = [...messages].reverse().find(m => m.role === 'user');
 		const task = typeof last?.content === 'string' ? last.content : '';
@@ -87,10 +99,10 @@ http.createServer(async (req, res) => {
 				res.writeHead(200, { 'content-type': 'text/event-stream' });
 				res.write(`data: ${JSON.stringify({ choices: [{ index: 0, delta: { role: 'assistant', tool_calls: [{ index: 0, ...call }] } }] })}\n\n`);
 				res.write(`data: ${JSON.stringify({ choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }] })}\n\n`);
-				res.end('data: [DONE]\n\n');
+				end();
 			} else {
 				res.writeHead(200, { 'content-type': 'application/json' });
-				res.end(JSON.stringify({ choices: [{ index: 0, message: { role: 'assistant', content: null, tool_calls: [call] }, finish_reason: 'tool_calls' }] }));
+				res.end(JSON.stringify({ choices: [{ index: 0, message: { role: 'assistant', content: null, tool_calls: [call] }, finish_reason: 'tool_calls' }], usage }));
 			}
 			return;
 		}
@@ -105,13 +117,13 @@ http.createServer(async (req, res) => {
 				return;
 			}
 			res.write(`data: ${JSON.stringify({ choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] })}\n\n`);
-			res.end('data: [DONE]\n\n');
+			end();
 		} else {
 			if (holding) {
 				await hold(res, task);
 			}
 			res.writeHead(200, { 'content-type': 'application/json' });
-			res.end(JSON.stringify({ choices: [{ index: 0, message: { role: 'assistant', content: text }, finish_reason: 'stop' }] }));
+			res.end(JSON.stringify({ choices: [{ index: 0, message: { role: 'assistant', content: text }, finish_reason: 'stop' }], usage }));
 		}
 		return;
 	}
