@@ -84,6 +84,14 @@
 //               answered on that history. In Agent, a round of a change, another extension's tool and
 //               a change proposes the second change only after the tool ran. Every check reads the
 //               files on disk.
+//   context   — greet.js open with lines selected: the composer shows the file and the lines as chips,
+//               and the question carries the selection before its words, its bubble saying so; with
+//               the selection chip off it carries the lines around the cursor; with both off, its
+//               words alone; a closed editor's file is no longer offered. "@READ" offers README.md
+//               first; Enter takes it, and the question carries it between nonce-named tags. A file
+//               outside the workspace chosen in VS Code's file picker (its simple dialog) goes with
+//               the question. A pasted image reaches Anthropic as an image and Ollama's text-only
+//               model as a note. The next question's history carries all of them as they went.
 //   copy      — a code block's Copy puts its code on the clipboard.
 //   errors    — Anthropic's HTTP 529 is shown with its message, and an error event mid-answer
 //               keeps the half answer and says what happened; Retry is offered on both.
@@ -95,7 +103,8 @@
 //   sessions  — the conversations list holds this one and the providers' one; New starts an empty
 //               one; opening the old one brings its turns back; deleting the providers' one takes
 //               it, and only it, off the list.
-//   tab       — Open in New Tab gives a second panel, a new conversation, with the same models.
+//   tab       — Open in New Tab gives a second panel, a new conversation, with the same models; opened
+//               over greet.js in its group, hiding it, the panel still offers and sends greet.js.
 //   csp       — no page of the panel logged a content-security violation; one made on purpose is
 //               seen, so the check can see one.
 //   sanitising — an answer that tries to run code, post a key away, restyle the panel or draw its
@@ -158,6 +167,7 @@ const SNAPSHOT = `({
 		const thinking = t.querySelector('.thinking');
 		return {
 			role: t.classList.contains('user') ? 'user' : 'assistant',
+			attached: [...t.querySelectorAll('.attached .chip')].map(c => c.textContent),
 			streaming: t.classList.contains('streaming'),
 			text: t.classList.contains('user') ? t.querySelector('.bubble')?.textContent ?? '' : [...t.querySelectorAll(':scope > .markdown')].map(m => m.textContent).join(''),
 			tools: [...t.querySelectorAll(':scope > .tool')].map(c => ({ id: c.dataset.call, label: c.querySelector('.tool-label')?.textContent ?? '', status: ['running', 'waiting', 'done', 'failed', 'denied', 'stopped'].find(k => c.classList.contains(k)) ?? '', statusText: c.querySelector('.tool-status')?.textContent ?? '', asks: [...c.querySelectorAll('.tool-ask button')].map(b => b.textContent), armed: [...c.querySelectorAll('.tool-ask button.allow')].some(b => !b.disabled), waitedMs: Number(c.dataset.waitedMs ?? -1), input: c.querySelector('.tool-input')?.textContent ?? '', edit: c.classList.contains('edit'), counts: c.querySelector('.edit-counts')?.textContent ?? '', batch: c.dataset.batch ?? '' })),
@@ -172,6 +182,8 @@ const SNAPSHOT = `({
 	models: [...document.querySelectorAll('footer select[title="Model"] option')].map(o => o.value),
 	model: document.querySelector('footer select[title="Model"]')?.value ?? null,
 	edits: document.querySelector('footer select[title="Edits"]')?.hidden ? null : document.querySelector('footer select[title="Edits"]')?.value ?? null,
+	chips: [...document.querySelectorAll('footer .chips .chip')].map(c => ({ text: c.querySelector('.chip-label')?.textContent ?? '', on: !c.classList.contains('off') })),
+	suggest: document.querySelector('footer .suggest')?.hidden ? [] : [...document.querySelectorAll('footer .suggest .suggestion')].map(x => x.textContent),
 	placeholder: document.querySelector('footer textarea')?.placeholder ?? '',
 	stop: !document.querySelector('button[title="Stop"]')?.hidden,
 	sessions: [...document.querySelectorAll('ul.sessions .session-title')].map(e => e.textContent),
@@ -182,6 +194,18 @@ const click = selector => `(() => { const b = document.querySelector(${js(select
 /** Types `text` into the message box and presses Enter, with the modifier keys in `keys`. */
 const press = (text, keys = {}) => `(() => { const t = document.querySelector('footer textarea'); t.value = ${js(text)}; t.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true, ...${js(keys)} })); return true; })()`;
 const sendText = text => press(text);
+/** Types `text` into the message box, the cursor at its end, as a person would (an input event). */
+const typeText = text => `(() => { const t = document.querySelector('footer textarea'); t.focus(); t.value = ${js(text)}; t.setSelectionRange(t.value.length, t.value.length); t.dispatchEvent(new window.Event('input', { bubbles: true })); return true; })()`;
+/** A key pressed in the message box, its text left as it is. */
+const key = (name, keys = {}) => `(() => { document.querySelector('footer textarea').dispatchEvent(new window.KeyboardEvent('keydown', { key: ${js(name)}, bubbles: true, cancelable: true, ...${js(keys)} })); return true; })()`;
+/** A 1×1 PNG, pasted. */
+const PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==';
+const pasteImage = `(() => { const t = document.querySelector('footer textarea'); const bytes = Uint8Array.from(atob(${js(PNG)}), c => c.charCodeAt(0)); const data = new window.DataTransfer(); data.items.add(new window.File([bytes], 'shot.png', { type: 'image/png' })); t.dispatchEvent(new window.ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true })); return true; })()`;
+/** The text of a request's last user message, in any vendor's shape. */
+const lastUserText = request => {
+	const message = [...(request?.body?.messages ?? [])].reverse().find(m => m.role === 'user');
+	return typeof message?.content === 'string' ? message.content : (message?.content ?? []).map(b => b.text ?? '').join('');
+};
 const choose = (selector, value) => `(() => { const s = document.querySelector(${js(selector)}); if (!s) { return null; } s.value = ${js(value)}; s.dispatchEvent(new window.Event('change', { bubbles: true })); return s.value; })()`;
 const fill = (provider, field, value, button) => `(() => {
 	const row = document.querySelector('[data-provider=${js(provider)}]');
@@ -1112,6 +1136,126 @@ exports.run = async function (vscode) {
 	check(js(result.edits.mixed.done) === js([['Edit README.md', 'done'], ['harness ping', 'done'], ['Edit greet.js', 'done']]) && result.edits.mixed.readme && result.edits.mixed.greet, `edits: the mixed round did not run in its order and reach both files (${js(result.edits.mixed)})`);
 	save();
 
+	// ── context ───────────────────────────────────────────────────────────────
+	log('context: the open file and the selection go with a question, until switched off');
+	const chipNamed = (s, text) => s.chips?.find(c => c.text === text);
+	/** The names on the last question's bubble. */
+	const bubble = async () => (await snap()).turns.filter(t => t.role === 'user').pop()?.attached;
+	const greetDoc = await vscode.workspace.openTextDocument(vscode.Uri.file(path.join(WS, 'greet.js')));
+	const greetEditor = await vscode.window.showTextDocument(greetDoc, { preview: false });
+	const fnLine = greetDoc.getText().split('\n').findIndex(line => line.startsWith('export function greet'));
+	greetEditor.selection = new vscode.Selection(fnLine, 0, fnLine + 2, 1);
+	const selectionChip = `lines ${fnLine + 1}-${fnLine + 3}`;
+	const withChips = await until(s => !!chipNamed(s, 'greet.js') && !!chipNamed(s, selectionChip), 5000);
+	from = (await stubRequests()).length;
+	await ask('context one: what is selected?');
+	const c1 = { attached: await bubble() };
+	const c1Text = lastUserText((await anthropicSince(from))[0]);
+	await panel.evaluate(clickText('footer .chips .chip-label', selectionChip));
+	await until(s => chipNamed(s, selectionChip)?.on === false, 3000);
+	from = (await stubRequests()).length;
+	await ask('context two: and around the cursor?');
+	const c2Text = lastUserText((await anthropicSince(from))[0]);
+	await panel.evaluate(clickText('footer .chips .chip-label', 'greet.js'));
+	await until(s => chipNamed(s, 'greet.js')?.on === false, 3000);
+	from = (await stubRequests()).length;
+	await ask('context three: nothing else');
+	const c3Text = lastUserText((await anthropicSince(from))[0]);
+	const selected = greetDoc.getText(new vscode.Range(fnLine, 0, fnLine + 2, 1));
+	result.context = {
+		chips: withChips.chips, bubble: c1?.attached,
+		withSelection: { opened: c1Text.includes('The user has "greet.js" open'), selection: c1Text.includes(`the user selected lines ${fnLine + 1}-${fnLine + 3}`) && c1Text.includes(selected), words: c1Text.endsWith('context one: what is selected?') },
+		aroundCursor: { opened: c2Text.includes('The user has "greet.js" open'), around: /around line \d+/.test(c2Text), selection: c2Text.includes('the user selected') },
+		switchedOff: { opened: c3Text.includes('greet.js'), text: c3Text.slice(0, 60) }
+	};
+	check(result.context.withSelection.opened && result.context.withSelection.selection && result.context.withSelection.words && js(c1?.attached) === js([`greet.js:${fnLine + 1}-${fnLine + 3}`]), `context: a question did not carry the selection of the open file before its words, or its bubble did not say so (${js({ ...result.context.withSelection, bubble: c1?.attached })})`);
+	check(result.context.aroundCursor.opened && result.context.aroundCursor.around && !result.context.aroundCursor.selection, `context: with the selection switched off, the question did not carry the lines around the cursor alone (${js(result.context.aroundCursor)})`);
+	check(result.context.withSelection.opened && !result.context.switchedOff.opened && c3Text === 'context three: nothing else', `context: with both switched off, the question still carried the open file, or none ever did (${js(result.context.switchedOff)})`);
+	await panel.evaluate(clickText('footer .chips .chip-label', 'greet.js'));
+	await panel.evaluate(clickText('footer .chips .chip-label', selectionChip));
+	await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+	const closed = await until(s => !chipNamed(s, 'greet.js'), 5000);
+	result.context.closed = closed.chips;
+	check(!!chipNamed(withChips, 'greet.js') && !chipNamed(closed, 'greet.js'), `context: a closed editor's file was still offered, or it never was (${js(closed.chips)})`);
+	save();
+
+	log('context: an @-mention');
+	await panel.evaluate(typeText('context four: read @READ'));
+	const suggested = await until(s => s.suggest.includes('README.md'), 5000);
+	await panel.evaluate(key('Enter'));
+	const mentioned = await until(s => !!chipNamed(s, '@README.md'), 3000);
+	const typed = await panel.evaluate(`document.querySelector('footer textarea').value`);
+	from = (await stubRequests()).length;
+	const beforeMention = mentioned.turns.length;
+	await panel.evaluate(key('Enter'));
+	await until(s => s.turns.length >= beforeMention + 2 && !last(s).streaming && !s.stop, 20000);
+	const c4 = { attached: await bubble() };
+	const c4Text = lastUserText((await anthropicSince(from))[0]);
+	const readmeNow = onDisk('README.md');
+	result.context.mention = { suggested: suggested.suggest.slice(0, 3), typed, chips: mentioned.chips, bubble: c4?.attached, fenced: /<attachment-[0-9a-f]{12} path="README\.md">/.test(c4Text) && c4Text.includes(readmeNow.trim()) };
+	check(suggested.suggest[0] === 'README.md' && typed === 'context four: read @README.md ' && result.context.mention.fenced && js(c4?.attached) === js(['README.md']), `context: an @-mention did not offer README.md, or did not carry it, fenced, with the question (${js(result.context.mention)})`);
+	check(mentioned.chips.length === 1, `context: the @-mention left other chips on the composer (${js(mentioned.chips)})`);
+	save();
+
+	log('context: a file outside the workspace, chosen in VS Code\'s file picker');
+	const outside = path.join(PROFILE ?? WS, 'outside-note.txt');
+	fs.writeFileSync(outside, 'A note kept outside the workspace, attached by the user.\n');
+	await vscode.workspace.getConfiguration().update('files.simpleDialog.enable', true, vscode.ConfigurationTarget.Global);
+	await panel.evaluate(click('button[title="Attach files"]'));
+	let dialogInput = false;
+	for (let i = 0; i < 40 && !dialogInput; i++) {
+		dialogInput = await win.evaluate(`(() => { const i = document.querySelector('.quick-input-widget:not([style*="display: none"]) input.input'); if (!i) { return false; } i.focus(); i.select(); return true; })()`);
+		if (!dialogInput) { await sleep(250); }
+	}
+	if (dialogInput) {
+		await win.send('Input.insertText', { text: outside });
+		await sleep(300);
+		await win.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 });
+		await win.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 });
+	}
+	// A file outside the workspace goes by its name alone: its folder would tell a vendor the user's home.
+	const attachedChip = await until(s => !!chipNamed(s, 'outside-note.txt'), 8000);
+	from = (await stubRequests()).length;
+	await ask('context five: what does the note say?');
+	const c5 = { attached: await bubble() };
+	const c5Text = lastUserText((await anthropicSince(from))[0]);
+	await vscode.workspace.getConfiguration().update('files.simpleDialog.enable', undefined, vscode.ConfigurationTarget.Global);
+	result.context.picked = { dialog: dialogInput, chips: attachedChip.chips, bubble: c5?.attached, carried: c5Text.includes('A note kept outside the workspace'), folderSent: c5Text.includes(path.dirname(outside)) };
+	check(dialogInput && !!chipNamed(attachedChip, 'outside-note.txt') && result.context.picked.carried && !result.context.picked.folderSent && js(c5?.attached) === js(['outside-note.txt']), `context: a file chosen in VS Code's file picker, outside the workspace, did not go with the question by its name alone (${js(result.context.picked)})`);
+	save();
+
+	log('context: a pasted image, to a model that can see and to one that cannot');
+	await panel.evaluate(pasteImage);
+	await until(s => s.chips.some(c => /^image 1 /.test(c.text)), 5000);
+	from = (await stubRequests()).length;
+	await ask('context six: what is in the picture?');
+	const c6 = { attached: await bubble() };
+	const c6Request = (await anthropicSince(from))[0];
+	const c6User = [...(c6Request?.body?.messages ?? [])].reverse().find(m => m.role === 'user');
+	const c6Images = (Array.isArray(c6User?.content) ? c6User.content : []).filter(b => b.type === 'image');
+	await panel.evaluate(choose('footer select[title="Model"]', OTHERS.ollama));
+	await sleep(300);
+	await panel.evaluate(pasteImage);
+	await until(s => s.chips.some(c => /^image 1 /.test(c.text)), 5000);
+	from = (await stubRequests()).length;
+	await ask('context seven: and this one?');
+	const c7Request = (await stubRequests()).slice(from).filter(r => r.path === '/api/chat')[0];
+	const c7User = [...(c7Request?.body?.messages ?? [])].reverse().find(m => m.role === 'user');
+	await panel.evaluate(choose('footer select[title="Model"]', MODEL));
+	await sleep(300);
+	result.context.pictures = { bubble: c6?.attached, claude: c6Images.map(b => b.source?.media_type), ollama: { images: (c7Request?.body?.messages ?? []).flatMap(m => m.images ?? []).length, note: /cannot view images/.test(c7User?.content ?? '') } };
+	check(js(c6?.attached) === js(['image']) && js(result.context.pictures.claude) === js(['image/png']), `context: a pasted image did not reach Anthropic as an image with the question (${js(result.context.pictures)})`);
+	check(c7Request && result.context.pictures.ollama.images === 0 && result.context.pictures.ollama.note, `context: the text-only model was sent the pasted image, or no note (${js(result.context.pictures.ollama)})`);
+
+	log('context: the next question carries the earlier ones as they went');
+	from = (await stubRequests()).length;
+	await ask('context eight: one more');
+	const c8Messages = (await anthropicSince(from))[0]?.body?.messages ?? [];
+	const c8Users = c8Messages.filter(m => m.role === 'user').map(m => typeof m.content === 'string' ? m.content : m.content.map(b => b.type === 'text' ? b.text : `[${b.type}]`).join(''));
+	result.context.history = { readme: c8Users.some(t => /<attachment-[0-9a-f]{12} path="README\.md">/.test(t) && t.includes('context four')), note: c8Users.some(t => t.includes('A note kept outside the workspace')), image: c8Messages.some(m => m.role === 'user' && Array.isArray(m.content) && m.content.some(b => b.type === 'image')) };
+	check(result.context.history.readme && result.context.history.note && result.context.history.image, `context: the next question's history did not carry what the earlier questions carried (${js(result.context.history)})`);
+	save();
+
 	// ── copy ──────────────────────────────────────────────────────────────────
 	log('copy: a code block\'s Copy');
 	const shown = await ask('show me');
@@ -1225,6 +1369,9 @@ exports.run = async function (vscode) {
 
 	// ── tab ───────────────────────────────────────────────────────────────────
 	log('tab');
+	// The tab opens in the file's group, in its place: greet.js is hidden, and still the open file.
+	const greetForTab = await vscode.workspace.openTextDocument(vscode.Uri.file(path.join(WS, 'greet.js')));
+	await vscode.window.showTextDocument(greetForTab, { preview: false });
 	await vscode.commands.executeCommand('sirius.panel.openInTab');
 	const tab = await connectWebview(EXTENSION, 'webviewPanel');
 	const tabLog = [];
@@ -1238,6 +1385,17 @@ exports.run = async function (vscode) {
 	}
 	result.tab = { empty: tabState?.empty, turns: tabState?.turns?.length, models: tabState?.models?.length };
 	check(tabState && tabState.turns.length === 0 && tabState.models.includes(MODEL), `tab: not a new conversation with the models (${JSON.stringify(result.tab)})`);
+	from = (await stubRequests()).length;
+	await tab.evaluate(sendText('a question from the tab'));
+	for (let i = 0; i < 100; i++) {
+		const s = await tab.evaluate(SNAPSHOT);
+		if (!s.noContent && s.turns.length >= 2 && !last(s).streaming && !s.stop) { break; }
+		await sleep(150);
+	}
+	const fromTab = lastUserText((await anthropicSince(from))[0]);
+	result.tab.context = { chips: tabState?.chips, carried: fromTab.includes('The user has "greet.js" open'), greetShown: vscode.window.visibleTextEditors.some(e => e.document.uri.fsPath.endsWith('greet.js')) };
+	check(tabState?.chips?.some(c => c.text === 'greet.js') && result.tab.context.carried && !result.tab.context.greetShown, `tab: opened over greet.js in its group, the panel did not keep greet.js as the open file (${js(result.tab.context)})`);
+	await vscode.window.tabGroups.close(vscode.window.tabGroups.all.flatMap(g => g.tabs).filter(t => t.input?.uri?.fsPath?.endsWith('greet.js')));
 	tab.close();
 
 	// ── csp ───────────────────────────────────────────────────────────────────
