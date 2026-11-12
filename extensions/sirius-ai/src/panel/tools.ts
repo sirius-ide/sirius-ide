@@ -19,7 +19,7 @@ const MAX_SHOWN_CHARS = 2_000;
 /** The images every vision model takes; another type would fail the whole request. */
 const IMAGE_TYPES: ReadonlySet<string> = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp']);
 /** Characters that change how text reads without being seen: shown as their code instead. */
-const UNSEEN = /[\u061C\u200B-\u200F\u202A-\u202E\u2060-\u2069\uFEFF]/g;
+export const UNSEEN = /[\u061C\u200B-\u200F\u202A-\u202E\u2060-\u2069\uFEFF]/g;
 /** Extensions whose tools are their own chat's, written to run inside it: not offered. */
 const OWN_CHAT_EXTENSIONS: ReadonlySet<string> = new Set(['github.copilot-chat', 'github.copilot']);
 

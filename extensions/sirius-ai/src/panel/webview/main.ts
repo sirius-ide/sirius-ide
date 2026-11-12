@@ -290,10 +290,13 @@ function markdown(text: string): HTMLElement {
 			field.remove();
 		}
 	}
-	// Code blocks: themed monospace with a Copy button (Insert and Apply come with editing).
+	// Code blocks: themed monospace; Insert at the cursor, Apply to the open file (reviewed in the diff editor), Copy.
 	for (const pre of Array.from(body.querySelectorAll('pre'))) {
 		const code = pre.textContent ?? '';
-		const wrap = el('div', { class: 'code' }, el('div', { class: 'code-bar' }, iconButton('copy', 'Copy', () => send({ type: 'copy', text: code }))));
+		const wrap = el('div', { class: 'code' }, el('div', { class: 'code-bar' },
+			iconButton('insert', 'Insert at the cursor', () => send({ type: 'insertCode', code })),
+			iconButton('diff-single', 'Apply to the open file', () => send({ type: 'applyCode', code })),
+			iconButton('copy', 'Copy', () => send({ type: 'copy', text: code }))));
 		pre.replaceWith(wrap);
 		wrap.append(pre);
 	}

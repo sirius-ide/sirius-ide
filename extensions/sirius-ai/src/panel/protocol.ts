@@ -197,6 +197,10 @@ export type ToHost =
 	| { readonly type: 'decideAll'; readonly batch: string; readonly choice: Decision }
 	| { readonly type: 'showDiff'; readonly callId: string }
 	| { readonly type: 'searchFiles'; readonly requestId: number; readonly query: string }
+	/** A code block's Insert: at the cursor of the file the user last worked in. */
+	| { readonly type: 'insertCode'; readonly code: string }
+	/** A code block's Apply: proposed for that file, reviewed in the diff editor. */
+	| { readonly type: 'applyCode'; readonly code: string }
 	| { readonly type: 'attach' };
 
 const MAX_TEXT = 200_000;
@@ -231,6 +235,8 @@ export function toHost(value: unknown): ToHost | undefined {
 				images: (images as PastedImage[]).map(image => ({ mimeType: image.mimeType, base64: image.base64 }))
 			} : undefined;
 		}
+		case 'insertCode': case 'applyCode':
+			return str(m.code) ? { type: m.type, code: m.code } : undefined;
 		case 'searchFiles':
 			return typeof m.requestId === 'number' && Number.isSafeInteger(m.requestId) && str(m.query, 500) ? { type: 'searchFiles', requestId: m.requestId, query: m.query } : undefined;
 		case 'openSession': case 'deleteSession':

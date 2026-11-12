@@ -40,6 +40,8 @@ export interface Proposal {
 	readonly removed: number;
 	/** A file that can run code when written: asked about even under Auto-accept edits. */
 	readonly guarded: boolean;
+	/** Where the change goes, by offset, while the document is still at this version: a code block's Apply names a range, not a text. */
+	readonly at?: { readonly start: number; readonly end: number; readonly version: number; readonly document: vscode.TextDocument };
 }
 
 /** A text's lines; a last line break ends the last line rather than starting another. */
@@ -186,6 +188,40 @@ export async function propose(name: string, input: Record<string, unknown>, roun
 	return { uri, path, kind: 'edit', original, proposed, search, replace, guarded: isGuarded, ...lineCounts(original, proposed) };
 }
 
+/**
+ * A code block as it goes into a document: in the document's own line breaks, its last line break
+ * kept only where the range it replaces ends at the start of a line — a block replacing part of a
+ * line, or inserted mid-line, would otherwise break the line after it.
+ */
+export function blockFor(document: vscode.TextDocument, range: vscode.Range, code: string): string {
+	const lines = document.eol === vscode.EndOfLine.CRLF ? code.replace(/\r?\n/g, '\r\n') : code.replace(/\r\n/g, '\n');
+	return range.end.character === 0 ? lines : lines.replace(/\r?\n$/, '');
+}
+
+/**
+ * A code block's Apply, as a proposal for the file the user last worked in: the block in place of
+ * the selection, or at the cursor when nothing is selected — to replace a whole file, select it
+ * all. Only a file of the workspace on this machine's disk; anything else is said why.
+ */
+export async function proposeCode(document: vscode.TextDocument, selection: vscode.Selection, code: string): Promise<Proposal | string> {
+	if (document.uri.scheme !== 'file' || !await isInWorkspace(document.uri)) {
+		return 'Apply changes files of the open workspace: open one, then Apply again.';
+	}
+	const original = document.getText();
+	const replace = blockFor(document, selection, code);
+	const start = document.offsetAt(selection.start);
+	const end = document.offsetAt(selection.end);
+	const proposed = original.slice(0, start) + replace + original.slice(end);
+	if (proposed === original) {
+		return 'The code block is what the file already has there.';
+	}
+	return {
+		uri: document.uri, path: vscode.workspace.asRelativePath(document.uri), kind: 'edit', original, proposed,
+		search: original.slice(start, end), replace, guarded: false, at: { start, end, version: document.version, document },
+		...lineCounts(original, proposed)
+	};
+}
+
 let queue: Promise<unknown> = Promise.resolve();
 
 /**
@@ -228,7 +264,10 @@ async function applyNow(p: Proposal): Promise<{ readonly ok: boolean; readonly t
 	} catch (error) {
 		return { ok: false, text: `${p.path} could not be opened, so the change was not applied: ${message(error)}` };
 	}
-	const found = locate(document.getText(), p.search);
+	// The range named, while the document is at that version and still holds the text there (a file
+	// closed and opened again starts its versions again); otherwise the text, found again.
+	const text = document.getText();
+	const found = p.at && document === p.at.document && document.version === p.at.version && text.slice(p.at.start, p.at.end) === p.search ? p.at : locate(text, p.search);
 	if (typeof found === 'string') {
 		return { ok: false, text: `${p.path} changed after this change was proposed, so it was not applied. ${found}` };
 	}
@@ -299,7 +338,7 @@ export class Diffs implements vscode.TextDocumentContentProvider {
 	 * and Reject in its title bar, while it waits; otherwise only to look at. Beside the panel when
 	 * the panel is a tab.
 	 */
-	async show(id: string, waiting: boolean): Promise<boolean> {
+	async show(id: string, waiting: boolean, preview = true): Promise<boolean> {
 		const proposal = this.kept.get(id);
 		if (!proposal) {
 			return false;
@@ -315,7 +354,7 @@ export class Diffs implements vscode.TextDocumentContentProvider {
 			this.shownAt.set(id, Date.now());
 		}
 		await vscode.commands.executeCommand('vscode.diff', side('original'), side('proposed'), title,
-			{ preview: true, preserveFocus: true, viewColumn: beside ? vscode.ViewColumn.Beside : vscode.ViewColumn.Active });
+			{ preview, preserveFocus: true, viewColumn: beside ? vscode.ViewColumn.Beside : vscode.ViewColumn.Active });
 		// Counted again from when it is on screen: a slow open must not leave its buttons ready at once.
 		if (waiting) {
 			this.shownAt.set(id, Date.now());
@@ -331,6 +370,11 @@ export class Diffs implements vscode.TextDocumentContentProvider {
 			await vscode.window.tabGroups.close(tabs, true);
 		}
 		return tabs.length > 0;
+	}
+
+	/** Whether any tab shows this change's diff. */
+	shown(id: string): boolean {
+		return vscode.window.tabGroups.all.some(group => group.tabs.some(tab => tab.input instanceof vscode.TabInputTextDiff && this.idOf(tab.input.modified) === id));
 	}
 
 	/** The change shown in the active diff editor, if it is one of the panel's. */

@@ -14,8 +14,8 @@ import { panelFace } from './panelFace';
 import { EDITS, EFFORTS, MODES, type Approval, type Decision, type Edits, type Effort, type Mode, type PanelState, type SendWith, type ToHost, type ToWebview, type TurnView, type View, toHost } from './protocol';
 import { SessionStore, type StoredSession, type StoredTurn, newId, titleOf, turnView } from './sessions';
 import { answered, buildHistory } from './history';
-import { PanelTools } from './tools';
-import { ARM_MS, CHANGE_SCHEME, Diffs, PROPOSAL_SCHEME } from './edits';
+import { PanelTools, UNSEEN } from './tools';
+import { ARM_MS, CHANGE_SCHEME, Diffs, PROPOSAL_SCHEME, apply, blockFor, proposeCode } from './edits';
 import { Kept } from './kept';
 import { EditorTracker, ImageStore, carry, findFiles } from './context';
 import * as nodePath from 'path';
@@ -95,6 +95,8 @@ export class PanelHost implements vscode.WebviewViewProvider, vscode.WebviewPane
 	private readonly images: ImageStore;
 	/** Conversations whose question is being put together: a second one waits for it. */
 	private readonly preparing = new Set<string>();
+	/** Code blocks applied and waiting in the diff editor: closing the diff leaves the change. */
+	private readonly applying = new Set<string>();
 	/** Pictures stored for a question not yet in a saved conversation: a sweep keeps them. */
 	private readonly unsaved = new Set<string>();
 	private sweeping: Promise<void> = Promise.resolve();
@@ -126,6 +128,16 @@ export class PanelHost implements vscode.WebviewViewProvider, vscode.WebviewPane
 				}
 			}),
 			vscode.workspace.registerTextDocumentContentProvider(PROPOSAL_SCHEME, this.diffs),
+			// A code block's proposal whose diff the user closed is left, as a rejection would.
+			vscode.window.tabGroups.onDidChangeTabs(event => {
+				for (const tab of event.closed) {
+					const id = tab.input instanceof vscode.TabInputTextDiff ? this.diffs.idOf(tab.input.modified) : undefined;
+					if (id && this.applying.has(id) && !this.diffs.shown(id)) {
+						vscode.window.setStatusBarMessage('Sirius: the code was not applied — its diff was closed.', 5000);
+						this.decisions.get(id)?.decide('reject');
+					}
+				}
+			}),
 			vscode.workspace.registerTextDocumentContentProvider(CHANGE_SCHEME, this.diffs)
 		);
 		void this.refreshModels();
@@ -290,6 +302,12 @@ export class PanelHost implements vscode.WebviewViewProvider, vscode.WebviewPane
 			case 'send':
 				await this._send(client, message);
 				return;
+			case 'insertCode':
+				await this._insertCode(message.code);
+				return;
+			case 'applyCode':
+				await this._applyCode(client, message.code);
+				return;
 			case 'searchFiles':
 				this._post(client, { type: 'files', requestId: message.requestId, files: await findFiles(message.query) });
 				return;
@@ -442,6 +460,89 @@ export class PanelHost implements vscode.WebviewViewProvider, vscode.WebviewPane
 			|| [...this.running.values()].some(running => running.session.turns.some(turn => turn.images?.some(image => image.ref === ref)))
 			|| this.sessions.list().some(summary => this.sessions.get(summary.id)?.turns.some(turn => turn.images?.some(image => image.ref === ref)));
 		await this.images.sweep(named);
+	}
+
+	/** A code block's Insert: in place of the selection, or at the cursor, of the file last worked in — an edit Undo takes back. */
+	private async _insertCode(code: string): Promise<void> {
+		const current = this.editor.current;
+		if (!current) {
+			void vscode.window.showInformationMessage('Open a file and put the cursor where the code goes, then Insert again.');
+			return;
+		}
+		if (current.moved) {
+			void vscode.window.showInformationMessage('The file changed since you left it: put the cursor where the code goes again, then Insert.');
+			return;
+		}
+		// Unseen characters would go into the file unreviewed: Apply's diff shows them.
+		const unseen = code.match(UNSEEN)?.length ?? 0;
+		if (unseen) {
+			void vscode.window.showWarningMessage(`The code holds ${unseen} invisible or direction-changing character${unseen === 1 ? '' : 's'}. Use Apply to review it in the diff editor first.`);
+			return;
+		}
+		const { document, selection } = current;
+		const text = blockFor(document, selection, code);
+		const edit = new vscode.WorkspaceEdit();
+		edit.replace(document.uri, selection, text);
+		if (!await vscode.workspace.applyEdit(edit)) {
+			void vscode.window.showWarningMessage(`The code could not be inserted into ${vscode.workspace.asRelativePath(document.uri)}.`);
+			return;
+		}
+		// Shown where it is, the cursor after what went in: in its visible editor — a diff's side
+		// included — or its tab's group.
+		const end = document.positionAt(document.offsetAt(selection.start) + text.length);
+		if (current.editor) {
+			current.editor.selection = new vscode.Selection(end, end);
+			current.editor.revealRange(new vscode.Range(end, end));
+			return;
+		}
+		const column = vscode.window.tabGroups.all.find(group => group.tabs.some(tab => tab.input instanceof vscode.TabInputText && tab.input.uri.toString() === document.uri.toString()))?.viewColumn;
+		await vscode.window.showTextDocument(document, { selection: new vscode.Range(end, end), preview: false, ...(column ? { viewColumn: column } : {}) });
+	}
+
+	/**
+	 * A code block's Apply: proposed for the file last worked in — in place of the selection, or of
+	 * the whole file — and reviewed as a change is, in the diff editor: Accept Change applies it to
+	 * the file as it is then and saves it; Reject Change, or closing the diff, leaves it.
+	 */
+	private async _applyCode(client: Client, code: string): Promise<void> {
+		const current = this.editor.current;
+		if (!current) {
+			void vscode.window.showInformationMessage('Open the file the code is for and select what it replaces — or put the cursor where it goes — then Apply again.');
+			return;
+		}
+		if (current.moved) {
+			void vscode.window.showInformationMessage('The file changed since you left it: select what the code replaces again, then Apply.');
+			return;
+		}
+		const made = await proposeCode(current.document, current.selection, code);
+		if (typeof made === 'string') {
+			void vscode.window.showInformationMessage(made);
+			return;
+		}
+		const id = newId();
+		this.diffs.keep(id, made);
+		this.applying.add(id);
+		this.decisions.set(id, {
+			session: client.sessionId,
+			decide: choice => {
+				if (!this.decisions.delete(id)) {
+					return;
+				}
+				this.applying.delete(id);
+				void this.diffs.close(id);
+				if (choice === 'accept') {
+					void apply(made).then(outcome => {
+						if (outcome.ok) {
+							vscode.window.setStatusBarMessage(`Sirius: ${outcome.text}`, 5000);
+						} else {
+							void vscode.window.showWarningMessage(`The code was not applied to ${made.path}: the file changed after it was proposed, or could not be written. Apply it again.`);
+						}
+					}, error => void vscode.window.showWarningMessage(`The code could not be applied: ${error instanceof Error ? error.message : String(error)}`));
+				}
+			}
+		});
+		// Not a preview: opening another file must not close it, and with it the proposal.
+		await this.diffs.show(id, true, false);
 	}
 
 	/** Every card of a conversation, its answer in progress included. */

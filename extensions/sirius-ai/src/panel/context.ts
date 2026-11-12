@@ -44,6 +44,8 @@ function usable(editor: vscode.TextEditor | undefined): editor is vscode.TextEdi
 interface Place {
 	readonly uri: vscode.Uri;
 	readonly selection: vscode.Selection;
+	/** The document's version when the selection was taken: a later one may have moved the text under it. */
+	readonly version: number;
 }
 
 /**
@@ -77,7 +79,8 @@ export class EditorTracker implements vscode.Disposable {
 				if (place && !place.selection.isEmpty && event.contentChanges.length && event.document.uri.toString() === place.uri.toString()
 					&& !vscode.window.visibleTextEditors.some(editor => editor.document === event.document)) {
 					const line = Math.min(place.selection.active.line, event.document.lineCount - 1);
-					this.place = { uri: place.uri, selection: new vscode.Selection(line, 0, line, 0) };
+					// The version stays the one the selection was taken at: Insert and Apply then know the text moved.
+					this.place = { uri: place.uri, selection: new vscode.Selection(line, 0, line, 0), version: place.version };
 					this._changed();
 				}
 			}),
@@ -99,7 +102,7 @@ export class EditorTracker implements vscode.Disposable {
 	}
 
 	private _take(editor: vscode.TextEditor | undefined): void {
-		this.place = editor ? { uri: editor.document.uri, selection: editor.selection } : undefined;
+		this.place = editor ? { uri: editor.document.uri, selection: editor.selection, version: editor.document.version } : undefined;
 	}
 
 	/** Whether a tab shows the file: as text, as a side of a diff, or as a cell of a notebook. (The merge editor's tab is proposed API.) */
@@ -121,10 +124,19 @@ export class EditorTracker implements vscode.Disposable {
 	}
 
 	/** The open file's document and where the user was in it, if a tab still shows it. */
-	get current(): { readonly document: vscode.TextDocument; readonly selection: vscode.Selection } | undefined {
+	/**
+	 * The open file's document and where the user is in it: a visible editor's live selection, or
+	 * the one remembered — `moved` when the file changed since, so the position may no longer be
+	 * where the user left it.
+	 */
+	get current(): { readonly document: vscode.TextDocument; readonly selection: vscode.Selection; readonly editor?: vscode.TextEditor; readonly moved: boolean } | undefined {
 		const place = this.place;
 		const document = place && this._shown(place.uri) ? vscode.workspace.textDocuments.find(d => d.uri.toString() === place.uri.toString() && !d.isClosed) : undefined;
-		return document ? { document, selection: place!.selection } : undefined;
+		if (!document) {
+			return undefined;
+		}
+		const editor = vscode.window.visibleTextEditors.find(visible => visible.document === document);
+		return editor ? { document, selection: editor.selection, editor, moved: false } : { document, selection: place!.selection, moved: document.version !== place!.version };
 	}
 
 	get view(): EditorView | undefined {
