@@ -10,7 +10,7 @@ import { createHash, randomBytes } from 'crypto';
 import { resolveWorkspacePath } from '../tools/workspacePath';
 import type { ImagePart } from '../types';
 import { CHANGE_SCHEME, PROPOSAL_SCHEME } from './edits';
-import type { EditorView, PastedImage } from './protocol';
+import { MAX_PASTED, type EditorView, type PastedImage } from './protocol';
 
 /** Lines around the cursor sent for the open file, each way, and at most this many characters — as Sirius IDE sends. */
 const AROUND_LINES = 60;
@@ -23,7 +23,7 @@ const MAX_FILE_BYTES = 100 * 1024;
  * a conversation stays well inside every vendor's request limit (Gemini's inline data, 20 MB).
  */
 export const MAX_IMAGE_BYTES = 3_750_000;
-const MAX_IMAGES = 4;
+const MAX_IMAGES = MAX_PASTED;
 const MAX_IMAGES_BYTES = 6_000_000;
 /** The images every vision model takes, by extension; another type would fail the whole request. */
 const IMAGE_TYPES: Readonly<Record<string, string>> = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp' };
@@ -312,15 +312,16 @@ export async function carry(options: {
 
 	for (const image of options.pasted) {
 		const declared = sniff(Buffer.from(image.base64.slice(0, 24), 'base64'));
+		let shown = false;
 		if (declared !== image.mimeType) {
 			notShown.push('a pasted picture (not a PNG, JPEG, GIF or WebP)');
 		} else if (Math.floor(image.base64.length * 3 / 4) > MAX_IMAGE_BYTES) {
 			notShown.push('a pasted picture (larger than 3.75 MB)');
 		} else {
-			addImage({ base64: image.base64, mimeType: image.mimeType }, 'a pasted picture');
+			shown = addImage({ base64: image.base64, mimeType: image.mimeType }, 'a pasted picture');
 		}
-		// Named on the bubble like a file is: the model is told of one that was not shown.
-		labels.push('image');
+		// Named on the bubble like a file is; one the model was only told of says so.
+		labels.push(shown ? 'image' : 'image (not sent)');
 	}
 	if (notShown.length) {
 		parts.push(`(Attached, not shown: ${notShown.join(', ')})`);

@@ -18,6 +18,7 @@ import { PanelTools, UNSEEN } from './tools';
 import { ARM_MS, CHANGE_SCHEME, Diffs, PROPOSAL_SCHEME, apply, blockFor, proposeCode } from './edits';
 import { Kept } from './kept';
 import { EditorTracker, ImageStore, carry, findFiles } from './context';
+import { resolveWorkspacePath } from '../tools/workspacePath';
 import * as nodePath from 'path';
 
 export const VIEW_ID = 'sirius.panel';
@@ -37,6 +38,8 @@ const SEND_WITH = 'sirius.panel.sendWith';
 const MODEL_AVAILABLE = 'sirius.panel.modelAvailable';
 /** Set once a question was sent; the walkthrough's "Ask, Edit or Agent" step completes on it. */
 const ASKED = 'sirius.panel.asked';
+/** How old the list of models may be when the panel is shown again before it is looked for anew: a server started since is found. */
+const STALE_MODELS_MS = 60_000;
 
 const PROMPT =
 	'You are Sirius, an AI engineer working inside the user\'s VS Code. Answer directly and concisely in markdown, ' +
@@ -72,6 +75,9 @@ export class PanelHost implements vscode.WebviewViewProvider, vscode.WebviewPane
 	private readonly choices: Kept;
 	private readonly output = vscode.window.createOutputChannel('Sirius');
 	private refreshing: Promise<void> | undefined;
+	/** A look asked for while one was under way: that one may have read the keyring before a key just saved. */
+	private refreshAgain = false;
+	private refreshedAt = 0;
 	private viewClient: Client | undefined;
 	/**
 	 * What a command asked of the side panel before it existed: VS Code resolves a view only
@@ -158,7 +164,14 @@ export class PanelHost implements vscode.WebviewViewProvider, vscode.WebviewPane
 		this.pending = {};
 		const client = this._attach(view.webview, fresh ? undefined : this.context.workspaceState.get<string>(LAST_SESSION), wanted);
 		this.viewClient = client;
-		view.onDidDispose(() => { this._detach(client); this.viewClient = undefined; });
+		view.onDidDispose(() => {
+			this._detach(client);
+			// The view moved to another place: the new one may already have resolved.
+			if (this.viewClient === client) {
+				this.viewClient = undefined;
+			}
+		});
+		view.onDidChangeVisibility(() => view.visible && this._refreshIfStale());
 	}
 
 	async deserializeWebviewPanel(panel: vscode.WebviewPanel, state: unknown): Promise<void> {
@@ -176,6 +189,8 @@ export class PanelHost implements vscode.WebviewViewProvider, vscode.WebviewPane
 		const client = this.viewClient;
 		if (client) {
 			this._open(client, undefined);
+			// Asked for from the Command Palette, with the side bar closed: shown, not changed out of sight.
+			await this._focusView();
 		} else {
 			this.pending = { ...this.pending, fresh: true };
 			await this._focusView();
@@ -208,6 +223,7 @@ export class PanelHost implements vscode.WebviewViewProvider, vscode.WebviewPane
 		panel.iconPath = vscode.Uri.joinPath(this.context.extensionUri, 'media', 'sirius.svg');
 		const client = this._attach(panel.webview, sessionId);
 		panel.onDidDispose(() => this._detach(client));
+		panel.onDidChangeViewState(event => event.webviewPanel.visible && this._refreshIfStale());
 	}
 
 	/** A webview is gone: so are the files picked in it and not sent. */
@@ -414,6 +430,8 @@ export class PanelHost implements vscode.WebviewViewProvider, vscode.WebviewPane
 			case 'openLink':
 				if (/^https?:\/\//i.test(message.href)) {
 					await vscode.env.openExternal(vscode.Uri.parse(message.href));
+				} else {
+					await this._openFileLink(message.href);
 				}
 				return;
 			case 'copy':
@@ -550,20 +568,82 @@ export class PanelHost implements vscode.WebviewViewProvider, vscode.WebviewPane
 		return [...(this.running.get(sessionId)?.turn.tools ?? []), ...(this.sessions.get(sessionId)?.turns ?? []).flatMap(turn => turn.tools ?? [])];
 	}
 
-	async refreshModels(): Promise<void> {
-		if (!this.refreshing) {
-			this.refreshing = (async () => {
-				this._broadcast();
-				try {
-					await this.catalog.refresh();
-				} finally {
-					this.refreshing = undefined;
-				}
-			})();
+	/**
+	 * Asks every provider what it offers now, showing "Checking…" meanwhile. Asked again while a look
+	 * is under way, another follows it — the first may have read the keyring before a key just saved —
+	 * unless `again` is false: a question with no model waits for the look under way, not for two.
+	 */
+	async refreshModels(again = true): Promise<void> {
+		if (this.refreshing) {
+			this.refreshAgain ||= again;
+			await this.refreshing;
+			return;
 		}
+		this.refreshing = this._lookForModels();
+		this._broadcast();
 		await this.refreshing;
 		void vscode.commands.executeCommand('setContext', MODEL_AVAILABLE, this.catalog.models.length > 0);
 		this._broadcast();
+	}
+
+	private async _lookForModels(): Promise<void> {
+		try {
+			do {
+				this.refreshAgain = false;
+				try {
+					await this.catalog.refresh();
+				} catch (error) {
+					this.output.appendLine(`[panel] looking for models failed: ${error instanceof Error ? error.message : String(error)}`);
+				}
+				this.refreshedAt = Date.now();
+			} while (this.refreshAgain);
+		} finally {
+			this.refreshing = undefined;
+		}
+	}
+
+	/**
+	 * Shown again with no model found, the panel looks again: a server started since is found. With
+	 * models it does not — a look that missed the chosen one would put the next question on another.
+	 */
+	private _refreshIfStale(): void {
+		if (!this.refreshing && !this.catalog.models.length && Date.now() - this.refreshedAt > STALE_MODELS_MS) {
+			void this.refreshModels();
+		}
+	}
+
+	/**
+	 * A link in an answer that names a file of the workspace — `src/app.ts`, `src/app.ts#L12`,
+	 * `src/app.ts#L12-L20`, or its absolute path — opens it there; a folder is shown in the Explorer;
+	 * anything else gets a word in the status bar. (The page keeps no other scheme's link but http(s)
+	 * and mailto:, which never reach here as files.)
+	 */
+	private async _openFileLink(href: string): Promise<void> {
+		if (href.startsWith('#') || href.startsWith('//') || /^[a-z][a-z0-9+.-]*:/i.test(href)) {
+			return;
+		}
+		const [, target = '', from, to] = /^([^#?]*)(?:\?[^#]*)?(?:#L(\d+)(?:-L?(\d+))?)?/.exec(href) ?? [];
+		let uri: vscode.Uri;
+		let type: vscode.FileType;
+		try {
+			uri = await resolveWorkspacePath(decodeURIComponent(target));
+			type = (await vscode.workspace.fs.stat(uri)).type;
+		} catch {
+			type = vscode.FileType.Unknown;
+			uri = vscode.Uri.file('/');
+		}
+		if (type & vscode.FileType.Directory) {
+			await vscode.commands.executeCommand('revealInExplorer', uri);
+			return;
+		}
+		if (!(type & vscode.FileType.File)) {
+			vscode.window.setStatusBarMessage(`Sirius: ${decodeURIComponentSafe(target)} is not a file in this workspace.`, 5000);
+			return;
+		}
+		const line = from ? Math.max(0, Number(from) - 1) : undefined;
+		// A range runs to the end of its last line; the editor fits a column past the end to the line.
+		const selection = line === undefined ? undefined : to ? new vscode.Range(line, 0, Math.max(line, Number(to) - 1), Number.MAX_SAFE_INTEGER) : new vscode.Range(line, 0, line, 0);
+		await vscode.commands.executeCommand('vscode.open', uri, selection ? { preview: true, selection } : { preview: true });
 	}
 
 	private _open(client: Client, sessionId: string | undefined): void {
@@ -636,21 +716,38 @@ export class PanelHost implements vscode.WebviewViewProvider, vscode.WebviewPane
 	private async _send(client: Client, message: Extract<ToHost, { type: 'send' }>): Promise<void> {
 		const sessionId = client.sessionId;
 		if (this.running.has(sessionId) || this.preparing.has(sessionId)) {
+			// Sent again before the first was under way: the webview gets its message back to send later.
+			this._post(client, { type: 'unsent', id: message.id, reason: 'busy' });
 			return;
 		}
 		// What the question carries is read now, as the user sees it: the editor, the files, the images.
 		// A picked file's id is this webview's, and spent.
-		const picked = message.attachments.map(id => {
+		const taken = message.attachments.map(id => {
 			const entry = this.picked.get(id);
 			this.picked.delete(id);
-			return entry?.client === client ? entry : undefined;
-		}).filter((entry): entry is NonNullable<typeof entry> => !!entry);
+			return entry?.client === client ? [id, entry] as const : undefined;
+		}).filter((pair): pair is NonNullable<typeof pair> => !!pair);
+		const picked = taken.map(([, entry]) => entry);
 		this.preparing.add(sessionId);
 		const reserved: string[] = [];
+		/** Whether the question was stored, and whether `_put` let the conversation go (it may be another's to hold since). */
+		const progress = { stored: false, released: false };
 		try {
-			await this._put(client, sessionId, message, picked, reserved);
+			await this._put(client, sessionId, message, picked, reserved, progress);
+		} catch (error) {
+			this.output.appendLine(`[panel] a question failed: ${error instanceof Error ? error.message : String(error)}`);
+			void vscode.window.showErrorMessage(`Sirius could not send that: ${error instanceof Error ? error.message : String(error)}`);
+			if (!progress.stored) {
+				// Given back with the message, its picked files are the webview's again.
+				for (const [id, entry] of taken) {
+					this.picked.set(id, entry);
+				}
+				this._post(client, { type: 'unsent', id: message.id, reason: 'failed' });
+			}
 		} finally {
-			this.preparing.delete(sessionId);
+			if (!progress.released) {
+				this.preparing.delete(sessionId);
+			}
 			// The question's pictures are in its conversation now, saved — or it went nowhere.
 			for (const ref of reserved) {
 				this.unsaved.delete(ref);
@@ -659,8 +756,12 @@ export class PanelHost implements vscode.WebviewViewProvider, vscode.WebviewPane
 	}
 
 	/** Puts the question together, stores it and answers it; `reserved` collects the picture names kept from a sweep meanwhile. */
-	private async _put(client: Client, sessionId: string, message: Extract<ToHost, { type: 'send' }>, picked: readonly { readonly uri: vscode.Uri; readonly label: string }[], reserved: string[]): Promise<void> {
+	private async _put(client: Client, sessionId: string, message: Extract<ToHost, { type: 'send' }>, picked: readonly { readonly uri: vscode.Uri; readonly label: string }[], reserved: string[], progress: { stored: boolean; released: boolean }): Promise<void> {
 		const text = message.text;
+		if (!this._model) {
+			// None found yet: a server started since the last look, or a key saved in another window, is found now.
+			await this.refreshModels(false);
+		}
 		const key = this._model;
 		const carried = await carry({
 			editor: this.editor.current,
@@ -679,11 +780,13 @@ export class PanelHost implements vscode.WebviewViewProvider, vscode.WebviewPane
 		}
 		const stored = await Promise.all(carried.images.map(image => this.images.put(image)));
 		this.preparing.delete(sessionId);
+		progress.released = true;
 		if (this.running.has(sessionId) || this.deleted.has(sessionId)) {
 			return;
 		}
 		const session: StoredSession = this.sessions.get(sessionId)
 			?? { id: sessionId, title: titleOf(text), created: Date.now(), updated: Date.now(), mode: this._mode, turns: [] };
+		progress.stored = true;
 		session.turns.push({
 			id: newId(), role: 'user', text, at: Date.now(),
 			...(carried.context ? { context: carried.context } : {}),
@@ -703,8 +806,20 @@ export class PanelHost implements vscode.WebviewViewProvider, vscode.WebviewPane
 	/** Answers the last question again, in place of the last answer. */
 	private async _retry(client: Client): Promise<void> {
 		const session = this.sessions.get(client.sessionId);
-		if (!session || this.running.has(session.id) || this.preparing.has(session.id) || session.turns.length < 2 || session.turns[session.turns.length - 1].role !== 'assistant') {
+		const ready = () => !!session && !this.running.has(session.id) && !this.preparing.has(session.id) && !this.deleted.has(session.id) && session.turns.length >= 2 && session.turns[session.turns.length - 1].role === 'assistant';
+		if (!session || !ready()) {
 			return;
+		}
+		if (!this._model) {
+			this.preparing.add(session.id);
+			try {
+				await this.refreshModels(false);
+			} finally {
+				this.preparing.delete(session.id);
+			}
+			if (!ready()) {
+				return;
+			}
 		}
 		session.turns.pop();
 		await this._answer(session);
@@ -854,6 +969,7 @@ export class PanelHost implements vscode.WebviewViewProvider, vscode.WebviewPane
 		}, () => this._edits === 'auto');
 		if (tools.droppedSources.length) {
 			turn.notice = `Not offered to ${reachable.model.name || reachable.model.id}: ${tools.droppedSources.map(source => `${source.label} (${source.tools.length} tools)`).join(', ')} — more tool sources than this model's tools hold.`;
+			show();
 		}
 
 		const face = panelFace({
@@ -931,4 +1047,12 @@ export class PanelHost implements vscode.WebviewViewProvider, vscode.WebviewPane
 		}
 	}
 
+}
+
+function decodeURIComponentSafe(text: string): string {
+	try {
+		return decodeURIComponent(text);
+	} catch {
+		return text;
+	}
 }

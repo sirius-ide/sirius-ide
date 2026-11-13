@@ -71,7 +71,17 @@ const attachButton = iconButton('attach', 'Attach files', () => send({ type: 'at
 const chips = el('div', { class: 'chips' });
 const suggest = el('ul', { class: 'suggest', attrs: { role: 'listbox', 'aria-label': 'Files' } });
 suggest.hidden = true;
-footer.append(chips, suggest, input, el('div', { class: 'row' }, modeSelect, modelSelect, effortSelect, editsSelect, el('span', { class: 'spacer' }), attachButton, sendButton, stopButton));
+/** A word about what the composer did not take — a picture too large, one too many — or gave back. */
+const note = el('div', { class: 'composer-note', attrs: { role: 'status' } });
+note.hidden = true;
+let noteTimer: ReturnType<typeof setTimeout> | undefined;
+function say(text: string): void {
+	note.textContent = text;
+	note.hidden = false;
+	clearTimeout(noteTimer);
+	noteTimer = setTimeout(() => { note.hidden = true; }, 8000);
+}
+footer.append(note, chips, suggest, input, el('div', { class: 'row' }, modeSelect, modelSelect, effortSelect, editsSelect, el('span', { class: 'spacer' }), attachButton, sendButton, stopButton));
 
 // ─── What a question carries ─────────────────────────────────────────────────
 
@@ -190,12 +200,17 @@ input.addEventListener('paste', event => {
 	event.preventDefault();
 	for (const file of files) {
 		if (pasted.length >= MAX_PASTED) {
+			say(`Not added: a message takes at most ${MAX_PASTED} pictures.`);
 			break;
 		}
 		const reader = new FileReader();
 		reader.addEventListener('load', () => {
 			const base64 = String(reader.result).replace(/^data:[^,]*,/, '');
-			if (base64.length <= MAX_PASTED_BASE64 && pasted.length < MAX_PASTED) {
+			if (base64.length > MAX_PASTED_BASE64) {
+				say('Not added: the picture is larger than 3.75 MB.');
+			} else if (pasted.length >= MAX_PASTED) {
+				say(`Not added: a message takes at most ${MAX_PASTED} pictures.`);
+			} else {
 				pasted.push({ mimeType: file.type, base64, size: file.size });
 				renderChips();
 			}
@@ -239,13 +254,24 @@ modelSelect.addEventListener('change', () => send({ type: 'setModel', key: model
 effortSelect.addEventListener('change', () => send({ type: 'setEffort', effort: effortSelect.value as Effort }));
 editsSelect.addEventListener('change', () => send({ type: 'setEdits', edits: editsSelect.value as Edits }));
 
+/** Messages sent and not yet taken, as the composer held them, by the name each went with: put back if the extension did not take one. */
+const sentMessages = new Map<string, { text: string; mentions: string[]; picked: typeof picked; pasted: typeof pasted }>();
+let sentCount = 0;
+
 function submit(): void {
 	const text = input.value;
 	if (!text.trim() || state?.session.running) {
 		return;
 	}
 	// A mention whose @path was deleted from the message is not sent.
-	send({ type: 'send', text, file: useFile, selection: useSelection, mentions: mentions.filter(path => text.includes(`@${path}`)), attachments: picked.map(file => file.id), images: pasted.map(image => ({ mimeType: image.mimeType, base64: image.base64 })) });
+	const id = `m${++sentCount}`;
+	send({ type: 'send', id, text, file: useFile, selection: useSelection, mentions: mentions.filter(path => text.includes(`@${path}`)), attachments: picked.map(file => file.id), images: pasted.map(image => ({ mimeType: image.mimeType, base64: image.base64 })) });
+	sentMessages.set(id, { text, mentions, picked, pasted });
+	// Only the last few could still come back.
+	for (const old of [...sentMessages.keys()].slice(0, -8)) {
+		sentMessages.delete(old);
+	}
+	note.hidden = true;
 	input.value = '';
 	mentions = [];
 	picked = [];
@@ -604,7 +630,12 @@ function renderComposer(s: PanelState): void {
 	};
 	options(modeSelect, ['ask', 'edit', 'agent'] as const, m => MODE_LABELS[m], s.mode);
 	if (s.models.length) {
-		options(modelSelect, s.models.map(m => m.key), key => s.models.find(m => m.key === key)?.label ?? key, s.model);
+		// A model its vendor deprecated says so; the description is the option's tooltip.
+		options(modelSelect, s.models.map(m => m.key), key => { const m = s.models.find(x => x.key === key); return m ? `${m.label}${m.detail === 'Deprecated by its vendor' ? ' (deprecated)' : ''}` : key; }, s.model);
+		for (const option of modelSelect.options) {
+			const detail = s.models.find(m => m.key === option.value)?.detail;
+			if (detail) { option.title = detail; }
+		}
 	} else {
 		modelSelect.replaceChildren(el('option', { text: s.refreshing ? 'Looking for models…' : 'No models' }));
 	}
@@ -653,6 +684,20 @@ window.addEventListener('message', (event: MessageEvent<ToWebview>) => {
 			suggestions = [...message.files];
 			active = 0;
 			renderSuggest();
+		}
+		return;
+	}
+	if (message.type === 'unsent') {
+		// Not taken: back in the box, before whatever was typed since, with its files and pictures beside those added since.
+		const back = sentMessages.get(message.id);
+		sentMessages.delete(message.id);
+		if (back) {
+			input.value = input.value.trim() ? `${back.text}\n\n${input.value}` : back.text;
+			mentions = [...new Set([...back.mentions, ...mentions])];
+			picked = [...back.picked, ...picked.filter(file => !back.picked.some(p => p.id === file.id))].slice(0, MAX_FILES);
+			pasted = [...back.pasted, ...pasted.filter(image => !back.pasted.includes(image))].slice(0, MAX_PASTED);
+			renderChips();
+			say(message.reason === 'busy' ? 'Not sent yet — the message before it is still on its way. Send it again in a moment.' : 'Not sent — it could not be put together. It is back in the box.');
 		}
 		return;
 	}

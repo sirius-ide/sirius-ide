@@ -91,7 +91,14 @@ export class ModelCatalog {
 
 	private async _discover(id: ProviderType): Promise<{ view: ProviderView; provider: IAIProvider; models: SiriusModel[] }> {
 		const kind: ProviderView['kind'] = id === 'custom' ? 'custom' : LOCAL_PROVIDERS.has(id) ? 'local' : 'hosted';
-		const apiKey = await this.secrets.get(KEY(id));
+		let apiKey: string | undefined;
+		let keyring: string | undefined;
+		try {
+			// A locked keyring may wait on its unlock prompt: the look goes on without it.
+			apiKey = await withTimeout(Promise.resolve(this.secrets.get(KEY(id))), DISCOVERY_MS, 'The system keyring');
+		} catch (error) {
+			keyring = `The system keyring could not be read: ${error instanceof Error ? error.message : String(error)}`;
+		}
 		const url = this.global.get<string>(URL_KEY(id)) || undefined;
 		const takesKey = KEYED_PROVIDERS.includes(id) || OPTIONAL_KEY_PROVIDERS.includes(id);
 		const defaultUrl = DEFAULT_URLS[id] ?? BASE_URLS[id];
@@ -107,7 +114,7 @@ export class ModelCatalog {
 		};
 		// Nothing to ask: a hosted provider without a key, a custom endpoint without an address.
 		if ((kind === 'hosted' && !apiKey) || (kind === 'custom' && !url)) {
-			return { view: { ...base, models: 0 }, provider, models: [] };
+			return { view: { ...base, models: 0, ...(keyring && kind === 'hosted' ? { problem: keyring } : {}) }, provider, models: [] };
 		}
 		try {
 			const check = await withTimeout(provider.checkConnection(), DISCOVERY_MS, PROVIDER_LABELS[id]);

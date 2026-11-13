@@ -71,8 +71,9 @@ export interface PastedImage {
 export const IMAGE_MIME_TYPES: readonly string[] = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
 /** A pasted image's base64 at most: 3.75 MB of picture (the extension caps what a message carries further). */
 export const MAX_PASTED_BASE64 = 5_000_000;
-/** At most this many pasted images, mentioned files and picked files in one message. */
-export const MAX_PASTED = 8;
+/** At most this many pictures in one message, pasted or attached: what the extension sends. */
+export const MAX_PASTED = 4;
+/** At most this many mentioned and picked files in one message. */
 export const MAX_FILES = 20;
 
 export const APPROVALS = ['once', 'session', 'deny'] as const;
@@ -162,13 +163,17 @@ export type ToWebview =
 	/** Workspace files for an @-mention, answering `searchFiles`. */
 	| { readonly type: 'files'; readonly requestId: number; readonly files: readonly string[] }
 	/** Files the user chose in VS Code's file picker, by ids of the host's: a path from the webview is never trusted. */
-	| { readonly type: 'attached'; readonly files: readonly { readonly id: string; readonly label: string }[] };
+	| { readonly type: 'attached'; readonly files: readonly { readonly id: string; readonly label: string }[] }
+	/** A message sent was not taken — another was still being put together, or it failed: the webview puts it back. */
+	| { readonly type: 'unsent'; readonly id: string; readonly reason: 'busy' | 'failed' };
 
 /** From the webview to the extension. */
 export type ToHost =
 	| { readonly type: 'ready' }
 	| {
 		readonly type: 'send'; readonly text: string;
+		/** The webview's name for this message: an `unsent` names it back. */
+		readonly id: string;
 		/** Whether the open file and the selection go with it (the composer's chips). */
 		readonly file: boolean; readonly selection: boolean;
 		/** Workspace files @-mentioned; picked files by the ids `attached` gave; pasted images. */
@@ -219,7 +224,7 @@ export function toHost(value: unknown): ToHost | undefined {
 		case 'ready': case 'stop': case 'retry': case 'newSession': case 'refreshModels': case 'attach':
 			return { type: m.type };
 		case 'send': {
-			if (!str(m.text) || !m.text.trim()) {
+			if (!str(m.text) || !m.text.trim() || !str(m.id, 100)) {
 				return undefined;
 			}
 			const mentions = list(m.mentions, MAX_FILES, item => str(item, 1_000));
@@ -230,7 +235,7 @@ export function toHost(value: unknown): ToHost | undefined {
 					&& str(image.base64, MAX_PASTED_BASE64) && /^[A-Za-z0-9+/]+={0,2}$/.test(image.base64);
 			});
 			return mentions && attachments && images ? {
-				type: 'send', text: m.text, file: m.file !== false, selection: m.selection !== false,
+				type: 'send', id: m.id, text: m.text, file: m.file !== false, selection: m.selection !== false,
 				mentions: mentions as string[], attachments: attachments as string[],
 				images: (images as PastedImage[]).map(image => ({ mimeType: image.mimeType, base64: image.base64 }))
 			} : undefined;

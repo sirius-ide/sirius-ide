@@ -35,6 +35,7 @@ button.link { background: none; border: none; color: var(--vscode-textLink-foreg
 .turn.user .bubble { white-space: pre-wrap; word-wrap: break-word; padding: 6px 10px; border-radius: 6px; background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border, transparent); }
 .turn.assistant { line-height: 1.5; }
 .waiting { color: var(--vscode-descriptionForeground); font-style: italic; }
+.composer-note { color: var(--vscode-descriptionForeground); font-size: 0.9em; padding: 2px 2px 4px; }
 .error { margin-top: 6px; padding: 6px 8px; border-left: 3px solid var(--vscode-errorForeground); background: var(--vscode-inputValidation-errorBackground, transparent); white-space: pre-wrap; }
 .meta { display: flex; align-items: center; gap: 8px; margin-top: 4px; color: var(--vscode-descriptionForeground); font-size: 0.9em; }
 .meta .stopped { font-style: italic; }
