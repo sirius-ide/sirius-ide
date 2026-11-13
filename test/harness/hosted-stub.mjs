@@ -44,7 +44,10 @@
 // javascript: link, an onclick, an iframe, a form asking for a key, a stylesheet, an image map, an
 // error box and a user's message drawn with the panel's own classes — beside a task list (the one
 // input markdown makes) and a code block; "a link please" answers with a link to example.com and a
-// mailto: link.
+// mailto: link; "a file link please" with links to a workspace file at a line (linked.md#L3), to a
+// file outside the workspace (../outside.txt) and to a command: address that opens an editor.
+// Slowness on demand: `GET /__slow?ms=<ms>&count=<n>` holds the next n answers to Anthropic's model
+// listing for that long, so a probe can watch a look for models while it is under way.
 // Usage, on Anthropic's stream: `message_start` carries the input counts (12 fresh, 30 written to
 // the cache, 100 read from it, and a placeholder 1 out) and `message_delta` the output so far (3) —
 // the 142 in and 3 out a reader should report (an unstreamed answer reports the same); a chat that
@@ -240,6 +243,9 @@ function reply(ask) {
 	if (/\btry to inject\b/i.test(ask.text)) {
 		return { text: INJECT };
 	}
+	if (/\ba file link please\b/i.test(ask.text)) {
+		return { text: 'Open [linked.md](linked.md#L3), or [this one](../outside.txt), or [this](command:workbench.action.files.newUntitledFile).' };
+	}
 	if (/\ba link please\b/i.test(ask.text)) {
 		return { text: 'See [the docs](https://example.com/docs) for more, or [write to us](mailto:someone@example.com).' };
 	}
@@ -377,6 +383,8 @@ function replayOf(body) {
 
 // ── the answers ─────────────────────────────────────────────────────────────
 
+/** Answers to Anthropic's model listing held back on request (`/__slow`). */
+let slow = { ms: 0, count: 0 };
 const json = (res, status, value) => { res.writeHead(status, { 'content-type': 'application/json' }); res.end(JSON.stringify(value)); };
 
 async function anthropicMessages(body, res, record) {
@@ -609,6 +617,11 @@ http.createServer(async (req, res) => {
 		json(res, 200, requests);
 		return;
 	}
+	if (req.method === 'GET' && url.pathname === '/__slow') {
+		slow = { ms: Number(url.searchParams.get('ms') ?? 0), count: Number(url.searchParams.get('count') ?? 1) };
+		json(res, 200, slow);
+		return;
+	}
 	let body = null;
 	try { body = chunks.length ? JSON.parse(Buffer.concat(chunks).toString()) : null; } catch { body = Buffer.concat(chunks).toString().slice(0, 200); }
 	const vendor = url.pathname.startsWith('/v1/') ? 'anthropic' : url.pathname.startsWith('/v1beta/') ? 'gemini' : url.pathname.startsWith('/api/') ? 'ollama' : null;
@@ -631,6 +644,10 @@ http.createServer(async (req, res) => {
 			if (!record.authorized) {
 				json(res, 401, { type: 'error', error: { type: 'authentication_error', message: 'invalid x-api-key' } });
 			} else if (req.method === 'GET' && url.pathname === '/v1/models') {
+				if (slow.count > 0) {
+					slow.count--;
+					await new Promise(resolve => setTimeout(resolve, slow.ms));
+				}
 				const after = url.searchParams.get('after_id');
 				const start = after ? ANTHROPIC_MODELS.findIndex(m => m.id === after) + 1 : 0;
 				const data = ANTHROPIC_MODELS.slice(start, start + PAGE);

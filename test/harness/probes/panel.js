@@ -10,9 +10,16 @@
 //               Models and Keys; "Open Sirius" is then done and "Ask, Edit or Agent" is not.
 //   start     — before any setup the panel says how to begin — or, when a local server such as
 //               Ollama answers, offers its models and says to ask.
+//   found later — Ollama's address set where nothing answers (so that, a real Ollama or not, no model
+//               is found), a server that starts there afterwards (the hosted stub's Ollama, served on
+//               that port by this probe) is found when a question is asked, and answers it — no Check
+//               again needed. Skipped when another local server (LM Studio, llama.cpp) answers.
 //   setup     — on Models and Keys, an address (the stubs') and a key are saved for Anthropic,
 //               Gemini, OpenAI and llama.cpp, and an address for Ollama; each offers the stubs'
-//               models; no key ever reaches the webview's page; "Add a model" is then done.
+//               models; no key ever reaches the webview's page; "Add a model" is then done. A model
+//               its vendor deprecated is marked so in the picker.
+//   checking  — Check again while Anthropic's model listing is slow shows "Checking…"; Gemini's key
+//               removed meanwhile shows as gone once the look ends (the look under way had read it).
 //   guard     — for the whole run the probe stands in for the vendors' own APIs inside the extension
 //               host: OpenAI's is answered here, any other is refused and recorded — no request
 //               leaves this machine, and none but those this probe means is made.
@@ -131,9 +138,17 @@
 //   at rest   — no file in the profile's folder holds the key, while the conversations are there
 //               to be found (the run's keyring is held in memory, so this covers what VS Code
 //               writes to disk — settings, state and logs — not the keyring itself).
+//   twice     — two messages sent at once: the first is answered, the second comes back to the
+//               message box with a word that it was not sent yet.
+//   paste limits — five pictures pasted: four are taken and the composer says why not the fifth; a
+//               picture larger than 3.75 MB is not taken, and the composer says so.
+//   palette   — New Conversation from the Command Palette, with the side bar closed, shows the panel.
+//   file links — a link in an answer to a workspace file opens it at the line named; one to a file
+//               outside the workspace, or a command: link, opens nothing.
 // Progress in <result>.log; the part before the reload in <result>.before-reload.json.
 
 const fs = require('fs');
+const http = require('http');
 const path = require('path');
 const { connectWebview, connectWindow } = require(path.join(__dirname, '..', 'cdp-window.js'));
 
@@ -266,6 +281,31 @@ function guardVendors() {
 		throw new TypeError(`refused by the probe: ${url.origin}${url.pathname}`);
 	};
 }
+
+/** Where nothing answers until the probe serves the hosted stub's Ollama there (`ollamaAt`). */
+const LATER_PORT = 11993;
+/** The hosted stub's Ollama on `port`, as if a local server started now: a proxy. Null when the port is taken. */
+function ollamaAt(port) {
+	return new Promise(resolve => {
+		const server = http.createServer((req, res) => {
+			const upstream = http.request({ host: '127.0.0.1', port: 11992, path: req.url, method: req.method, headers: req.headers }, answer => {
+				res.writeHead(answer.statusCode ?? 502, answer.headers);
+				answer.pipe(res);
+			});
+			upstream.on('error', () => { res.writeHead(502); res.end(); });
+			req.pipe(upstream);
+		});
+		server.once('error', () => resolve(null));
+		server.listen(port, '127.0.0.1', () => resolve(server));
+	});
+}
+
+/** Whether the secondary side bar, where the panel lives, is shown. */
+const AUX_SHOWN = `(() => { const p = document.querySelector('.part.auxiliarybar'); return !!p && p.getBoundingClientRect().width > 0; })()`;
+/** A 4 MB file that says it is a PNG, pasted. */
+const pasteBig = `(() => { const t = document.querySelector('footer textarea'); const bytes = new Uint8Array(4000000); bytes.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]); const data = new window.DataTransfer(); data.items.add(new window.File([bytes], 'big.png', { type: 'image/png' })); t.dispatchEvent(new window.ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true })); return true; })()`;
+/** The composer: its pictures, its note, and what the message box holds. */
+const COMPOSER = `({ pictures: [...document.querySelectorAll('footer .chips .chip')].filter(c => /^image \\d/.test(c.querySelector('.chip-label')?.textContent ?? '')).length, note: document.querySelector('footer .composer-note')?.hidden === false ? document.querySelector('footer .composer-note').textContent : '', text: document.querySelector('footer textarea')?.value ?? '' })`;
 
 /** A person's click — a trusted one, as VS Code's own handlers require — on what `selector` finds. */
 async function realClick(target, selector) {
@@ -485,6 +525,30 @@ exports.run = async function (vscode) {
 	check(local ? /Ask anything/.test(start.empty ?? '') : /Add a provider/.test(start.empty ?? '') && start.models.every(m => !m.includes('/')),
 		`start: the panel did not say how to begin for ${local ? 'the local models it found' : 'no models'} (${JSON.stringify(start.empty)})`);
 
+	// ── found later ───────────────────────────────────────────────────────────
+	log('found later: Ollama\'s address where nothing answers yet; a server started there, found when a question is asked');
+	await panel.evaluate(click('button[title="Models and keys"]'));
+	await until(s => 'ollama' in s.providers);
+	await panel.evaluate(fill('ollama', 'input[type="text"]', `http://127.0.0.1:${LATER_PORT}`, 'Save address'));
+	await sleep(500);
+	const nothing = await until(s => !s.refreshing && /Not running|did not answer/.test(s.providers.ollama ?? ''), 15000);
+	await panel.evaluate(click('button[title="Back to the conversation"]'));
+	const empty = await until(s => s.empty !== null, 5000);
+	if (empty.models.some(m => m.includes('/'))) {
+		result.foundLater = `skipped: another local server answers (${empty.models.filter(m => m.includes('/')).slice(0, 3).join(', ')})`;
+	} else {
+		const ollama = await ollamaAt(LATER_PORT);
+		const found = ollama ? await ask('found later', 30000) : undefined;
+		result.foundLater = { ollamaBefore: nothing.providers.ollama, served: !!ollama, text: found?.text?.slice(0, 60) ?? null, error: found?.error?.slice(0, 120) ?? null };
+		check(!!ollama && /pong found later/.test(found?.text ?? ''), `found later: a local server started after the panel looked was not found when a question was asked (${js(result.foundLater)})`);
+		if (ollama) {
+			ollama.closeAllConnections?.();
+			await new Promise(resolve => ollama.close(resolve));
+		}
+		await panel.evaluate(click('button[title="New conversation"]'));
+		await until(s => s.turns.length === 0, 5000);
+	}
+
 	// ── setup ─────────────────────────────────────────────────────────────────
 	log('setup: the stubs\' addresses and a key for Anthropic, Gemini, OpenAI and llama.cpp; Ollama\'s address');
 	await panel.evaluate(click('button[title="Models and keys"]'));
@@ -518,6 +582,23 @@ exports.run = async function (vscode) {
 	}
 	result.walkthrough.done = done;
 	check(done.includes('Add a model'), `walkthrough: "Add a model" is not done once a model is offered (${js(done)})`);
+	const legacy = await panel.evaluate(`[...document.querySelectorAll('footer select[title="Model"] option')].filter(o => o.value === 'anthropic/claude-3-stub-legacy').map(o => ({ text: o.textContent, title: o.title }))[0] ?? null`);
+	result.setup.deprecated = legacy;
+	check(/\(deprecated\)$/.test(legacy?.text ?? '') && /Deprecated/.test(legacy?.title ?? ''), `setup: a model its vendor deprecated is not marked so in the picker (${js(legacy)})`);
+	save();
+
+	// ── checking ──────────────────────────────────────────────────────────────
+	log('checking: Check again while the model listing is slow; Gemini\'s key removed meanwhile');
+	await fetch(`${HOSTED}/__slow?ms=3000&count=1`);
+	await panel.evaluate(clickText('.setup > button', 'Check again'));
+	const checking = await until(s => s.refreshing, 2500);
+	const removeClicked = await panel.evaluate(clickText('[data-provider="gemini"] button', 'Remove'));
+	const afterRemove = await until(s => !s.refreshing && /No key/.test(s.providers.gemini ?? ''), 15000);
+	result.checking = { seen: !!checking?.refreshing, removeClicked, gemini: afterRemove?.providers?.gemini ?? null, refreshing: afterRemove?.refreshing ?? null };
+	check(!!checking?.refreshing, 'checking: "Checking…" did not show while the look for models was under way');
+	check(removeClicked && /No key/.test(afterRemove?.providers?.gemini ?? '') && !afterRemove?.refreshing, `checking: Gemini's key, removed while a look was under way, did not show as gone once it ended (${js(result.checking)})`);
+	await panel.evaluate(fill('gemini', 'input[type="password"]', KEY, 'Save key'));
+	await until(s => /\d+ models?/.test(s.providers.gemini ?? ''), 20000);
 	save();
 
 	// ── providers ─────────────────────────────────────────────────────────────
@@ -1384,6 +1465,33 @@ exports.run = async function (vscode) {
 	check(retryRequests.length === 1 && retried.turns.length === asked.turns.length, `retry: not one new request in place of the last answer (${JSON.stringify(result.retry)})`);
 	save();
 
+	// ── twice ─────────────────────────────────────────────────────────────────
+	log('twice: two messages sent at once');
+	const twiceBefore = (await snap()).turns.length;
+	await panel.evaluate(`(() => { ${press('the first of two')}; ${press('the second of two')}; return true; })()`);
+	const twiceAfter = await until(s => s.turns.length >= twiceBefore + 2 && !last(s).streaming && !s.stop);
+	await sleep(500);
+	const twiceComposer = await panel.evaluate(COMPOSER);
+	result.twice = { turns: twiceAfter.turns.length - twiceBefore, answer: last(twiceAfter)?.text?.slice(0, 40), composer: twiceComposer };
+	check(twiceAfter.turns.length === twiceBefore + 2 && /pong the first of two/.test(last(twiceAfter)?.text ?? ''), `twice: the first message was not answered alone (${js(result.twice)})`);
+	check(twiceComposer.text === 'the second of two' && /Not sent yet/.test(twiceComposer.note), `twice: the second message did not come back to the message box with a word (${js(twiceComposer)})`);
+	await panel.evaluate(typeText(''));
+	save();
+
+	// ── paste limits ──────────────────────────────────────────────────────────
+	log('paste limits: five pictures, then one larger than 3.75 MB');
+	await panel.evaluate(`(() => { for (let i = 0; i < 5; i++) { ${pasteImage}; } return true; })()`);
+	await sleep(800);
+	const five = await panel.evaluate(COMPOSER);
+	await panel.evaluate(`(() => { document.querySelectorAll('footer .chips .chip-remove').forEach(b => b.click()); return true; })()`);
+	await panel.evaluate(pasteBig);
+	await sleep(1500);
+	const big = await panel.evaluate(COMPOSER);
+	result.pasteLimits = { five, big };
+	check(five.pictures === 4 && /at most 4 pictures/.test(five.note), `paste limits: five pictures pasted did not leave four, with a word about the fifth (${js(five)})`);
+	check(big.pictures === 0 && /larger than 3\.75 MB/.test(big.note), `paste limits: a picture larger than 3.75 MB was taken, or dropped without a word (${js(big)})`);
+	save();
+
 	// ── send key ──────────────────────────────────────────────────────────────
 	log('send key: Ctrl+Enter');
 	await vscode.workspace.getConfiguration().update('sirius.panel.sendWith', 'ctrlEnter', vscode.ConfigurationTarget.Global);
@@ -1429,6 +1537,26 @@ exports.run = async function (vscode) {
 	check(reopenedSession.title === title && reopenedSession.turns.length === turns, `sessions: opening "${title}" did not bring its ${turns} turns back (${JSON.stringify(result.sessions.reopened)})`);
 	check(!afterDelete.sessions.includes(others) && afterDelete.sessions.includes(title), `sessions: deleting "${others}" did not take it, and only it, off the list (${JSON.stringify(afterDelete.sessions)})`);
 	check(backInChat.title === title && backInChat.turns.length === turns, `sessions: back in the conversation, "${title}" is not shown (${JSON.stringify(result.sessions.back)})`);
+	save();
+
+	// ── palette ───────────────────────────────────────────────────────────────
+	log('palette: New Conversation from the Command Palette, the side bar closed');
+	await vscode.commands.executeCommand('workbench.action.closeAuxiliaryBar');
+	await sleep(800);
+	const shownBefore = await win.evaluate(AUX_SHOWN);
+	await vscode.commands.executeCommand('sirius.panel.newConversation');
+	let shownAfter = false;
+	for (let i = 0; i < 20 && !shownAfter; i++) {
+		shownAfter = await win.evaluate(AUX_SHOWN);
+		if (!shownAfter) { await sleep(250); }
+	}
+	const paletteFresh = await until(s => s.turns.length === 0 && s.empty !== null, 5000);
+	result.palette = { shownBefore, shownAfter, turns: paletteFresh.turns.length };
+	check(!shownBefore && shownAfter && paletteFresh.turns.length === 0, `palette: New Conversation with the side bar closed did not show the panel on a new conversation (${js(result.palette)})`);
+	await panel.evaluate(click('button[title="Conversations"]'));
+	await until(s => s.sessions.includes(title), 5000);
+	await panel.evaluate(`(() => { const b = [...document.querySelectorAll('button.session')].find(x => x.querySelector('.session-title')?.textContent === ${js(title)}); b?.click(); return !!b; })()`);
+	await until(s => s.title === title && s.turns.length === turns, 5000);
 	save();
 
 	// ── tab ───────────────────────────────────────────────────────────────────
@@ -1544,6 +1672,35 @@ exports.run = async function (vscode) {
 	check(openClicked && afterOpen.length === 1 && afterOpen[0].includes('https://example.com/docs'), `links: after Open, the link did not go to the system's opener exactly once (${js(afterOpen)})`);
 	check(afterMailto.length === afterOpen.length && !/mailto|someone@example\.com/.test(mailtoDialog), `links: a mailto: link in an answer opened something (${js(afterMailto)})`);
 	check(afterLink.turns.length === turnsBefore, `links: the panel did not stay where it was (${js(result.links.turns)})`);
+	save();
+
+	// ── file links ────────────────────────────────────────────────────────────
+	log('file links: a workspace file at its line; a file outside; a command:');
+	const linkedPath = path.join(WS, 'linked.md');
+	fs.writeFileSync(linkedPath, 'one\ntwo\nthree\nfour\n');
+	const textTabs = () => vscode.window.tabGroups.all.flatMap(g => g.tabs).filter(t => t.input instanceof vscode.TabInputText || t.input instanceof vscode.TabInputTextDiff).map(t => t.label);
+	await ask('a file link please');
+	const tabsBefore = textTabs();
+	const fileClicked = await realClick(panel, '.turn:last-child .markdown a[href="linked.md#L3"]');
+	let openedFile;
+	for (let i = 0; i < 20 && !openedFile; i++) {
+		const active = vscode.window.activeTextEditor;
+		openedFile = active && path.basename(active.document.fileName) === 'linked.md' ? { file: 'linked.md', line: active.selection.active.line + 1 } : undefined;
+		if (!openedFile) { await sleep(250); }
+	}
+	const linkedTabs = vscode.window.tabGroups.all.flatMap(g => g.tabs).filter(t => t.input instanceof vscode.TabInputText && path.basename(t.input.uri.fsPath) === 'linked.md');
+	await vscode.window.tabGroups.close(linkedTabs);
+	await sleep(500);
+	const tabsBetween = textTabs();
+	const outsideClicked = await realClick(panel, '.turn:last-child .markdown a[href="../outside.txt"]');
+	const commandLink = await panel.evaluate(`!!document.querySelector('.turn:last-child .markdown a[href^="command:"]')`);
+	const commandClicked = commandLink ? await realClick(panel, '.turn:last-child .markdown a[href^="command:"]') : false;
+	await sleep(1500);
+	const tabsAfter = textTabs();
+	fs.rmSync(linkedPath, { force: true });
+	result.fileLinks = { fileClicked, openedFile: openedFile ?? null, outsideClicked, commandLink, commandClicked, tabsBefore, tabsBetween, tabsAfter };
+	check(fileClicked && openedFile?.line === 3, `file links: a link to linked.md#L3 did not open it at line 3 (${js(result.fileLinks)})`);
+	check(outsideClicked && js(tabsAfter) === js(tabsBetween), `file links: a link outside the workspace, or a command: link, opened something (${js(result.fileLinks)})`);
 	save();
 
 	// ── guard ─────────────────────────────────────────────────────────────────
