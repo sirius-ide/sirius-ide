@@ -5,6 +5,28 @@
 	"publisher": "siriuside",
 	"version": "0.1.0",
 	"license": "SEE LICENSE IN LICENSE.txt",
+	"icon": "media/icon.png",
+	"homepage": "https://siriuside.com",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/sirius-ide/sirius-ide.git"
+	},
+	"bugs": {
+		"url": "https://github.com/sirius-ide/sirius-ide/issues"
+	},
+	"pricing": "Free",
+	"keywords": [
+		"ai",
+		"chat",
+		"agent",
+		"anthropic",
+		"gemini",
+		"openai",
+		"ollama",
+		"llama.cpp",
+		"completion",
+		"byok"
+	],
 	"engines": {
 		"vscode": "^1.145.0"
 	},

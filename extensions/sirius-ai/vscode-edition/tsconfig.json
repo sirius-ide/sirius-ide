@@ -1,0 +1,34 @@
+{
+	// The stable-API gate: the VS Code edition's whole import graph, from its entry point, compiled
+	// against VS Code's stable typings at the edition's floor (@types/vscode, pinned in tools/) and
+	// nothing else. A proposed API used anywhere in that graph fails it. Run by package.sh, after
+	// `npm ci --ignore-scripts` in tools/.
+	"compilerOptions": {
+		"target": "es2022",
+		"lib": [
+			"es2022"
+		],
+		"module": "commonjs",
+		"moduleResolution": "node",
+		"ignoreDeprecations": "6.0",
+		"strict": true,
+		"noEmit": true,
+		"skipLibCheck": true,
+		"types": [
+			"node"
+		],
+		// `vscode` is these typings and nothing else, whatever an ancestor folder's node_modules holds.
+		"paths": {
+			"vscode": [
+				"./tools/node_modules/@types/vscode/index.d.ts"
+			]
+		},
+		"typeRoots": [
+			"tools/node_modules/@types"
+		]
+	},
+	"files": [
+		"tools/node_modules/@types/vscode/index.d.ts",
+		"../src/vscode/extension.ts"
+	]
+}
