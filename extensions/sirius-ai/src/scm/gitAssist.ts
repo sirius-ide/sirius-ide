@@ -46,7 +46,15 @@ function pickRepository(git: GitApi, args: unknown[]): GitRepository | undefined
 	return git.repositories[0];
 }
 
-async function generateCommitMessage(...args: unknown[]): Promise<void> {
+/** Asks a model for the text of a prompt, whole; undefined when it failed and the user was told why. */
+export type AskModel = (prompt: string) => Promise<string | undefined>;
+
+/**
+ * Writes a commit message for the repository an SCM action names (else the first) into its
+ * message box: the staged diff, else the working tree's, asked of the model `ask` finds — Sirius
+ * IDE's default model, or the VS Code edition's panel model. With no model, `noModel` says so.
+ */
+export async function writeCommitMessage(args: unknown[], ask: () => Promise<AskModel | undefined>, noModel: () => void): Promise<void> {
 	const git = gitApi();
 	const repository = git && pickRepository(git, args);
 	if (!repository) {
@@ -63,9 +71,9 @@ async function generateCommitMessage(...args: unknown[]): Promise<void> {
 		return;
 	}
 
-	const model = await selectDefaultModel();
+	const model = await ask();
 	if (!model) {
-		vscode.window.showWarningMessage('Sirius: no model available — add a provider in "Sirius: Manage Models", or start Ollama.');
+		noModel();
 		return;
 	}
 
@@ -76,23 +84,33 @@ async function generateCommitMessage(...args: unknown[]): Promise<void> {
 				? diff.slice(0, MAX_DIFF_CHARS) + '\n[diff truncated]'
 				: diff;
 
-			const response = await model.sendRequest([
-				vscode.LanguageModelChatMessage.User(
-					'Write a commit message for this diff. First line: an imperative summary under 72 characters. ' +
-					'If the change genuinely needs explanation, add a blank line and a short body. ' +
-					'Reply with the commit message only — no quotes, no code fences.\n\n' + truncated
-				)
-			], {}, new vscode.CancellationTokenSource().token);
+			const message = await model(
+				'Write a commit message for this diff. First line: an imperative summary under 72 characters. ' +
+				'If the change genuinely needs explanation, add a blank line and a short body. ' +
+				'Reply with the commit message only — no quotes, no code fences.\n\n' + truncated
+			);
+			// Small models wrap the message in a code fence despite being told not
+			// to; the commit box wants the text.
+			if (message !== undefined) {
+				repository.inputBox.value = stripFence(message);
+			}
+		}
+	);
+}
 
+/** Sirius IDE: the configured default model, through the editor's language models. */
+async function generateCommitMessage(...args: unknown[]): Promise<void> {
+	await writeCommitMessage(args, async () => {
+		const model = await selectDefaultModel();
+		return model && (async prompt => {
+			const response = await model.sendRequest([vscode.LanguageModelChatMessage.User(prompt)], {}, new vscode.CancellationTokenSource().token);
 			let message = '';
 			for await (const part of response.text) {
 				message += part;
 			}
-			// Small models wrap the message in a code fence despite being told not
-			// to; the commit box wants the text.
-			repository.inputBox.value = stripFence(message);
-		}
-	);
+			return message;
+		});
+	}, () => vscode.window.showWarningMessage('Sirius: no model available — add a provider in "Sirius: Manage Models", or start Ollama.'));
 }
 
 /**

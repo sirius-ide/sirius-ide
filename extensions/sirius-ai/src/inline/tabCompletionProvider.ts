@@ -22,7 +22,7 @@ const MAX_LINES_DEFAULT = 12;
  * (editor/common/services/completionsEnablement.ts): an explicit per-language
  * value wins, `*` is the fallback, and anything that is not an object is off.
  */
-function isEnabledFor(enable: unknown, languageId: string): boolean {
+export function isEnabledFor(enable: unknown, languageId: string): boolean {
 	if (typeof enable !== 'object' || enable === null) {
 		return false;
 	}
@@ -31,6 +31,38 @@ function isEnabledFor(enable: unknown, languageId: string): boolean {
 		return Boolean(map[languageId]);
 	}
 	return Boolean(map['*']);
+}
+
+/** What Tab completion asks of the editor it runs in: whether it is on, and where its model is. */
+export interface CompletionSettings {
+	/** Whether completions are on for a document in this language. */
+	enabledFor(languageId: string): boolean;
+	/** Whether next-edit prediction is on too — only where the editor shows an inline edit (Sirius IDE). */
+	nextEdits(): boolean;
+	/** The longest suggestion, in lines. */
+	maxLines(): number;
+	/** The FIM backend to use now, if any answers. */
+	backend(): Promise<FimBackend | undefined>;
+}
+
+/**
+ * Sirius IDE's settings. `sirius.ai.enable` is what product.json names as the product's
+ * completions switch, so it is what the workbench's chat status dashboard reads and toggles —
+ * per language, with `*` as the fallback, and a non-object meaning off (mirrors
+ * editor/common/services/completionsEnablement.ts). Until it was declared here, that toggle wrote
+ * to a key nothing read. `inlineCompletions` is the older boolean and still turns everything on.
+ * The dashboard renders next-edit suggestions as dependent on completions (its checkbox is
+ * disabled while completions are off), so the provider honours the same dependency rather than
+ * quietly disagreeing with the UI.
+ */
+export function ideCompletionSettings(llamaApiKey: () => string = () => ''): CompletionSettings {
+	const config = () => vscode.workspace.getConfiguration('sirius.ai');
+	return {
+		enabledFor: languageId => config().get<boolean>('inlineCompletions', false) || isEnabledFor(config().get<Record<string, boolean>>('enable'), languageId),
+		nextEdits: () => config().get<boolean>('nextEditSuggestions.enabled', false),
+		maxLines: () => config().get<number>('completions.maxLines', MAX_LINES_DEFAULT),
+		backend: () => resolveFimBackend(llamaApiKey)
+	};
 }
 
 /** Small LRU keyed by exact context, so a re-trigger at the same spot is free. */
@@ -53,6 +85,10 @@ class CompletionCache {
 			this.entries.delete(this.entries.keys().next().value!);
 		}
 	}
+
+	clear(): void {
+		this.entries.clear();
+	}
 }
 
 export class TabCompletionProvider implements vscode.InlineCompletionItemProvider {
@@ -61,9 +97,19 @@ export class TabCompletionProvider implements vscode.InlineCompletionItemProvide
 	private inflight: AbortController | undefined;
 	private backend: FimBackend | undefined;
 	private backendProbedAt = 0;
+	/** Counts resets: a backend found by a look that began before the last reset is not kept. */
+	private generation = 0;
 
-	/** The llama.cpp key, read on every request, so a key set or changed later applies at once. */
-	constructor(private readonly llamaApiKey: () => string = () => '') { }
+	constructor(private readonly settings: CompletionSettings) { }
+
+	/** Forget the backend found, and every suggestion: the next request looks again (its model or address changed). */
+	reset(): void {
+		this.generation++;
+		this.inflight?.abort();
+		this.backend = undefined;
+		this.backendProbedAt = 0;
+		this.cache.clear();
+	}
 
 	async provideInlineCompletionItems(
 		document: vscode.TextDocument,
@@ -71,19 +117,8 @@ export class TabCompletionProvider implements vscode.InlineCompletionItemProvide
 		_context: vscode.InlineCompletionContext,
 		token: vscode.CancellationToken
 	): Promise<vscode.InlineCompletionItem[]> {
-		const config = vscode.workspace.getConfiguration('sirius.ai');
-		// `sirius.ai.enable` is what product.json names as the product's
-		// completions switch, so it is what the workbench's chat status dashboard
-		// reads and toggles — per language, with `*` as the fallback, and a
-		// non-object meaning off (mirrors editor/common/services/completionsEnablement.ts).
-		// Until it was declared here, that toggle wrote to a key nothing read.
-		// `inlineCompletions` is the older boolean and still turns everything on.
-		const completionsOn = config.get<boolean>('inlineCompletions', false)
-			|| isEnabledFor(config.get<Record<string, boolean>>('enable'), document.languageId);
-		// The dashboard renders next-edit suggestions as dependent on completions
-		// (its checkbox is disabled while completions are off), so the provider
-		// honours the same dependency rather than quietly disagreeing with the UI.
-		const nesOn = completionsOn && config.get<boolean>('nextEditSuggestions.enabled', false);
+		const completionsOn = this.settings.enabledFor(document.languageId);
+		const nesOn = completionsOn && this.settings.nextEdits();
 		if (!completionsOn) {
 			return [];
 		}
@@ -132,7 +167,11 @@ export class TabCompletionProvider implements vscode.InlineCompletionItemProvide
 		// the editor is already open gets noticed without a reload.
 		if (!this.backend && Date.now() - this.backendProbedAt > 30_000) {
 			this.backendProbedAt = Date.now();
-			this.backend = await resolveFimBackend(this.llamaApiKey);
+			const generation = this.generation;
+			const found = await this.settings.backend();
+			if (generation === this.generation) {
+				this.backend = found;
+			}
 		}
 		if (!this.backend || token.isCancellationRequested) {
 			return [];
@@ -154,7 +193,7 @@ export class TabCompletionProvider implements vscode.InlineCompletionItemProvide
 				signal: controller.signal,
 				stop: stop ? [stop] : undefined
 			});
-			const completion = this.clean(raw, suffix, indent, config.get<number>('completions.maxLines', MAX_LINES_DEFAULT));
+			const completion = this.clean(raw, suffix, indent, this.settings.maxLines());
 			this.cache.set(key, completion);
 			return completion ? [this.item(completion, position)] : [];
 		} catch {
@@ -181,7 +220,11 @@ export class TabCompletionProvider implements vscode.InlineCompletionItemProvide
 			return undefined;
 		}
 		if (!this.backend) {
-			this.backend = await resolveFimBackend(this.llamaApiKey);
+			const generation = this.generation;
+			const found = await this.settings.backend();
+			if (generation === this.generation) {
+				this.backend = found;
+			}
 			if (!this.backend) {
 				return undefined;
 			}

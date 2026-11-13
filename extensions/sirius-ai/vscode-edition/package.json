@@ -1,7 +1,7 @@
 {
 	"name": "sirius-ai",
 	"displayName": "Sirius",
-	"description": "Sirius's own chat for VS Code: your models \u2014 Anthropic, Gemini, OpenAI and nine more, or your own local server \u2014 with their thinking shown as it streams.",
+	"description": "Sirius's own chat for VS Code: your models — Anthropic, Gemini, OpenAI and nine more, or your own local server — with their thinking shown as it streams; Tab completion from a code model on your machine; commit messages.",
 	"publisher": "siriuside",
 	"version": "0.1.0",
 	"license": "SEE LICENSE IN LICENSE.txt",
@@ -14,6 +14,7 @@
 	],
 	"main": "./dist/edition.js",
 	"activationEvents": [
+		"onStartupFinished",
 		"onWebviewPanel:sirius.chat"
 	],
 	"contributes": {
@@ -70,6 +71,27 @@
 				"title": "Reject Change",
 				"category": "Sirius",
 				"icon": "$(close)"
+			},
+			{
+				"command": "sirius.commitMessage",
+				"title": "Write Commit Message",
+				"category": "Sirius",
+				"icon": "$(sparkle)"
+			},
+			{
+				"command": "sirius.completions.turnOn",
+				"title": "Turn On Tab Completion",
+				"category": "Sirius"
+			},
+			{
+				"command": "sirius.completions.turnOff",
+				"title": "Turn Off Tab Completion",
+				"category": "Sirius"
+			},
+			{
+				"command": "sirius.completions.menu",
+				"title": "Tab Completion…",
+				"category": "Sirius"
 			}
 		],
 		"menus": {
@@ -100,6 +122,21 @@
 				{
 					"command": "sirius.panel.rejectChange",
 					"when": "resourceScheme == sirius-proposal"
+				},
+				{
+					"command": "sirius.completions.turnOn",
+					"when": "!sirius.completions.on"
+				},
+				{
+					"command": "sirius.completions.turnOff",
+					"when": "sirius.completions.on"
+				}
+			],
+			"scm/title": [
+				{
+					"command": "sirius.commitMessage",
+					"when": "scmProvider == git",
+					"group": "navigation"
 				}
 			]
 		},
@@ -118,6 +155,29 @@
 					],
 					"default": "enter",
 					"description": "How a message is sent from Sirius's message box."
+				},
+				"sirius.completions.enable": {
+					"scope": "application",
+					"type": "object",
+					"additionalProperties": {
+						"type": "boolean"
+					},
+					"default": {
+						"*": false
+					},
+					"markdownDescription": "Tab completion, per language: `\"*\"` for every language, and a language id such as `\"markdown\"` for that one alone. It needs a code model on your own Ollama or llama.cpp server, at the address in Sirius's **Models and Keys**; see `#sirius.completions.model#`."
+				},
+				"sirius.completions.model": {
+					"scope": "application",
+					"type": "string",
+					"default": "auto",
+					"markdownDescription": "The model Tab completion fills in with: `auto` takes a code model on Ollama, else llama.cpp; `ollama/<model>` one Ollama model; `llamacpp` the llama.cpp server. Their addresses are in Sirius's **Models and Keys**."
+				},
+				"sirius.completions.maxLines": {
+					"type": "integer",
+					"default": 12,
+					"minimum": 1,
+					"description": "The longest suggestion Tab completion offers, in lines."
 				}
 			}
 		},
@@ -160,6 +220,29 @@
 						],
 						"media": {
 							"markdown": "media/walkthrough/ask.md"
+						}
+					},
+					{
+						"id": "tab",
+						"title": "Code as you type",
+						"description": "Tab completion fills in code at the cursor from a code model on your own machine — Ollama with a coder model, or llama-server. It is off until you turn it on.\n[Turn On Tab Completion](command:sirius.completions.turnOn)",
+						"completionEvents": [
+							"onCommand:sirius.completions.turnOn",
+							"onSettingChanged:sirius.completions.enable"
+						],
+						"media": {
+							"markdown": "media/walkthrough/tab.md"
+						}
+					},
+					{
+						"id": "commit",
+						"title": "Write commit messages",
+						"description": "In Source Control, **Write Commit Message** (the sparkle at the top) writes the message for your changes with the model chosen in Sirius.\n[Open Source Control](command:workbench.view.scm)",
+						"completionEvents": [
+							"onCommand:sirius.commitMessage"
+						],
+						"media": {
+							"markdown": "media/walkthrough/commit.md"
 						}
 					},
 					{

@@ -163,20 +163,35 @@ class LlamaCppFim implements FimBackend {
 /** Models an Ollama install might carry that are FIM-trained. */
 const FIM_CAPABLE = /coder|code|starcoder|codegemma|codestral|codellama/i;
 
+/** Where Tab completion looks for its model: Sirius IDE's settings, or the VS Code edition's Models and Keys. */
+export interface FimPlaces {
+	/** `auto`, `ollama/<model>`, or `llamacpp`. */
+	readonly model: string;
+	readonly ollamaEndpoint: string;
+	/** llama-server's OpenAI-compatible base (`…/v1`); empty when none is configured. */
+	readonly llamaBase: string;
+	/** Read on every request, so a key set or changed later applies at once. */
+	readonly llamaApiKey: () => string;
+}
+
 /**
- * Resolve the best available FIM backend. Explicit configuration wins;
- * otherwise a running local Ollama with a code model is picked up
- * automatically, so Tab completion lights up for local-first users with zero
- * setup.
+ * Resolve the best available FIM backend from Sirius IDE's settings. Explicit configuration
+ * wins; otherwise a running local Ollama with a code model is picked up automatically, so Tab
+ * completion lights up for local-first users with zero setup.
  */
 export async function resolveFimBackend(llamaApiKey: () => string = () => ''): Promise<FimBackend | undefined> {
 	const config = vscode.workspace.getConfiguration('sirius.ai');
-	const configured = config.get<string>('completions.model', 'auto');
+	return resolveFimBackendAt({
+		model: config.get<string>('completions.model', 'auto'),
+		ollamaEndpoint: vscode.workspace.getConfiguration('sirius.ai.ollama').get<string>('endpoint', 'http://localhost:11434'),
+		llamaBase: vscode.workspace.getConfiguration('sirius.ai.llamacpp').get<string>('baseUrl', ''),
+		llamaApiKey
+	});
+}
 
-	const ollamaEndpoint = vscode.workspace.getConfiguration('sirius.ai.ollama')
-		.get<string>('endpoint', 'http://localhost:11434');
-	const llamaBase = vscode.workspace.getConfiguration('sirius.ai.llamacpp')
-		.get<string>('baseUrl', '');
+/** The same choice from places the caller names. */
+export async function resolveFimBackendAt(places: FimPlaces): Promise<FimBackend | undefined> {
+	const { model: configured, ollamaEndpoint, llamaBase, llamaApiKey } = places;
 
 	if (configured !== 'auto' && configured.startsWith('ollama/')) {
 		return new OllamaFim(configured, ollamaEndpoint, configured.slice('ollama/'.length));

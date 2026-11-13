@@ -19,6 +19,8 @@ import { ARM_MS, CHANGE_SCHEME, Diffs, PROPOSAL_SCHEME, apply, blockFor, propose
 import { Kept } from './kept';
 import { EditorTracker, ImageStore, carry, findFiles } from './context';
 import { resolveWorkspacePath } from '../tools/workspacePath';
+import type { LocalServers } from '../vscode/completions';
+import type { CommitModel } from '../vscode/commitMessage';
 import * as nodePath from 'path';
 
 export const VIEW_ID = 'sirius.panel';
@@ -40,6 +42,8 @@ const MODEL_AVAILABLE = 'sirius.panel.modelAvailable';
 const ASKED = 'sirius.panel.asked';
 /** How old the list of models may be when the panel is shown again before it is looked for anew: a server started since is found. */
 const STALE_MODELS_MS = 60_000;
+/** A commit message's model is told no more than its job; the prompt says the rest. */
+const COMMIT_PROMPT = 'You write git commit messages.';
 
 const PROMPT =
 	'You are Sirius, an AI engineer working inside the user\'s VS Code. Answer directly and concisely in markdown, ' +
@@ -78,6 +82,62 @@ export class PanelHost implements vscode.WebviewViewProvider, vscode.WebviewPane
 	/** A look asked for while one was under way: that one may have read the keyring before a key just saved. */
 	private refreshAgain = false;
 	private refreshedAt = 0;
+	/** Whether a webview of the panel was ever shown in this window: its first sweeps the pictures. */
+	private used = false;
+	private readonly serversChanged = new vscode.EventEmitter<void>();
+	/** Ollama's or llama.cpp's address or key changed, here or in another window: Tab completion looks again. */
+	readonly onDidChangeServers = this.serversChanged.event;
+	/** Where Tab completion finds the local servers: as Models and Keys has them. */
+	readonly servers: LocalServers = {
+		ollama: () => this.catalog.address('ollama'),
+		llamacpp: () => this.catalog.address('llamacpp'),
+		llamacppSaved: () => this.catalog.saved('llamacpp'),
+		llamaKey: async () => await this.catalog.key('llamacpp') ?? ''
+	};
+	/**
+	 * A commit message's model: the one chosen here — never another in its place, as the diff is the
+	 * user's code — or, when none was ever chosen, the one a question would go to. Looked for first
+	 * when none has been yet. A model gone quiet says so, by name.
+	 */
+	readonly commitModel: CommitModel = {
+		ask: async () => {
+			const chosen = this.choices.get<string>(MODEL);
+			if (!this.refreshedAt || !(chosen ? this.catalog.reachable(chosen) : this._model)) {
+				await this.refreshModels(false);
+			}
+			const key = chosen ?? this._model;
+			const reachable = key ? this.catalog.reachable(key) : undefined;
+			if (!reachable) {
+				return chosen ? `The model chosen in Sirius (${chosen}) does not answer now: open Models and Keys, or choose another in the panel.` : undefined;
+			}
+			this.output.appendLine(`[panel] a commit message from ${key}`);
+			return async (prompt, signal) => {
+				let text = '';
+				let failure: string | undefined;
+				const messages = [{ role: 'user' as const, content: prompt, timestamp: Date.now() }];
+				for await (const chunk of new ModelRouter().chatWithModel(reachable.provider, reachable.model, messages, undefined, signal, { systemPrompt: COMMIT_PROMPT, thinking: { enabled: false, effort: 'high' } })) {
+					// The providers report a failure as a last chunk of text behind a warning sign — after
+					// part of an answer, when a stream breaks — not always marked as an error.
+					if (chunk.stopReason === 'error' || (chunk.done && /^\s*⚠️/.test(chunk.content ?? ''))) {
+						failure = (chunk.content ?? '').replace(/^\s*⚠️\s*/, '').replace(/\*\*/g, '').trim() || 'the model failed';
+					} else {
+						text += chunk.content ?? '';
+					}
+				}
+				// A stopped request just ends: what came before it is not a commit message either.
+				if (signal.aborted) {
+					throw new Error((signal.reason as { name?: unknown } | undefined)?.name === 'TimeoutError' ? 'the model did not answer in time' : 'stopped');
+				}
+				if (failure) {
+					throw new Error(failure);
+				}
+				if (!text.trim()) {
+					throw new Error('the model gave no message');
+				}
+				return text;
+			};
+		}
+	};
 	private viewClient: Client | undefined;
 	/**
 	 * What a command asked of the side panel before it existed: VS Code resolves a view only
@@ -98,7 +158,7 @@ export class PanelHost implements vscode.WebviewViewProvider, vscode.WebviewPane
 	/** Files the user chose in VS Code's file picker, by the ids given to the webview that asked; spent when sent. */
 	private readonly picked = new Map<string, { readonly client: Client; readonly uri: vscode.Uri; readonly label: string }>();
 	/** The pictures questions carried, as files of their own. */
-	private readonly images: ImageStore;
+	private picturesStore: ImageStore | undefined;
 	/** Conversations whose question is being put together: a second one waits for it. */
 	private readonly preparing = new Set<string>();
 	/** Code blocks applied and waiting in the diff editor: closing the diff leaves the change. */
@@ -112,15 +172,6 @@ export class PanelHost implements vscode.WebviewViewProvider, vscode.WebviewPane
 	constructor(private readonly context: vscode.ExtensionContext) {
 		this.sessions = new SessionStore(context.workspaceState);
 		this.choices = new Kept(context.globalState);
-		// A window with no folder has no storage of its own: its pictures get a folder of their own in the
-		// shared one, or one such window's sweep would delete another's.
-		let windowFolder = context.workspaceState.get<string>(IMAGES_FOLDER);
-		if (!context.storageUri && !windowFolder) {
-			windowFolder = newId();
-			void context.workspaceState.update(IMAGES_FOLDER, windowFolder);
-		}
-		this.images = new ImageStore(context.storageUri ? vscode.Uri.joinPath(context.storageUri, 'panel-images') : vscode.Uri.joinPath(context.globalStorageUri, 'panel-images', windowFolder!));
-		void this._sweepImages();
 		this.editor = new EditorTracker(editor => {
 			for (const client of this.clients) {
 				this._post(client, { type: 'editor', ...(editor ? { editor } : {}) });
@@ -146,10 +197,34 @@ export class PanelHost implements vscode.WebviewViewProvider, vscode.WebviewPane
 			}),
 			vscode.workspace.registerTextDocumentContentProvider(CHANGE_SCHEME, this.diffs)
 		);
-		void this.refreshModels();
+		context.subscriptions.push(context.secrets.onDidChange(event => {
+			if (event.key === ModelCatalog.keyName('llamacpp')) {
+				this.serversChanged.fire();
+			}
+		}));
+		// The first look for models waits for the panel, or a commit message, to need them: Sirius
+		// starts with the window for Tab completion, and asks no vendor anything until then.
+	}
+
+	/**
+	 * The pictures questions carried, made when the panel is first used (Sirius starts with every
+	 * window). A window with no folder has no storage of its own: its pictures get a folder of their
+	 * own in the shared one, or one such window's sweep would delete another's.
+	 */
+	private get images(): ImageStore {
+		if (!this.picturesStore) {
+			let windowFolder = this.context.workspaceState.get<string>(IMAGES_FOLDER);
+			if (!this.context.storageUri && !windowFolder) {
+				windowFolder = newId();
+				void this.context.workspaceState.update(IMAGES_FOLDER, windowFolder);
+			}
+			this.picturesStore = new ImageStore(this.context.storageUri ? vscode.Uri.joinPath(this.context.storageUri, 'panel-images') : vscode.Uri.joinPath(this.context.globalStorageUri, 'panel-images', windowFolder!));
+		}
+		return this.picturesStore;
 	}
 
 	dispose(): void {
+		this.serversChanged.dispose();
 		for (const { controller } of this.running.values()) {
 			controller.abort();
 		}
@@ -248,6 +323,15 @@ export class PanelHost implements vscode.WebviewViewProvider, vscode.WebviewPane
 		webview.options = this._options(false);
 		const client: Client = { webview, sessionId: sessionId && this.sessions.get(sessionId) ? sessionId : newId(), view };
 		this.clients.add(client);
+		if (!this.used) {
+			// The panel's first use in this window: the models (unless a commit message looked already),
+			// and a sweep of pictures no conversation names.
+			this.used = true;
+			if (!this.refreshedAt && !this.refreshing) {
+				void this.refreshModels();
+			}
+			void this._sweepImages();
+		}
 		webview.onDidReceiveMessage(raw => this._receive(client, raw));
 		webview.html = this._html(webview);
 		return client;
@@ -420,6 +504,9 @@ export class PanelHost implements vscode.WebviewViewProvider, vscode.WebviewPane
 						await this.catalog.clearKey(provider);
 					} else {
 						await this.catalog.setUrl(provider, message.url);
+					}
+					if (provider === 'ollama' || provider === 'llamacpp') {
+						this.serversChanged.fire();
 					}
 					await this.refreshModels();
 				}

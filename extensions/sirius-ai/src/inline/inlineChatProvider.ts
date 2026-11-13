@@ -8,7 +8,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { TabCompletionProvider } from './tabCompletionProvider';
+import { TabCompletionProvider, ideCompletionSettings } from './tabCompletionProvider';
 
 /**
  * Registers Sirius as a Chat Participant for inline chat (Ctrl+I).
@@ -33,7 +33,7 @@ export class SiriusInlineChatProvider {
 	private _registerInlineCompletions(context: vscode.ExtensionContext): void {
 		context.subscriptions.push(vscode.languages.registerInlineCompletionItemProvider(
 			{ pattern: '**' },
-			new TabCompletionProvider(this.llamaApiKey)
+			new TabCompletionProvider(ideCompletionSettings(this.llamaApiKey))
 		));
 	}
 }

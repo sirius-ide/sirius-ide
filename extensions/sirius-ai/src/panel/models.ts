@@ -82,6 +82,26 @@ export class ModelCatalog {
 		await this.global.update(URL_KEY(provider), url || undefined);
 	}
 
+	/** Whether an address was saved for a provider on this page. */
+	saved(provider: ProviderType): boolean {
+		return !!this.global.get<string>(URL_KEY(provider));
+	}
+
+	/** A provider's address: the one saved on this page, else its usual one. */
+	address(provider: ProviderType): string {
+		return this.global.get<string>(URL_KEY(provider)) || DEFAULT_URLS[provider] || BASE_URLS[provider] || '';
+	}
+
+	/** A provider's key from the keyring, if one was saved. */
+	async key(provider: ProviderType): Promise<string | undefined> {
+		return withTimeout(Promise.resolve(this.secrets.get(KEY(provider))), DISCOVERY_MS, 'The system keyring');
+	}
+
+	/** A provider's entry in the keyring. */
+	static keyName(provider: ProviderType): string {
+		return KEY(provider);
+	}
+
 	/** Asks every provider, in parallel, what it offers now. */
 	async refresh(): Promise<void> {
 		const results = await Promise.all(PROVIDER_ORDER.map(id => this._discover(id)));
