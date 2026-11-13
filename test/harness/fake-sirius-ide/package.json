@@ -1,0 +1,8 @@
+{
+	"name": "sirius-ai",
+	"displayName": "Stand-in for Sirius IDE's built-in Sirius",
+	"description": "Harness fixture: an extension with the id of Sirius IDE's built-in (sirius.sirius-ai) and nothing in it, so a probe in stock VS Code can see the VS Code edition stand aside.",
+	"publisher": "sirius",
+	"version": "0.0.1",
+	"engines": { "vscode": "^1.100.0" }
+}

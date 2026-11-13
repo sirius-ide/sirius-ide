@@ -3,7 +3,8 @@
 # Licensed under the MIT License. See License.txt in the project root for license information.
 # Run a probe inside stock VS Code with Sirius's VS Code edition, against a fresh profile:
 #   test/harness/vscode-run.sh <vscode-dir> <edition-dir> <probe-script.js> <result.json> [wait, in 2 s steps]
-# <vscode-dir> is an unpacked Microsoft build (…/VSCode-linux-x64), left untouched: the edition
+# <vscode-dir> is an unpacked Microsoft build (…/VSCode-linux-x64) — or a Sirius IDE app, for
+# probes/in-ide.js — left untouched: the edition
 # (extensions/sirius-ai/dist/edition, from `node esbuild-edition.mts`) and the probe extension both
 # load as development extensions. The window's debugging port is open (SIRIUS_PROBE_CDP_PORT,
 # default 9341) so a probe can read the window and the panel's webview over CDP.
@@ -26,6 +27,9 @@ WAIT=${5:-90}
 PORT=${SIRIUS_PROBE_CDP_PORT:-9341}
 HERE=$(cd "$(dirname "$0")" && pwd)
 WORK=$(mktemp -d)
+# Stock VS Code's launcher, or Sirius IDE's (a probe of the edition inside the IDE: probes/in-ide.js).
+BIN=code
+[ -x "$APP/bin/code" ] || BIN=sirius
 
 app_pids() { ps -eo pid,args --no-headers | awk -v a="$APP/" '$2 ~ "^"a {print $1}'; }
 reap() {
@@ -66,7 +70,7 @@ Xvfb :97 -screen 0 1400x900x24 >/dev/null 2>&1 & XP=$!
 sleep 2
 
 env -u WAYLAND_DISPLAY DBUS_SESSION_BUS_ADDRESS="$BUS" PATH="$WORK/bin:$PATH" SIRIUS_PROBE_SCRIPT="$PROBE" SIRIUS_PROBE_OUT="$OUT" SIRIUS_PROBE_CDP_PORT="$PORT" SIRIUS_PROBE_USER_DIR="$WORK/user" SIRIUS_PROBE_OPENED="$WORK/opened.log" DISPLAY=:97 \
-	"$APP/bin/code" --ozone-platform=x11 --user-data-dir="$WORK/user" --extensions-dir="$WORK/extensions" \
+	"$APP/bin/$BIN" --ozone-platform=x11 --user-data-dir="$WORK/user" --extensions-dir="$WORK/extensions" \
 	--extensionDevelopmentPath="$EDITION" --extensionDevelopmentPath="$HERE/probe-ext" ${SIRIUS_PROBE_EXTRA_EXT:+--extensionDevelopmentPath="$SIRIUS_PROBE_EXTRA_EXT"} \
 	--no-sandbox --disable-gpu --disable-workspace-trust --use-inmemory-secretstorage \
 	--skip-welcome --skip-release-notes --remote-debugging-port="$PORT" "$WORK/ws" >"$OUT.app.log" 2>&1 &

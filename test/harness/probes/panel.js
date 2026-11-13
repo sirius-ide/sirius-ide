@@ -6,7 +6,7 @@
 // Sirius's own panel in stock VS Code (the VS Code edition), driven through its webview as a
 // person would, against the stubs (test/harness/edition-stub.sh):
 //   walkthrough — first, as after an install, before Sirius was ever opened: "Get started with
-//               Sirius" shows its four steps; its "Open Models and Keys" opens the panel on its
+//               Sirius" shows its six steps; its "Open Models and Keys" opens the panel on its
 //               Models and Keys; "Open Sirius" is then done and "Ask, Edit or Agent" is not.
 //   start     — before any setup the panel says how to begin — or, when a local server such as
 //               Ollama answers, offers its models and says to ask.
@@ -20,6 +20,18 @@
 //               its vendor deprecated is marked so in the picker.
 //   checking  — Check again while Anthropic's model listing is slow shows "Checking…"; Gemini's key
 //               removed meanwhile shows as gone once the look ends (the look under way had read it).
+//   completions — Tab completion is off at first (the status bar's Tab item says so, and a trigger
+//               asks nothing); Turn On Tab Completion (the walkthrough's button) turns it on, the item
+//               names the Ollama stub's code model, and a trigger inside a function's body asks
+//               Ollama at the address saved in Models and Keys for a fill-in-the-middle with the
+//               prefix, the suffix and the stop strings, and the suggestion taken is cut where the
+//               model ran out of the body; with the model set to llama.cpp, /infill at the server's
+//               root gets the key saved in Models and Keys, and its answer is taken; off for
+//               javascript alone, a trigger asks nothing. "Code as you type" is then done.
+//   commit    — in a git repository with a change, Write Commit Message in Source Control's title
+//               bar (a person's click) puts the model's message in the message box, its code fence
+//               taken off; the diff went to the model chosen in the panel. "Write commit messages" is
+//               then done.
 //   guard     — for the whole run the probe stands in for the vendors' own APIs inside the extension
 //               host: OpenAI's is answered here, any other is refused and recorded — no request
 //               leaves this machine, and none but those this probe means is made.
@@ -167,7 +179,9 @@ const OTHERS = { gemini: 'gemini/gemini-stub-flash', openai: 'openai/stub-model'
 const REASONING = 'Stub reasoning for round 0: first the files, then the answer.';
 const BEFORE = `${OUT}.before-reload.json`;
 const CLOSE_WITHIN_MS = 3000;
-const STEPS = ['Open Sirius', 'Add a model', 'Ask, Edit or Agent', 'Keep your conversations'];
+const STEPS = ['Open Sirius', 'Add a model', 'Ask, Edit or Agent', 'Code as you type', 'Write commit messages', 'Keep your conversations'];
+/** Sirius's Tab item in the status bar: its icon, its text and what it says. */
+const TAB_STATUS = `(() => { const e = [...document.querySelectorAll('.statusbar-item')].find(x => /sirius\\.completions$/.test(x.id)); if (!e) { return null; } const icon = e.querySelector('.codicon'); return { icon: icon ? [...icon.classList].find(k => k.startsWith('codicon-') && k !== 'codicon') ?? '' : '', text: e.textContent.trim(), label: e.querySelector('[aria-label]')?.getAttribute('aria-label') ?? '' }; })()`;
 
 const log = line => { if (OUT) { fs.appendFileSync(`${OUT}.log`, `${new Date().toISOString().slice(11, 19)} ${line}\n`); } };
 const stubRequests = async () => (await fetch(`${HOSTED}/__requests`)).json();
@@ -382,6 +396,8 @@ exports.run = async function (vscode) {
 	const stepButton = text => clickText('.getting-started-step .button-link, .getting-started-step a, .getting-started-step button.monaco-button', text);
 	if (!reloaded) {
 		log('walkthrough: Get started with Sirius, and its Open Models and Keys before Sirius was ever opened');
+		// Sirius starts with the window (Tab completion is ready before anything is typed); the panel
+		// itself is not open yet — Models and Keys below is its first open.
 		result.walkthrough = { activeBefore: !!vscode.extensions.getExtension(EXTENSION)?.isActive };
 		await vscode.commands.executeCommand('workbench.action.openWalkthrough', `${EXTENSION}#start`, false);
 		let steps = [];
@@ -393,7 +409,6 @@ exports.run = async function (vscode) {
 		await sleep(500);
 		result.walkthrough.steps = steps.map(s => s.title);
 		result.walkthrough.openModels = await win.evaluate(stepButton('Open Models and Keys'));
-		check(!result.walkthrough.activeBefore, 'walkthrough: Sirius was running before anything opened it, so the first open is not tested');
 		check(js(result.walkthrough.steps) === js(STEPS), `walkthrough: the steps are not ${js(STEPS)} (${js(steps)})`);
 		check(result.walkthrough.openModels, 'walkthrough: no "Open Models and Keys" button');
 	} else {
@@ -599,6 +614,121 @@ exports.run = async function (vscode) {
 	check(removeClicked && /No key/.test(afterRemove?.providers?.gemini ?? '') && !afterRemove?.refreshing, `checking: Gemini's key, removed while a look was under way, did not show as gone once it ended (${js(result.checking)})`);
 	await panel.evaluate(fill('gemini', 'input[type="password"]', KEY, 'Save key'));
 	await until(s => /\d+ models?/.test(s.providers.gemini ?? ''), 20000);
+	save();
+
+	// ── completions ───────────────────────────────────────────────────────────
+	log('completions: off at first; on, from Ollama; llama.cpp with its key; off for javascript');
+	const ws0 = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
+	await vscode.workspace.getConfiguration('editor').update('inlineSuggest.enabled', true, vscode.ConfigurationTarget.Global);
+	const fimHead = 'function add(a, b) {\n\t';
+	const fimTail = '\n}\n';
+	const fimRequests = async from => (await stubRequests()).slice(from).filter(r => r.method === 'POST' && r.path === '/api/generate');
+	const infills = from => openaiLines().slice(from).filter(l => l.method === 'POST' && l.url === '/infill');
+	const tabStatus = async want => {
+		let status = null;
+		for (let i = 0; i < 30; i++) {
+			status = await win.evaluate(TAB_STATUS);
+			if (!want || status?.icon === want) { break; }
+			await sleep(250);
+		}
+		return status;
+	};
+	/** A setting of Tab completion, written as the user would; on code without it, every check after fails on its own. */
+	const completionSetting = (key, value, target) => vscode.workspace.getConfiguration().update(key, value, target).then(() => null, error => String(error));
+	const fimFiles = [];
+	/** A new file, the cursor in the function's body, a trigger; whether the server was asked, and what the file holds once the suggestion is taken. */
+	const complete = async (count, attempts = 3) => {
+		const file = path.join(ws0, `tab-${fimFiles.length + 1}.js`);
+		fimFiles.push(file);
+		fs.writeFileSync(file, fimHead + fimTail);
+		const editor = await vscode.window.showTextDocument(vscode.Uri.file(file), { preview: false });
+		editor.selection = new vscode.Selection(1, 1, 1, 1);
+		const before = await count();
+		for (let attempt = 0; attempt < attempts && await count() === before; attempt++) {
+			await vscode.commands.executeCommand('editor.action.inlineSuggest.trigger');
+			for (let i = 0; i < 8 && await count() === before; i++) { await sleep(500); }
+		}
+		const asked = await count() > before;
+		await sleep(1500);
+		await vscode.commands.executeCommand('editor.action.inlineSuggest.commit');
+		await sleep(500);
+		const text = editor.document.getText();
+		await editor.document.save();
+		return { asked, inserted: text.startsWith(fimHead) && text.endsWith(fimTail) ? text.slice(fimHead.length, -fimTail.length) : text };
+	};
+	const statusOff = await tabStatus();
+	const fromOff = (await stubRequests()).length;
+	const offRun = await complete(async () => (await fimRequests(fromOff)).length, 1);
+	// On code without the command, every check below fails on its own rather than the run stopping here.
+	const turnOnError = await vscode.commands.executeCommand('sirius.completions.turnOn').then(() => null, error => String(error));
+	const statusOn = await tabStatus('codicon-sparkle');
+	const fromOllama = (await stubRequests()).length;
+	const ollamaRun = await complete(async () => (await fimRequests(fromOllama)).length);
+	const ollamaBody = (await fimRequests(fromOllama))[0]?.body ?? {};
+	await completionSetting('sirius.completions.model', 'llamacpp', vscode.ConfigurationTarget.Global);
+	await sleep(500);
+	const fromLlama = openaiLines().length;
+	const llamaRun = await complete(async () => infills(fromLlama).length);
+	const llamaLine = infills(fromLlama)[0] ?? null;
+	await completionSetting('sirius.completions.enable', { '*': true, javascript: false }, vscode.ConfigurationTarget.Global);
+	await sleep(500);
+	const fromJs = openaiLines().length;
+	const jsRun = await complete(async () => infills(fromJs).length, 1);
+	const statusJs = await tabStatus('codicon-circle-slash');
+	result.completions = {
+		statusOff, off: offRun, turnOnError, statusOn,
+		ollama: { ...ollamaRun, model: ollamaBody.model ?? null, promptEnd: String(ollamaBody.prompt ?? '').slice(-24), suffix: ollamaBody.suffix ?? null, stop: ollamaBody.options?.stop ?? null },
+		llama: { ...llamaRun, line: llamaLine }, javascriptOff: jsRun, statusJs
+	};
+	check(statusOff?.icon === 'codicon-circle-slash' && !offRun.asked && offRun.inserted === '', `completions: Tab completion was not off at first — the item, or a trigger that asked a server (${js({ statusOff, offRun })})`);
+	check(statusOn?.icon === 'codicon-sparkle' && /stub-coder:1b/.test(statusOn?.label ?? ''), `completions: once turned on, the status bar item does not name the Ollama stub's code model (${js(statusOn)})`);
+	check(ollamaRun.asked && ollamaBody.model === 'stub-coder:1b' && ollamaBody.suffix === fimTail && String(ollamaBody.prompt ?? '').endsWith(fimHead)
+		&& (ollamaBody.options?.stop ?? []).includes('\n}') && (ollamaBody.options?.stop ?? []).includes('\n\n\n'), `completions: Ollama was not asked to fill in the middle with the prefix, the suffix and the stop strings (${js(result.completions.ollama)})`);
+	check(ollamaRun.inserted === 'return a + b;', `completions: the suggestion taken is not the model's, cut where it left the body (${js(ollamaRun.inserted)})`);
+	check(llamaRun.asked && llamaLine?.authorized === true && llamaLine?.bearer === KEY.slice(0, 6) && (llamaLine?.stop ?? []).includes('\n}') && llamaRun.inserted === 'return a * b;', `completions: llama.cpp's /infill did not get the key saved in Models and Keys, or its answer was not taken (${js(result.completions.llama)})`);
+	check(!jsRun.asked && statusJs?.icon === 'codicon-circle-slash', `completions: off for javascript, a trigger still asked, or the item does not say off (${js({ jsRun, statusJs })})`);
+	await completionSetting('sirius.completions.enable', undefined, vscode.ConfigurationTarget.Global);
+	await completionSetting('sirius.completions.model', undefined, vscode.ConfigurationTarget.Global);
+	await vscode.window.tabGroups.close(vscode.window.tabGroups.all.flatMap(g => g.tabs).filter(t => t.input instanceof vscode.TabInputText && /^tab-\d+\.js$/.test(path.basename(t.input.uri.fsPath))));
+	for (const file of fimFiles) { fs.rmSync(file, { force: true }); }
+	save();
+
+	// ── commit ────────────────────────────────────────────────────────────────
+	log('commit: Write Commit Message in Source Control\'s title bar');
+	const { execFileSync } = require('child_process');
+	const git = (...args) => execFileSync('git', ['-c', 'user.name=Probe', '-c', 'user.email=probe@localhost', ...args], { cwd: ws0, encoding: 'utf8' });
+	const greetBefore = fs.readFileSync(path.join(ws0, 'greet.js'), 'utf8');
+	git('init', '-q');
+	git('add', '-A');
+	git('commit', '-q', '-m', 'base');
+	fs.writeFileSync(path.join(ws0, 'greet.js'), `${greetBefore}\nfunction farewell(name) {\n\treturn 'Goodbye, ' + name;\n}\n`);
+	await vscode.commands.executeCommand('git.openRepository', ws0);
+	const gitApi = vscode.extensions.getExtension('vscode.git')?.exports?.getAPI(1);
+	for (let i = 0; i < 40 && !gitApi?.repositories.length; i++) { await sleep(250); }
+	const repository = gitApi?.repositories[0];
+	await vscode.commands.executeCommand('workbench.view.scm');
+	const commitButton = '.monaco-action-bar .action-label[aria-label^="Write Commit Message"]';
+	for (let i = 0; i < 40 && !await win.evaluate(`!!document.querySelector(${js(commitButton)})`); i++) { await sleep(250); }
+	const fromCommit = (await stubRequests()).length;
+	const commitClicked = await realClick(win, commitButton);
+	for (let i = 0; i < 80 && !repository?.inputBox.value; i++) { await sleep(250); }
+	const commitRequest = (await stubRequests()).slice(fromCommit).find(r => r.method === 'POST' && /^Write a commit message for this diff/.test(lastUserText(r)));
+	let commitDone = [];
+	for (let i = 0; i < 20 && !commitDone.includes('Write commit messages'); i++) {
+		commitDone = (await win.evaluate(WALKTHROUGH)).filter(st => st.done).map(st => st.title);
+		if (!commitDone.includes('Write commit messages')) { await sleep(250); }
+	}
+	result.commit = { repository: !!repository, commitClicked, message: repository?.inputBox.value ?? null, request: commitRequest ? { path: commitRequest.path, status: commitRequest.status, hasDiff: lastUserText(commitRequest).includes('+function farewell(name) {') } : null, walkthrough: commitDone };
+	check(!!repository && commitClicked, `commit: no repository, or no Write Commit Message in Source Control's title bar (${js(result.commit)})`);
+	check(repository?.inputBox.value === 'Add a farewell beside the greeting\n\nSay goodbye as well as hello.', `commit: the message box does not hold the model's message without its code fence (${js(result.commit.message)})`);
+	check(result.commit.request?.hasDiff === true && result.commit.request?.status === 200, `commit: the diff did not go to the panel's model (${js(result.commit.request)})`);
+	// Read here, with the Welcome page in front again: the steps are not drawn while files cover it.
+	check(commitDone.includes('Code as you type'), `walkthrough: "Code as you type" is not done once Tab completion was turned on (${js(commitDone)})`);
+	check(commitDone.includes('Write commit messages'), `walkthrough: "Write commit messages" is not done once a message was written (${js(commitDone)})`);
+	if (repository) { repository.inputBox.value = ''; }
+	fs.writeFileSync(path.join(ws0, 'greet.js'), greetBefore);
+	fs.rmSync(path.join(ws0, '.git'), { recursive: true, force: true });
+	await vscode.commands.executeCommand('sirius.open');
 	save();
 
 	// ── providers ─────────────────────────────────────────────────────────────

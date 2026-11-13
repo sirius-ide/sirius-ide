@@ -76,6 +76,11 @@
 // Errors, on Anthropic's shape: a chat that says "overloaded" is answered HTTP 529 with Anthropic's
 // overloaded_error body; one that says "overloaded midway", streamed, starts its answer ("Half an
 // answer") and then sends the stream's `error` event with that body and ends, as Anthropic does.
+// Commit messages, on every shape: a chat that begins "Write a commit message for this diff" answers
+// with a message wrapped in a code fence, as small models do though told not to (COMMIT_ANSWER).
+// Tab completion, on Ollama's shape: `POST /api/generate` with a `suffix` (fill-in-the-middle)
+// answers FIM_ANSWER, a body that runs past its block into the next function as a FIM model does;
+// without one, "pong".
 //
 //   node test/harness/hosted-stub.mjs <port> <key>
 
@@ -205,8 +210,16 @@ const INJECT = [
 	'After.'
 ].join('\n');
 
+/** A commit message as a small model writes one: in a code fence, which the editor must take off. */
+const COMMIT_ANSWER = '```text\nAdd a farewell beside the greeting\n\nSay goodbye as well as hello.\n```';
+/** A fill-in-the-middle answer that goes on past the body's closing brace into another function. */
+const FIM_ANSWER = 'return a + b;\n}\n\nfunction more() {\n\treturn 0;';
+
 /** What to answer: a tool call, the tool's result echoed, or pong. */
 function reply(ask) {
+	if (/^Write a commit message for this diff/.test(ask.text) && ask.result === undefined) {
+		return { text: COMMIT_ANSWER };
+	}
 	// "use <tool>" calls it; "use <tool> then <tool>" calls the second in the next round.
 	const chain = /\buse ([\w.-]+)(?: then ([\w.-]+))?/i.exec(ask.text);
 	const next = chain ? [chain[1], chain[2]].filter(Boolean)[ask.rounds ?? 0] : undefined;
@@ -674,6 +687,9 @@ http.createServer(async (req, res) => {
 				json(res, 200, OLLAMA_SHOW);
 			} else if (req.method === 'POST' && url.pathname === '/api/chat') {
 				await ollamaChat(body ?? {}, res, record);
+			} else if (req.method === 'POST' && url.pathname === '/api/generate') {
+				const fim = typeof body?.suffix === 'string';
+				json(res, 200, { model: body?.model, created_at: new Date().toISOString(), response: fim ? FIM_ANSWER : 'pong', done: true, done_reason: 'stop' });
 			} else {
 				json(res, 404, { error: `not found: ${url.pathname}` });
 			}
