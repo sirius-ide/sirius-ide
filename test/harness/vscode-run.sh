@@ -17,6 +17,8 @@
 # (JSON) is laid over the defaults. SIRIUS_PROBE_SEED=<dir> is copied into the workspace and
 # SIRIUS_PROBE_USER=<dir> into the profile's User folder (an mcp.json) before the app starts;
 # SIRIUS_PROBE_EXTRA_EXT=<dir> loads one more development extension (probe-tools-ext).
+# SIRIUS_PROBE_VSIX=<file> installs that package into the run's extensions folder — the edition as a
+# user gets it — instead of loading <edition-dir> as a development extension.
 
 set -euo pipefail
 APP=${1:?vscode dir, e.g. ~/.cache/sirius-verify/vscode-1.146.0/VSCode-linux-x64}
@@ -65,13 +67,20 @@ node -e '
 	fs.writeFileSync(file, JSON.stringify(settings, null, "\t") + "\n");
 ' "$WORK/user/User/settings.json" "${SIRIUS_PROBE_SETTINGS:-}"
 
+EDITION_ARGS=(--extensionDevelopmentPath="$EDITION")
+if [ -n "${SIRIUS_PROBE_VSIX:-}" ]; then
+	"$APP/bin/$BIN" --user-data-dir="$WORK/user" --extensions-dir="$WORK/extensions" --install-extension "$(realpath "$SIRIUS_PROBE_VSIX")" >"$OUT.install.log" 2>&1 \
+		|| { echo "the .vsix did not install: $(cat "$OUT.install.log")" >&2; exit 1; }
+	EDITION_ARGS=()
+fi
+
 reap; pgrep -x Xvfb >/dev/null && pkill -x Xvfb || true; sleep 1
 Xvfb :97 -screen 0 1400x900x24 >/dev/null 2>&1 & XP=$!
 sleep 2
 
 env -u WAYLAND_DISPLAY DBUS_SESSION_BUS_ADDRESS="$BUS" PATH="$WORK/bin:$PATH" SIRIUS_PROBE_SCRIPT="$PROBE" SIRIUS_PROBE_OUT="$OUT" SIRIUS_PROBE_CDP_PORT="$PORT" SIRIUS_PROBE_USER_DIR="$WORK/user" SIRIUS_PROBE_OPENED="$WORK/opened.log" DISPLAY=:97 \
 	"$APP/bin/$BIN" --ozone-platform=x11 --user-data-dir="$WORK/user" --extensions-dir="$WORK/extensions" \
-	--extensionDevelopmentPath="$EDITION" --extensionDevelopmentPath="$HERE/probe-ext" ${SIRIUS_PROBE_EXTRA_EXT:+--extensionDevelopmentPath="$SIRIUS_PROBE_EXTRA_EXT"} \
+	"${EDITION_ARGS[@]}" --extensionDevelopmentPath="$HERE/probe-ext" ${SIRIUS_PROBE_EXTRA_EXT:+--extensionDevelopmentPath="$SIRIUS_PROBE_EXTRA_EXT"} \
 	--no-sandbox --disable-gpu --disable-workspace-trust --use-inmemory-secretstorage \
 	--skip-welcome --skip-release-notes --remote-debugging-port="$PORT" "$WORK/ws" >"$OUT.app.log" 2>&1 &
 

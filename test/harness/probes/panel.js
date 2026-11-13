@@ -157,6 +157,10 @@
 //   palette   — New Conversation from the Command Palette, with the side bar closed, shows the panel.
 //   file links — a link in an answer to a workspace file opens it at the line named; one to a file
 //               outside the workspace, or a command: link, opens nothing.
+//   packaged  — run with SIRIUS_PROBE_PACKAGED=1, the edition is its .vsix installed as a user would:
+//               it runs from the run's extensions folder, not as a development extension.
+//   logs      — at rest, VS Code's logs hold no line refusing the edition: no "CANNOT USE" proposed
+//               API, no "CANNOT register", no failed activation.
 // Progress in <result>.log; the part before the reload in <result>.before-reload.json.
 
 const fs = require('fs');
@@ -501,6 +505,27 @@ exports.run = async function (vscode) {
 		check(vendorCalls.length === 0, `guard: after the reload the panel called a vendor's API (${js(vendorCalls)})`);
 		panel.close();
 		win.close();
+
+		// ── logs ──────────────────────────────────────────────────────────────────
+		const refusals = [];
+		const scan = folder => {
+			for (const entry of fs.readdirSync(folder, { withFileTypes: true })) {
+				const file = path.join(folder, entry.name);
+				if (entry.isDirectory()) {
+					scan(file);
+				} else if (entry.name.endsWith('.log')) {
+					refusals.push(...fs.readFileSync(file, 'utf8').split('\n').filter(line => /siriuside\.sirius-ai/i.test(line) && /CANNOT USE|CANNOT register|Activating extension .* failed/.test(line)).map(line => line.slice(0, 300)));
+				}
+			}
+		};
+		try { scan(path.join(PROFILE ?? '', 'logs')); } catch { /* no logs */ }
+		// The run's extensions folder sits beside its profile (vscode-run.sh).
+		const installed = path.join(path.dirname(PROFILE ?? ''), 'extensions');
+		const loadedFrom = vscode.extensions.getExtension(EXTENSION)?.extensionPath ?? null;
+		const packaged = !!process.env.SIRIUS_PROBE_VSIX;
+		result.logs = { refusals, packaged, loadedFrom, fromInstalled: !!loadedFrom && loadedFrom.startsWith(installed + path.sep) };
+		check(refusals.length === 0, `logs: VS Code refused the edition somewhere (${js(refusals)})`);
+		check(!packaged || result.logs.fromInstalled, `packaged: the edition did not run from its installed .vsix (${js(result.logs)})`);
 
 		// ── at rest ───────────────────────────────────────────────────────────────
 		// The window that reloaded has written its storage away; the keyring is this run's own.

@@ -9,6 +9,9 @@
 # profile's mcp.json names one MCP server, sirius-stub (mcp-stub.mjs: echo, read-only, and
 # write_note, which VS Code asks about); probe-tools-ext adds another extension's tool.
 #   test/harness/edition-stub.sh <vscode-dir> <probe.js> [result.json]
+# SIRIUS_PROBE_PACKAGED=1 packages the edition instead (extensions/sirius-ai/vscode-edition/package.sh:
+# the build, the stable-API gate, `vsce package`; its tools installed first) into <result>.vsix, and the
+# run installs that package as a user would rather than loading the folder as a development extension.
 # Probes written for it: probes/panel.js — Sirius's panel: the walkthrough, setup, every provider
 # family, thinking, replay, modes and effort, tools and approvals, changes to files reviewed in the
 # diff editor, Copy, errors, Stop, Retry, the send key, conversations, a tab, a reload, the page's
@@ -27,7 +30,13 @@ cat > "$USERDIR/mcp.json" <<JSON
 { "servers": { "sirius-stub": { "type": "stdio", "command": "$(command -v node)", "args": ["$HERE/mcp-stub.mjs"] } } }
 JSON
 
-( cd "$ROOT/extensions/sirius-ai" && node esbuild-edition.mts >/dev/null )
+if [ -n "${SIRIUS_PROBE_PACKAGED:-}" ]; then
+	"$ROOT/extensions/sirius-ai/vscode-edition/package.sh" "${OUT%.json}.vsix" >"${OUT%.json}.package.log" 2>&1 \
+		|| { echo "packaging failed: $(tail -20 "${OUT%.json}.package.log")" >&2; exit 1; }
+	export SIRIUS_PROBE_VSIX="${OUT%.json}.vsix"
+else
+	( cd "$ROOT/extensions/sirius-ai" && node esbuild-edition.mts >/dev/null )
+fi
 if curl -s -o /dev/null http://127.0.0.1:11992/__requests || curl -s -o /dev/null http://127.0.0.1:11991/v1/models; then
 	echo "port 11992 or 11991 is in use — a stub from an earlier run is still up" >&2
 	exit 1
