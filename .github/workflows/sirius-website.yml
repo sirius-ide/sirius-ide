@@ -39,8 +39,12 @@ concurrency:
 jobs:
   site:
     name: Build, test, deploy
-    # A release run on a branch is a rehearsal and publishes nothing; only a tag's matters.
-    if: github.event_name != 'workflow_run' || startsWith(github.event.workflow_run.head_branch, 'v')
+    # A release run on a branch is a rehearsal and publishes nothing; only a tag's matters — a
+    # version tag's, v1.2.3: the branch vscode-edition and the extension's vscode-edition-v* tags
+    # begin with a v too.
+    if: >-
+      github.event_name != 'workflow_run'
+      || (startsWith(github.event.workflow_run.head_branch, 'v') && !startsWith(github.event.workflow_run.head_branch, 'vscode'))
     # ubuntu-24.04 by name, as the release workflow's jobs are: GitHub moves
     # `ubuntu-latest` to Ubuntu 26 through November 2026, and `playwright
     # install --with-deps` picks its apt packages from a table keyed on the

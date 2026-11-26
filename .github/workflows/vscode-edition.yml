@@ -1,0 +1,273 @@
+# Sirius for VS Code — publishing. A tag vscode-edition-v<version> on the default branch's history
+# is the whole ship process for the extension:
+#
+#   package       the tag checked against the manifest's version and the default branch; then the
+#                 build, the stable-API gate and `vsce package` (vscode-edition/package.sh)
+#   probe         that .vsix installed into Microsoft's VS Code, at the floor and the newest
+#                 stable, and proven with test/harness/probes/panel.js — what is published is
+#                 what was probed
+#   provenance    a signed statement binding the .vsix's digest to this workflow, commit and run:
+#                 `gh attestation verify sirius-ai-<version>.vsix --owner sirius-ide`
+#   marketplace   the Visual Studio Marketplace, by Trusted Publishing: `vsce publish --oidc`
+#                 exchanges this job's OIDC token for a 15-minute Marketplace credential. No
+#                 token is stored.
+#   open-vsx      Open VSX, with the access token in the `open-vsx` environment's OVSX_PAT while
+#                 there is one — Open VSX takes an extension's first version only that way, into a
+#                 namespace made once with `ovsx create-namespace` — and by Trusted Publishing
+#                 once a trusted publisher is registered for the extension and the secret deleted.
+#
+# The .vsix is the run's artifact (sirius-ai-<version>). It is deliberately not a GitHub release:
+# this repository's releases are Sirius IDE's — siriuside.com's download page and the update
+# server both read that list.
+#
+# WHAT KEEPS A PUBLISH FROM HAPPENING BY ACCIDENT OR BY SOMEONE ELSE IS NOT IN THIS FILE. A run
+# uses the workflow as it stands at the tagged commit, so its own checks (the version, the default
+# branch) catch a mistake, not an edited copy on a branch. The repository's settings do the rest,
+# and all of them must be in place before the first tag:
+#   - the environments `marketplace` and `open-vsx` exist (GitHub would otherwise create each,
+#     unprotected, the first time a job names it), each with a required reviewer and its
+#     deployment tags limited to vscode-edition-v*;
+#   - a tag ruleset lets only the owner create, move or delete vscode-edition-v* tags;
+#   - the Marketplace's Trusted Publishing policy names this repository, this workflow file AND
+#     the `marketplace` environment — without the environment, any job of this file could publish;
+#   - OVSX_PAT is a secret of the `open-vsx` environment, never of the repository.
+# With those, the two publishing jobs wait for the reviewer after the package is built and proven.
+#
+# After a failure, "Re-run failed jobs" — never "Re-run all jobs", which would build the package
+# again and could put different bytes on each registry.
+name: Sirius for VS Code — publish
+
+on:
+  push:
+    tags: ['vscode-edition-v*']
+
+permissions:
+  contents: read
+
+# Two runs for one tag (a re-run, a tag moved) never publish at once.
+concurrency:
+  group: vscode-edition-publish
+  cancel-in-progress: false
+
+jobs:
+  package:
+    name: Build, gate, package
+    # A tag being deleted is a push too.
+    if: ${{ !github.event.deleted }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: |
+            extensions/sirius-ai
+            src/vs/base/common/marked
+            src/vs/base/browser/dompurify
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+      - name: The tag is this version, on the default branch
+        id: version
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          version="$(node -p 'require("./extensions/sirius-ai/vscode-edition/package.json").version')"
+          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::the manifest's version is not x.y.z"
+            exit 1
+          fi
+          if [ "vscode-edition-v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::the manifest says $version but the tag is $GITHUB_REF_NAME; set the version before tagging"
+            exit 1
+          fi
+          # `behind` or `identical`: the tagged commit is in the default branch's history.
+          status="$(gh api "repos/$GITHUB_REPOSITORY/compare/$DEFAULT_BRANCH...$GITHUB_SHA" --jq .status)"
+          if [ "$status" != behind ] && [ "$status" != identical ]; then
+            echo "::error::$GITHUB_REF_NAME is not on $DEFAULT_BRANCH (compare says: $status); the extension is published only from landed commits"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: Install the pinned tools
+        working-directory: extensions/sirius-ai/vscode-edition/tools
+        run: npm ci --ignore-scripts
+      - name: Build, gate, package
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: extensions/sirius-ai/vscode-edition/package.sh "$RUNNER_TEMP/sirius-ai-$VERSION.vsix"
+      - name: What the package holds
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          vsix="$RUNNER_TEMP/sirius-ai-$VERSION.vsix"
+          unzip -l "$vsix"
+          echo "**sirius-ai $VERSION** — $(stat -c %s "$vsix") bytes, sha256 \`$(sha256sum "$vsix" | cut -d' ' -f1)\`" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: sirius-ai-${{ steps.version.outputs.version }}
+          path: ${{ runner.temp }}/sirius-ai-${{ steps.version.outputs.version }}.vsix
+          if-no-files-found: error
+          retention-days: 90
+
+  probe:
+    name: Probe in VS Code ${{ matrix.vscode }}
+    needs: package
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        vscode: ['1.145.3', stable]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: |
+            test/harness
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+      - name: What VS Code needs to run
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends xvfb dbus libgtk-3-0t64 libgbm1 libnss3 libasound2t64 libxkbfile1 libsecret-1-0 libxss1
+      - uses: actions/download-artifact@v8
+        with:
+          name: sirius-ai-${{ needs.package.outputs.version }}
+          path: ${{ runner.temp }}/vsix
+      - name: VS Code ${{ matrix.vscode }}
+        id: vscode
+        run: |
+          app="$(test/harness/get-vscode.sh '${{ matrix.vscode }}' "$RUNNER_TEMP/vscode")"
+          echo "app=$app" >> "$GITHUB_OUTPUT"
+      - name: Probe the installed package
+        env:
+          APP: ${{ steps.vscode.outputs.app }}
+          SIRIUS_PROBE_VSIX: ${{ runner.temp }}/vsix/sirius-ai-${{ needs.package.outputs.version }}.vsix
+          SIRIUS_PROBE_KEEP_LOGS: '1'
+        run: |
+          mkdir -p "$RUNNER_TEMP/probe"
+          test/harness/edition-stub.sh "$APP" test/harness/probes/panel.js "$RUNNER_TEMP/probe/panel.json" > "$RUNNER_TEMP/probe/panel.out" 2>&1 \
+            || { tail -n 60 "$RUNNER_TEMP/probe/panel.out"; echo "::error::the probe did not finish"; }
+          node test/harness/verdict.js "$RUNNER_TEMP/probe/panel.json"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: probe-${{ matrix.vscode }}
+          path: ${{ runner.temp }}/probe
+          if-no-files-found: warn
+
+  provenance:
+    name: Provenance
+    needs: [package, probe]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    # The jobs that build and probe hold no token to sign with; this one only signs.
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      # The three jobs that hold an identity run actions at fixed commits, not at tags that can move.
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: sirius-ai-${{ needs.package.outputs.version }}
+          path: vsix
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4
+        with:
+          subject-path: vsix/sirius-ai-${{ needs.package.outputs.version }}.vsix
+
+  marketplace:
+    name: Visual Studio Marketplace
+    needs: [package, probe, provenance]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment: marketplace
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      VERSION: ${{ needs.package.outputs.version }}
+    steps:
+      # A reviewer may approve long after the tag was pushed: if it has moved or gone since, this
+      # run is of a commit nobody means to publish any more.
+      - name: The tag still names this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          now="$(gh api "repos/$GITHUB_REPOSITORY/commits/refs/tags/$GITHUB_REF_NAME" --jq .sha)"
+          if [ "$now" != "$GITHUB_SHA" ]; then
+            echo "::error::$GITHUB_REF_NAME now names $now, not this run's $GITHUB_SHA"
+            exit 1
+          fi
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            extensions/sirius-ai/vscode-edition/tools
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version-file: .nvmrc
+      - name: Install the pinned tools
+        working-directory: extensions/sirius-ai/vscode-edition/tools
+        run: npm ci --ignore-scripts
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: sirius-ai-${{ needs.package.outputs.version }}
+          path: ${{ runner.temp }}/vsix
+      # --skip-duplicate: a re-run after the other registry failed does not fail on this one.
+      - name: Publish
+        run: >-
+          extensions/sirius-ai/vscode-edition/tools/node_modules/.bin/vsce publish --oidc --skip-duplicate
+          --packagePath "$RUNNER_TEMP/vsix/sirius-ai-$VERSION.vsix"
+
+  open-vsx:
+    name: Open VSX
+    needs: [package, probe, provenance]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment: open-vsx
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      VERSION: ${{ needs.package.outputs.version }}
+      HAS_TOKEN: ${{ secrets.OVSX_PAT != '' }}
+    steps:
+      - name: The tag still names this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          now="$(gh api "repos/$GITHUB_REPOSITORY/commits/refs/tags/$GITHUB_REF_NAME" --jq .sha)"
+          if [ "$now" != "$GITHUB_SHA" ]; then
+            echo "::error::$GITHUB_REF_NAME now names $now, not this run's $GITHUB_SHA"
+            exit 1
+          fi
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            extensions/sirius-ai/vscode-edition/tools
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version-file: .nvmrc
+      - name: Install the pinned tools
+        working-directory: extensions/sirius-ai/vscode-edition/tools
+        run: npm ci --ignore-scripts
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: sirius-ai-${{ needs.package.outputs.version }}
+          path: ${{ runner.temp }}/vsix
+      - name: Publish with the access token
+        if: env.HAS_TOKEN == 'true'
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+        run: >-
+          extensions/sirius-ai/vscode-edition/tools/node_modules/.bin/ovsx publish --skip-duplicate
+          "$RUNNER_TEMP/vsix/sirius-ai-$VERSION.vsix"
+      - name: Publish by Trusted Publishing
+        if: env.HAS_TOKEN != 'true'
+        run: >-
+          extensions/sirius-ai/vscode-edition/tools/node_modules/.bin/ovsx publish --trusted-publishing --skip-duplicate
+          "$RUNNER_TEMP/vsix/sirius-ai-$VERSION.vsix"

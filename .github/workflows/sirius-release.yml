@@ -18,7 +18,9 @@ name: Sirius Release
 # publish jobs, which is how a release candidate is rehearsed.
 on:
   push:
-    tags: ['v*']
+    # A version tag: v, then a digit. Plain `v*` would also take every other tag that begins
+    # with a v — vscode-edition-v0.1.0, the VS Code extension's (vscode-edition.yml), among them.
+    tags: ['v[0-9]*']
   workflow_dispatch:
     inputs:
       prerelease:

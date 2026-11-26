@@ -1,0 +1,126 @@
+# Sirius for VS Code — every change to the extension or its harness is built, gated, packaged and
+# proven before it could be published:
+#
+#   package   the build, the stable-API gate and `vsce package` with no proposed API
+#             (extensions/sirius-ai/vscode-edition/package.sh), from the pinned, locked tools in
+#             vscode-edition/tools alone; the .vsix is kept as the run's artifact
+#   probe     that same .vsix installed into Microsoft's VS Code as a user would, and the panel,
+#             Tab completion and commit messages driven through test/harness/probes/panel.js
+#             against the harness's stub providers — at the extension's floor and at the newest
+#             stable
+#
+# Nothing is published from here: publishing is vscode-edition.yml, on a vscode-edition-v* tag.
+name: Sirius for VS Code
+
+on:
+  push:
+    branches: [sirius, vscode-edition]
+    paths:
+      - 'extensions/sirius-ai/**'
+      - 'test/harness/**'
+      - 'src/vs/base/common/marked/**'
+      - 'src/vs/base/browser/dompurify/**'
+      - 'LICENSE.txt'
+      - '.nvmrc'
+      - '.github/workflows/vscode-edition-ci.yml'
+  pull_request:
+    paths:
+      - 'extensions/sirius-ai/**'
+      - 'test/harness/**'
+      - 'src/vs/base/common/marked/**'
+      - 'src/vs/base/browser/dompurify/**'
+      - 'LICENSE.txt'
+      - '.nvmrc'
+      - '.github/workflows/vscode-edition-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vscode-edition-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  package:
+    name: Build, gate, package
+    # ubuntu-24.04 by name, as Sirius's other workflows are: the host changes only by a commit here.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      # All the extension's build reads: its own folder, the two libraries it bundles from the
+      # editor's tree, and the files at the repository's root (the licence agreement, .nvmrc).
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: |
+            extensions/sirius-ai
+            src/vs/base/common/marked
+            src/vs/base/browser/dompurify
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+      - name: Install the pinned tools
+        working-directory: extensions/sirius-ai/vscode-edition/tools
+        run: npm ci --ignore-scripts
+      - name: Build, gate, package
+        run: extensions/sirius-ai/vscode-edition/package.sh "$RUNNER_TEMP/sirius-ai.vsix"
+      - name: What the package holds
+        run: |
+          unzip -l "$RUNNER_TEMP/sirius-ai.vsix"
+          {
+            echo "**sirius-ai $(node -p 'require("./extensions/sirius-ai/vscode-edition/package.json").version')** — $(stat -c %s "$RUNNER_TEMP/sirius-ai.vsix") bytes, sha256 \`$(sha256sum "$RUNNER_TEMP/sirius-ai.vsix" | cut -d' ' -f1)\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: sirius-ai-vsix
+          path: ${{ runner.temp }}/sirius-ai.vsix
+          if-no-files-found: error
+
+  probe:
+    name: Probe in VS Code ${{ matrix.vscode }}
+    needs: package
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        # The floor — the newest patch of the minor the manifest's engines.vscode names — and
+        # whatever stable is newest on the day.
+        vscode: ['1.145.3', stable]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: |
+            test/harness
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+      - name: What VS Code needs to run
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends xvfb dbus libgtk-3-0t64 libgbm1 libnss3 libasound2t64 libxkbfile1 libsecret-1-0 libxss1
+      - uses: actions/download-artifact@v8
+        with:
+          name: sirius-ai-vsix
+          path: ${{ runner.temp }}/vsix
+      - name: VS Code ${{ matrix.vscode }}
+        id: vscode
+        run: |
+          app="$(test/harness/get-vscode.sh '${{ matrix.vscode }}' "$RUNNER_TEMP/vscode")"
+          echo "app=$app" >> "$GITHUB_OUTPUT"
+      - name: Probe the installed package
+        env:
+          APP: ${{ steps.vscode.outputs.app }}
+          SIRIUS_PROBE_VSIX: ${{ runner.temp }}/vsix/sirius-ai.vsix
+          SIRIUS_PROBE_KEEP_LOGS: '1'
+        run: |
+          mkdir -p "$RUNNER_TEMP/probe"
+          test/harness/edition-stub.sh "$APP" test/harness/probes/panel.js "$RUNNER_TEMP/probe/panel.json" > "$RUNNER_TEMP/probe/panel.out" 2>&1 \
+            || { tail -n 60 "$RUNNER_TEMP/probe/panel.out"; echo "::error::the probe did not finish"; }
+          node test/harness/verdict.js "$RUNNER_TEMP/probe/panel.json"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: probe-${{ matrix.vscode }}
+          path: ${{ runner.temp }}/probe
+          if-no-files-found: warn

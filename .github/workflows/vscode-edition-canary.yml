@@ -1,0 +1,132 @@
+# Sirius for VS Code — the weekly canary. VS Code ships every week; this runs the extension's probe
+# (test/harness/probes/panel.js: the panel, Tab completion, commit messages) in the newest stable
+# and the newest Insiders, so a change of Microsoft's that breaks Sirius is known the week it
+# lands — in Insiders, usually before it reaches anyone.
+#
+# What it installs is the extension as its users have it: the version listed on the Visual Studio
+# Marketplace, installed by VS Code itself from there, and probed with the harness of that
+# version's tag. Before the first release — the Marketplace knows no such extension and the
+# repository has no vscode-edition-v* tag — it packages and probes the branch it runs on instead.
+#
+# A schedule runs only from the default branch. It also runs when this file changes, so a change
+# to the canary is itself tried, and by hand (Actions → Run workflow) — where the harness "branch"
+# probes the released extension with the checks as they stand on the branch now: for when VS Code
+# has moved something a probe looks at, and the fix is in the harness, not in a new release.
+name: Sirius for VS Code — canary
+
+on:
+  schedule:
+    # Mondays, 07:17 Dubai time (03:17 UTC).
+    - cron: '17 3 * * 1'
+  push:
+    branches: [sirius, vscode-edition]
+    paths:
+      - '.github/workflows/vscode-edition-canary.yml'
+  workflow_dispatch:
+    inputs:
+      harness:
+        description: "The harness that probes a released extension: the release's own (its tag), or this branch's"
+        type: choice
+        options: [release, branch]
+        default: release
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vscode-edition-canary-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  canary:
+    name: VS Code ${{ matrix.vscode }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        vscode: [stable, insider]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: |
+            extensions/sirius-ai
+            src/vs/base/common/marked
+            src/vs/base/browser/dompurify
+            test/harness
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+      - name: What VS Code needs to run
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends xvfb dbus libgtk-3-0t64 libgbm1 libnss3 libasound2t64 libxkbfile1 libsecret-1-0 libxss1
+      - name: VS Code ${{ matrix.vscode }}
+        id: vscode
+        run: |
+          app="$(test/harness/get-vscode.sh '${{ matrix.vscode }}' "$RUNNER_TEMP/vscode")"
+          echo "app=$app" >> "$GITHUB_OUTPUT"
+      # The Marketplace's own answer: the newest listed, validated version, or no such extension.
+      # Anything else — it does not answer, or answers something unreadable — fails the canary
+      # rather than quietly probing the wrong thing; and "no such extension" is believed only
+      # while the repository has no release tag for one.
+      - name: Which Sirius
+        id: which
+        run: |
+          # The extension's id is the manifest's: its publisher and its name.
+          id="$(node -p 'const m = require("./extensions/sirius-ai/vscode-edition/package.json"); `${m.publisher}.${m.name}`')"
+          # Flags: the versions (1), validated ones only (32), the latest alone (512).
+          answer="$(curl -fsS --retry 3 --max-time 60 -X POST https://marketplace.visualstudio.com/_apis/public/gallery/extensionquery \
+            -H 'Content-Type: application/json' -H 'Accept: application/json;api-version=3.0-preview.1' \
+            -d "{\"filters\":[{\"criteria\":[{\"filterType\":7,\"value\":\"$id\"}]}],\"flags\":545}")"
+          listed="$(node -e '
+            const extensions = JSON.parse(process.argv[1]).results[0].extensions;
+            if (!Array.isArray(extensions)) { throw new Error("not an answer"); }
+            const version = extensions[0]?.versions?.[0]?.version ?? "";
+            if (extensions.length && !/^\d+\.\d+\.\d+$/.test(version)) { throw new Error(`not a version: ${version}`); }
+            console.log(version);
+          ' "$answer")"
+          if [ -z "$listed" ] && git ls-remote --exit-code --tags origin 'refs/tags/vscode-edition-v*' > /dev/null; then
+            echo "::error::the Marketplace lists no $id, yet the repository has a vscode-edition-v* tag: the extension was released and is not there"
+            exit 1
+          fi
+          echo "id=$id" >> "$GITHUB_OUTPUT"
+          echo "listed=$listed" >> "$GITHUB_OUTPUT"
+          if [ -n "$listed" ]; then
+            echo "**$id $listed**, from the Marketplace, in VS Code ${{ matrix.vscode }}" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "**$id is not released yet**: packaging and probing $GITHUB_REF_NAME in VS Code ${{ matrix.vscode }}" >> "$GITHUB_STEP_SUMMARY"
+          fi
+      # The released version is probed with the checks written for it: the harness at its tag.
+      - name: The harness of the listed version
+        if: steps.which.outputs.listed != '' && inputs.harness != 'branch'
+        env:
+          TAG: vscode-edition-v${{ steps.which.outputs.listed }}
+        run: |
+          if ! git fetch --depth 1 origin "refs/tags/$TAG:refs/tags/$TAG"; then
+            echo "::error::the Marketplace lists ${{ steps.which.outputs.listed }}, but the repository has no tag $TAG to take its harness from; run the canary by hand with the harness \"branch\""
+            exit 1
+          fi
+          git checkout "$TAG" -- test/harness
+      - name: Package this branch
+        if: steps.which.outputs.listed == ''
+        run: |
+          (cd extensions/sirius-ai/vscode-edition/tools && npm ci --ignore-scripts)
+          extensions/sirius-ai/vscode-edition/package.sh "$RUNNER_TEMP/sirius-ai.vsix"
+      - name: Probe
+        env:
+          APP: ${{ steps.vscode.outputs.app }}
+          # A file is installed as it is; an id@version is installed by VS Code from the Marketplace.
+          SIRIUS_PROBE_VSIX: ${{ steps.which.outputs.listed != '' && format('{0}@{1}', steps.which.outputs.id, steps.which.outputs.listed) || format('{0}/sirius-ai.vsix', runner.temp) }}
+          SIRIUS_PROBE_KEEP_LOGS: '1'
+        run: |
+          mkdir -p "$RUNNER_TEMP/probe"
+          test/harness/edition-stub.sh "$APP" test/harness/probes/panel.js "$RUNNER_TEMP/probe/panel.json" > "$RUNNER_TEMP/probe/panel.out" 2>&1 \
+            || { tail -n 60 "$RUNNER_TEMP/probe/panel.out"; echo "::error::the probe did not finish"; }
+          node test/harness/verdict.js "$RUNNER_TEMP/probe/panel.json"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: canary-${{ matrix.vscode }}
+          path: ${{ runner.temp }}/probe
+          if-no-files-found: warn
