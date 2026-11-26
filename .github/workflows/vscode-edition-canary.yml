@@ -86,7 +86,13 @@ jobs:
             if (extensions.length && !/^\d+\.\d+\.\d+$/.test(version)) { throw new Error(`not a version: ${version}`); }
             console.log(version);
           ' "$answer")"
-          if [ -z "$listed" ] && git ls-remote --exit-code --tags origin 'refs/tags/vscode-edition-v*' > /dev/null; then
+          # 0: a release tag exists; 2: none does. Anything else is no answer at all.
+          tags=0; git ls-remote --exit-code --tags origin 'refs/tags/vscode-edition-v*' > /dev/null || tags=$?
+          if [ "$tags" != 0 ] && [ "$tags" != 2 ]; then
+            echo "::error::could not list the repository's tags"
+            exit 1
+          fi
+          if [ -z "$listed" ] && [ "$tags" = 0 ]; then
             echo "::error::the Marketplace lists no $id, yet the repository has a vscode-edition-v* tag: the extension was released and is not there"
             exit 1
           fi
@@ -107,7 +113,8 @@ jobs:
             echo "::error::the Marketplace lists ${{ steps.which.outputs.listed }}, but the repository has no tag $TAG to take its harness from; run the canary by hand with the harness \"branch\""
             exit 1
           fi
-          git checkout "$TAG" -- test/harness
+          # The tag's harness and nothing else: a file the branch has added since does not stay.
+          git checkout --no-overlay "$TAG" -- test/harness
       - name: Package this branch
         if: steps.which.outputs.listed == ''
         run: |

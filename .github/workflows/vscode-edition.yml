@@ -59,13 +59,16 @@ jobs:
     outputs:
       version: ${{ steps.version.outputs.version }}
     steps:
-      - uses: actions/checkout@v7
+      # Every action in this workflow runs at a fixed commit, not at a tag that can move: this job
+      # makes the bytes that are published, and three others hold an identity.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          persist-credentials: false
           sparse-checkout: |
             extensions/sirius-ai
             src/vs/base/common/marked
             src/vs/base/browser/dompurify
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version-file: .nvmrc
       - name: The tag is this version, on the default branch
@@ -104,7 +107,7 @@ jobs:
           vsix="$RUNNER_TEMP/sirius-ai-$VERSION.vsix"
           unzip -l "$vsix"
           echo "**sirius-ai $VERSION** — $(stat -c %s "$vsix") bytes, sha256 \`$(sha256sum "$vsix" | cut -d' ' -f1)\`" >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: sirius-ai-${{ steps.version.outputs.version }}
           path: ${{ runner.temp }}/sirius-ai-${{ steps.version.outputs.version }}.vsix
@@ -121,18 +124,18 @@ jobs:
       matrix:
         vscode: ['1.145.3', stable]
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           sparse-checkout: |
             test/harness
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version-file: .nvmrc
       - name: What VS Code needs to run
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends xvfb dbus libgtk-3-0t64 libgbm1 libnss3 libasound2t64 libxkbfile1 libsecret-1-0 libxss1
-      - uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           name: sirius-ai-${{ needs.package.outputs.version }}
           path: ${{ runner.temp }}/vsix
@@ -151,7 +154,7 @@ jobs:
           test/harness/edition-stub.sh "$APP" test/harness/probes/panel.js "$RUNNER_TEMP/probe/panel.json" > "$RUNNER_TEMP/probe/panel.out" 2>&1 \
             || { tail -n 60 "$RUNNER_TEMP/probe/panel.out"; echo "::error::the probe did not finish"; }
           node test/harness/verdict.js "$RUNNER_TEMP/probe/panel.json"
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         if: always()
         with:
           name: probe-${{ matrix.vscode }}
@@ -169,7 +172,6 @@ jobs:
       id-token: write
       attestations: write
     steps:
-      # The three jobs that hold an identity run actions at fixed commits, not at tags that can move.
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           name: sirius-ai-${{ needs.package.outputs.version }}
@@ -216,7 +218,8 @@ jobs:
         with:
           name: sirius-ai-${{ needs.package.outputs.version }}
           path: ${{ runner.temp }}/vsix
-      # --skip-duplicate: a re-run after the other registry failed does not fail on this one.
+      # --skip-duplicate: a second run for the same tag, or this job run again after its upload
+      # went through, finds the version there and stops quietly instead of failing.
       - name: Publish
         run: >-
           extensions/sirius-ai/vscode-edition/tools/node_modules/.bin/vsce publish --oidc --skip-duplicate
