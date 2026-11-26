@@ -78,10 +78,11 @@ Sirius is an active, in-progress project. See [ROADMAP.md](ROADMAP.md) for the p
 
 Sirius is a derivative work of `Code - OSS`, the open-source foundation of Visual Studio Code, which is MIT licensed and copyright (c) 2015 - present Microsoft Corporation. That attribution, and every other third-party licence, is reproduced in [ThirdPartyNotices.txt](ThirdPartyNotices.txt).
 
-Sirius itself is **not** open source — it ships under its own terms, see [LICENSE.txt](LICENSE.txt). It is **not** Visual Studio Code, is not produced or endorsed by Microsoft, and does not use Microsoft's branding, telemetry, or Marketplace. Upstream lives on the `main` branch; all Sirius work lives on the `sirius` branch.
+Sirius itself is **not** open source — it ships under its own terms, see [LICENSE.txt](LICENSE.txt). Sirius IDE is **not** Visual Studio Code, is not produced or endorsed by Microsoft, and does not use Microsoft's branding, telemetry, or Marketplace. Upstream lives on the `main` branch; all Sirius work lives on the `sirius` branch.
 
 ## License
 
-Sirius IDE is proprietary software — see [LICENSE.txt](LICENSE.txt). Third-party
-components, including Code - OSS, keep their own licences; those are reproduced in
-[ThirdPartyNotices.txt](ThirdPartyNotices.txt).
+Sirius IDE and Sirius for VS Code, the extension, are proprietary software — see
+[LICENSE.txt](LICENSE.txt). Third-party components, including Code - OSS, keep their own
+licences; Sirius IDE's are reproduced in [ThirdPartyNotices.txt](ThirdPartyNotices.txt),
+the extension's in the `licenses` folder of its package.

@@ -1,7 +1,7 @@
 {
 	"name": "sirius-ai",
 	"displayName": "Sirius",
-	"description": "Sirius's own chat for VS Code: your models — Anthropic, Gemini, OpenAI and nine more, or your own local server — with their thinking shown as it streams; Tab completion from a code model on your machine; commit messages.",
+	"description": "Ask, Edit and Agent with the models you choose — Anthropic, Gemini, OpenAI and five more, or a server on your own machine — their thinking shown as it streams. Tab completion from a local code model, and commit messages. Your keys, no telemetry.",
 	"publisher": "siriuside",
 	"version": "0.1.0",
 	"license": "SEE LICENSE IN LICENSE.txt",
@@ -14,17 +14,30 @@
 	"bugs": {
 		"url": "https://github.com/sirius-ide/sirius-ide/issues"
 	},
+	"qna": "https://github.com/sirius-ide/sirius-ide/issues",
 	"pricing": "Free",
+	"galleryBanner": {
+		"color": "#06080d",
+		"theme": "dark"
+	},
 	"keywords": [
 		"ai",
 		"chat",
 		"agent",
 		"anthropic",
+		"claude",
 		"gemini",
 		"openai",
+		"gpt",
+		"openrouter",
 		"ollama",
+		"lm studio",
 		"llama.cpp",
+		"local models",
+		"mcp",
 		"completion",
+		"autocomplete",
+		"commit message",
 		"byok"
 	],
 	"engines": {

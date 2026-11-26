@@ -1,0 +1,22 @@
+Sirius for VS Code — third-party notices
+
+Sirius for VS Code includes the components below. Each remains under its own
+license, reproduced in the file named beside it in this folder.
+
+marked
+	Copyright (c) 2018+, MarkedJS (https://github.com/markedjs/)
+	Copyright (c) 2011-2018, Christopher Jeffrey (https://github.com/chjj/)
+	MIT License — marked.txt
+	https://github.com/markedjs/marked
+
+DOMPurify
+	Copyright 2015 Mario Heiderich; (c) Cure53 and other contributors
+	Apache License 2.0 or Mozilla Public License 2.0 — dompurify.txt
+	https://github.com/cure53/DOMPurify
+
+Codicons
+	Copyright (c) Microsoft Corporation
+	The icons (media/codicons/codicon.ttf): Creative Commons Attribution 4.0
+	International — codicons.txt
+	The code (media/codicons/codicon.css): MIT License — codicons-code.txt
+	https://github.com/microsoft/vscode-codicons

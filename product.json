@@ -10,7 +10,7 @@
 	"dataFolderName": ".sirius",
 	"sharedDataFolderName": ".sirius-shared",
 	"win32MutexName": "siriuside",
-	"licenseName": "Sirius IDE Software License Agreement",
+	"licenseName": "Sirius Software License Agreement",
 	"licenseUrl": "https://siriuside.com/license/",
 	"serverLicenseUrl": "https://siriuside.com/license/",
 	"serverGreeting": [],
