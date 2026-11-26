@@ -42,9 +42,9 @@ BIN=code
 
 app_pids() { ps -eo pid,args --no-headers | awk -v a="$APP/" '$2 ~ "^"a {print $1}'; }
 reap() {
-	app_pids | while read -r p; do kill "$p" 2>/dev/null; done
+	app_pids | while read -r p; do kill "$p" 2>/dev/null || true; done
 	for _ in 1 2 3 4 5 6 7 8 9 10; do [ -z "$(app_pids)" ] && return 0; sleep 0.5; done
-	app_pids | while read -r p; do kill -9 "$p" 2>/dev/null; done
+	app_pids | while read -r p; do kill -9 "$p" 2>/dev/null || true; done
 }
 # Only what this run started: with no pid to name, `kill 0` would end the whole process group — the caller too.
 cleanup() {

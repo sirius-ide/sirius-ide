@@ -5,8 +5,9 @@
 #   test/harness/get-vscode.sh <stable|insider|1.145.3> <dir>
 # asks update.code.visualstudio.com for the build — the newest stable, the newest Insiders, or one
 # stable version — downloads its linux-x64 archive from Microsoft's download host, checks it against
-# the SHA-256 the service names and unpacks it into <dir>/vscode-<version>/ (an Insiders build into
-# <dir>/vscode-<version>-<commit>/: Insiders keeps one version through weeks of daily builds).
+# the SHA-256 the service names and unpacks it into <dir>/vscode-<version>/ — an Insiders build into
+# <dir>/vscode-<version>-<the commit's first ten characters>/ (vscode-1.149.0-insider-d8b0b6fc93):
+# Insiders keeps one version through weeks of daily builds.
 # The only line on stdout is the app's folder (…/VSCode-linux-x64), which edition-stub.sh and
 # vscode-run.sh take. A build already unpacked there is not downloaded again, unless the checksum
 # kept beside it is no longer the one the service names.
