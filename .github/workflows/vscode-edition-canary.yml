@@ -1,5 +1,6 @@
 # Sirius for VS Code — the weekly canary. VS Code ships every week; this runs the extension's probe
-# (test/harness/probes/panel.js: the panel, Tab completion, commit messages) in the newest stable
+# (test/harness/probes/panel.js: the panel, Tab completion, commit messages; probes/no-folder.js: a
+# window with no folder) in the newest stable
 # and the newest Insiders, so a change of Microsoft's that breaks Sirius is known the week it
 # lands — in Insiders, usually before it reaches anyone.
 #
@@ -130,7 +131,9 @@ jobs:
           mkdir -p "$RUNNER_TEMP/probe"
           test/harness/edition-stub.sh "$APP" test/harness/probes/panel.js "$RUNNER_TEMP/probe/panel.json" > "$RUNNER_TEMP/probe/panel.out" 2>&1 \
             || { tail -n 60 "$RUNNER_TEMP/probe/panel.out"; echo "::error::the probe did not finish"; }
-          node test/harness/verdict.js "$RUNNER_TEMP/probe/panel.json"
+          SIRIUS_PROBE_NO_FOLDER=1 test/harness/edition-stub.sh "$APP" test/harness/probes/no-folder.js "$RUNNER_TEMP/probe/no-folder.json" > "$RUNNER_TEMP/probe/no-folder.out" 2>&1 \
+            || { tail -n 60 "$RUNNER_TEMP/probe/no-folder.out"; echo "::error::the no-folder probe did not finish"; }
+          node test/harness/verdict.js "$RUNNER_TEMP/probe/panel.json" "$RUNNER_TEMP/probe/no-folder.json"
       - uses: actions/upload-artifact@v7
         if: always()
         with:

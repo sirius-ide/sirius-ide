@@ -6,8 +6,8 @@
 #             vscode-edition/tools alone; the .vsix is kept as the run's artifact
 #   probe     that same .vsix installed into Microsoft's VS Code as a user would, and the panel,
 #             Tab completion and commit messages driven through test/harness/probes/panel.js
-#             against the harness's stub providers — at the extension's floor and at the newest
-#             stable
+#             against the harness's stub providers, and a window with no folder through
+#             probes/no-folder.js — at the extension's floor and at the newest stable
 #
 # Nothing is published from here: publishing is vscode-edition.yml, on a vscode-edition-v* tag.
 name: Sirius for VS Code
@@ -117,7 +117,9 @@ jobs:
           mkdir -p "$RUNNER_TEMP/probe"
           test/harness/edition-stub.sh "$APP" test/harness/probes/panel.js "$RUNNER_TEMP/probe/panel.json" > "$RUNNER_TEMP/probe/panel.out" 2>&1 \
             || { tail -n 60 "$RUNNER_TEMP/probe/panel.out"; echo "::error::the probe did not finish"; }
-          node test/harness/verdict.js "$RUNNER_TEMP/probe/panel.json"
+          SIRIUS_PROBE_NO_FOLDER=1 test/harness/edition-stub.sh "$APP" test/harness/probes/no-folder.js "$RUNNER_TEMP/probe/no-folder.json" > "$RUNNER_TEMP/probe/no-folder.out" 2>&1 \
+            || { tail -n 60 "$RUNNER_TEMP/probe/no-folder.out"; echo "::error::the no-folder probe did not finish"; }
+          node test/harness/verdict.js "$RUNNER_TEMP/probe/panel.json" "$RUNNER_TEMP/probe/no-folder.json"
       - uses: actions/upload-artifact@v7
         if: always()
         with:

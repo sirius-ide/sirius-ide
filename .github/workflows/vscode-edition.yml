@@ -4,8 +4,8 @@
 #   package       the tag checked against the manifest's version and the default branch; then the
 #                 build, the stable-API gate and `vsce package` (vscode-edition/package.sh)
 #   probe         that .vsix installed into Microsoft's VS Code, at the floor and the newest
-#                 stable, and proven with test/harness/probes/panel.js — what is published is
-#                 what was probed
+#                 stable, and proven with test/harness/probes/panel.js and probes/no-folder.js —
+#                 what is published is what was probed
 #   provenance    a signed statement binding the .vsix's digest to this workflow, commit and run:
 #                 `gh attestation verify sirius-ai-<version>.vsix --owner sirius-ide`
 #   marketplace   the Visual Studio Marketplace, by Trusted Publishing: `vsce publish --oidc`
@@ -153,7 +153,9 @@ jobs:
           mkdir -p "$RUNNER_TEMP/probe"
           test/harness/edition-stub.sh "$APP" test/harness/probes/panel.js "$RUNNER_TEMP/probe/panel.json" > "$RUNNER_TEMP/probe/panel.out" 2>&1 \
             || { tail -n 60 "$RUNNER_TEMP/probe/panel.out"; echo "::error::the probe did not finish"; }
-          node test/harness/verdict.js "$RUNNER_TEMP/probe/panel.json"
+          SIRIUS_PROBE_NO_FOLDER=1 test/harness/edition-stub.sh "$APP" test/harness/probes/no-folder.js "$RUNNER_TEMP/probe/no-folder.json" > "$RUNNER_TEMP/probe/no-folder.out" 2>&1 \
+            || { tail -n 60 "$RUNNER_TEMP/probe/no-folder.out"; echo "::error::the no-folder probe did not finish"; }
+          node test/harness/verdict.js "$RUNNER_TEMP/probe/panel.json" "$RUNNER_TEMP/probe/no-folder.json"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         if: always()
         with:
