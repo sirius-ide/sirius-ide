@@ -24,6 +24,7 @@ import { GeminiProvider } from './geminiProvider';
 import { AnthropicProvider } from './anthropicProvider';
 import { OpenAICompatibleProvider, OPENAI_COMPATIBLE_ENDPOINTS } from './openaiCompatible';
 import { OllamaProvider } from './ollamaProvider';
+import { userNumber, userSwitch } from './userSetting';
 
 /**
  * Provider color map for UI
@@ -54,6 +55,23 @@ class ConnectionKeys implements KeySource {
 	}
 }
 
+/** Where Sirius's VS Code edition differs from Sirius IDE in what a request carries. */
+export interface RouterOptions {
+	/**
+	 * `sirius.ai.maxTokens`, `temperature`, `streamResponses` and `ollama.largeModelBytes` from the
+	 * user's own settings alone. Sirius IDE declares them, and a workspace may set them there as
+	 * VS Code allows; the edition declares none, and VS Code applies a workspace's value for a
+	 * setting nobody declared — a repository would choose how a request is made.
+	 */
+	readonly userSettingsOnly?: boolean;
+	/** The name OpenRouter is told (its `X-Title` header), in place of Sirius IDE's. */
+	readonly appTitle?: string;
+}
+
+/** The request settings' defaults, as Sirius IDE declares them. */
+const MAX_TOKENS = 16384;
+const TEMPERATURE = 0.7;
+
 /**
  * Builds provider instances and sends requests through them, and runs the two Sirius
  * commands for choosing a model and adding a key. Which providers are set up is no longer
@@ -64,6 +82,8 @@ export class ModelRouter {
 	private _onModelChanged = new vscode.EventEmitter<vscode.LanguageModelChat>();
 	readonly onModelChanged = this._onModelChanged.event;
 
+	constructor(private readonly options: RouterOptions = {}) { }
+
 	/**
 	 * A provider instance for one connection: a configured provider group (its key, its
 	 * endpoint), or — with none — a local server at its usual endpoint.
@@ -73,13 +93,17 @@ export class ModelRouter {
 		switch (id) {
 			case 'anthropic': return new AnthropicProvider(keys, connection?.url);
 			case 'gemini': return new GeminiProvider(keys, connection?.url);
-			case 'ollama': return new OllamaProvider(connection?.url);
+			case 'ollama': return new OllamaProvider(connection?.url, this.options.userSettingsOnly);
 			default: {
 				const endpoint = OPENAI_COMPATIBLE_ENDPOINTS.find(candidate => candidate.id === id);
 				if (!endpoint) {
 					throw new Error(`Unknown provider: ${id}`);
 				}
-				return new OpenAICompatibleProvider(endpoint, keys, connection?.url);
+				const title = this.options.appTitle;
+				const titled = title && endpoint.extraHeaders?.['X-Title'] !== undefined
+					? { ...endpoint, extraHeaders: { ...endpoint.extraHeaders, 'X-Title': title } }
+					: endpoint;
+				return new OpenAICompatibleProvider(titled, keys, connection?.url);
 			}
 		}
 	}
@@ -258,12 +282,27 @@ export class ModelRouter {
 		const thinking: ThinkingConfig | undefined =
 			model.supportsThinking && thinkingConfig.enabled ? thinkingConfig : undefined;
 
+		let maxTokens: number;
+		let temperature: number;
+		let stream: boolean;
+		if (this.options.userSettingsOnly) {
+			const ownMax = userNumber('sirius.ai', 'maxTokens');
+			const ownTemperature = userNumber('sirius.ai', 'temperature');
+			maxTokens = ownMax !== undefined && Number.isInteger(ownMax) && ownMax > 0 ? ownMax : MAX_TOKENS;
+			temperature = ownTemperature !== undefined && ownTemperature >= 0 && ownTemperature <= 2 ? ownTemperature : TEMPERATURE;
+			stream = userSwitch('sirius.ai', 'streamResponses') ?? true;
+		} else {
+			maxTokens = config.get<number>('maxTokens', MAX_TOKENS);
+			temperature = config.get<number>('temperature', TEMPERATURE);
+			stream = config.get<boolean>('streamResponses', true);
+		}
+
 		const request: ChatRequest = {
 			messages,
 			model: modelId,
-			maxTokens: config.get<number>('maxTokens', 16384),
-			temperature: config.get<number>('temperature', 0.7),
-			stream: config.get<boolean>('streamResponses', true),
+			maxTokens,
+			temperature,
+			stream,
 			systemPrompt: options?.systemPrompt ?? SIRIUS_SYSTEM_PROMPT,
 			thinking,
 			tools,

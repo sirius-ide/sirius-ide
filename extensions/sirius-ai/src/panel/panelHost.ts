@@ -8,7 +8,7 @@ import * as vscode from 'vscode';
 import { randomBytes } from 'crypto';
 import { type AgentToolCall, runAgent } from '../agent/core';
 import type { ImagePart, ProviderType, ThinkingBlock, ThinkingConfig } from '../types';
-import { ModelRouter } from '../providers/modelRouter';
+import { ModelRouter, type RouterOptions } from '../providers/modelRouter';
 import { ModelCatalog } from './models';
 import { panelFace } from './panelFace';
 import { EDITS, EFFORTS, MODES, type Approval, type Decision, type Edits, type Effort, type Mode, type PanelState, type SendWith, type ToHost, type ToWebview, type TurnView, type View, toHost } from './protocol';
@@ -17,11 +17,10 @@ import { answered, buildHistory } from './history';
 import { PanelTools, UNSEEN } from './tools';
 import { ARM_MS, CHANGE_SCHEME, Diffs, PROPOSAL_SCHEME, apply, blockFor, proposeCode } from './edits';
 import { Kept } from './kept';
-import { EditorTracker, ImageStore, carry, findFiles } from './context';
+import { EditorTracker, ImageStore, NoFolderPictures, carry, findFiles, shownPath } from './context';
 import { resolveWorkspacePath } from '../tools/workspacePath';
 import type { LocalServers } from '../vscode/completions';
 import type { CommitModel } from '../vscode/commitMessage';
-import * as nodePath from 'path';
 
 export const VIEW_ID = 'sirius.panel';
 export const TAB_TYPE = 'sirius.chat';
@@ -34,6 +33,13 @@ const EDITS_KEY = 'sirius.panel.edits';
 const RESENT_PICTURES = 2;
 /** Where a window with no folder keeps its pictures, in the extension's shared storage. */
 const IMAGES_FOLDER = 'sirius.panel.imagesFolder';
+/**
+ * How often a window with no folder marks its pictures' folder as still in use (NoFolderPictures),
+ * by the clock; and how often it looks whether that time has come. A timer counts only the time the
+ * machine is awake, so the look is short: a window back from a long sleep stamps within minutes.
+ */
+const STAMP_EVERY_MS = 60 * 60 * 1000;
+const STAMP_LOOK_MS = 10 * 60 * 1000;
 const LAST_SESSION = 'sirius.panel.lastSession';
 const SEND_WITH = 'sirius.panel.sendWith';
 /** Set while some model can be asked; the walkthrough's "Add a model" step completes on it. */
@@ -42,6 +48,12 @@ const MODEL_AVAILABLE = 'sirius.panel.modelAvailable';
 const ASKED = 'sirius.panel.asked';
 /** How old the list of models may be when the panel is shown again before it is looked for anew: a server started since is found. */
 const STALE_MODELS_MS = 60_000;
+/**
+ * How the edition's requests differ from Sirius IDE's: the settings that shape one only from the
+ * user's own settings (the edition declares none, so VS Code would take a workspace's), and its own
+ * name to OpenRouter.
+ */
+const EDITION_REQUESTS: RouterOptions = { userSettingsOnly: true, appTitle: 'Sirius for VS Code' };
 /** A commit message's model is told no more than its job; the prompt says the rest. */
 const COMMIT_PROMPT = 'You write git commit messages.';
 
@@ -115,7 +127,7 @@ export class PanelHost implements vscode.WebviewViewProvider, vscode.WebviewPane
 				let text = '';
 				let failure: string | undefined;
 				const messages = [{ role: 'user' as const, content: prompt, timestamp: Date.now() }];
-				for await (const chunk of new ModelRouter().chatWithModel(reachable.provider, reachable.model, messages, undefined, signal, { systemPrompt: COMMIT_PROMPT, thinking: { enabled: false, effort: 'high' } })) {
+				for await (const chunk of new ModelRouter(EDITION_REQUESTS).chatWithModel(reachable.provider, reachable.model, messages, undefined, signal, { systemPrompt: COMMIT_PROMPT, thinking: { enabled: false, effort: 'high' } })) {
 					// The providers report a failure as a last chunk of text behind a warning sign — after
 					// part of an answer, when a stream breaks — not always marked as an error.
 					if (chunk.stopReason === 'error' || (chunk.done && /^\s*⚠️/.test(chunk.content ?? ''))) {
@@ -159,6 +171,10 @@ export class PanelHost implements vscode.WebviewViewProvider, vscode.WebviewPane
 	private readonly picked = new Map<string, { readonly client: Client; readonly uri: vscode.Uri; readonly label: string }>();
 	/** The pictures questions carried, as files of their own. */
 	private picturesStore: ImageStore | undefined;
+	/** The folders of windows with no folder open, this one's among them if it is one. */
+	private readonly noFolder: NoFolderPictures;
+	/** Keeps this window's no-folder picture folder marked as in use while the window is open. */
+	private stamping: ReturnType<typeof setInterval> | undefined;
 	/** Conversations whose question is being put together: a second one waits for it. */
 	private readonly preparing = new Set<string>();
 	/** Code blocks applied and waiting in the diff editor: closing the diff leaves the change. */
@@ -177,7 +193,15 @@ export class PanelHost implements vscode.WebviewViewProvider, vscode.WebviewPane
 				this._post(client, { type: 'editor', ...(editor ? { editor } : {}) });
 			}
 		});
-		this.catalog = new ModelCatalog(context.secrets, context.globalState, new ModelRouter());
+		this.catalog = new ModelCatalog(context.secrets, context.globalState, new ModelRouter(EDITION_REQUESTS));
+		this.noFolder = new NoFolderPictures(vscode.Uri.joinPath(context.globalStorageUri, 'panel-images'));
+		// A window with no folder that kept pictures before — reloaded, or restored with unsaved
+		// files — marks its folder as in use from startup, panel or not: another window's sweep
+		// takes a folder only once it has gone unstamped for a month and a day.
+		const ownFolder = this._noFolderId();
+		if (ownFolder) {
+			this._keepStamped(ownFolder);
+		}
 		context.subscriptions.push(
 			vscode.workspace.onDidChangeConfiguration(event => {
 				if (event.affectsConfiguration(SEND_WITH)) {
@@ -213,17 +237,47 @@ export class PanelHost implements vscode.WebviewViewProvider, vscode.WebviewPane
 	 */
 	private get images(): ImageStore {
 		if (!this.picturesStore) {
-			let windowFolder = this.context.workspaceState.get<string>(IMAGES_FOLDER);
-			if (!this.context.storageUri && !windowFolder) {
-				windowFolder = newId();
-				void this.context.workspaceState.update(IMAGES_FOLDER, windowFolder);
+			if (this.context.storageUri) {
+				this.picturesStore = new ImageStore(vscode.Uri.joinPath(this.context.storageUri, 'panel-images'));
+			} else {
+				let windowFolder = this._noFolderId();
+				if (!windowFolder) {
+					windowFolder = newId();
+					void this.context.workspaceState.update(IMAGES_FOLDER, windowFolder);
+				}
+				this._keepStamped(windowFolder);
+				this.picturesStore = new ImageStore(this.noFolder.folder(windowFolder));
 			}
-			this.picturesStore = new ImageStore(this.context.storageUri ? vscode.Uri.joinPath(this.context.storageUri, 'panel-images') : vscode.Uri.joinPath(this.context.globalStorageUri, 'panel-images', windowFolder!));
 		}
 		return this.picturesStore;
 	}
 
+	/** This window's picture folder in the shared storage, if it is a window with no folder that has one. */
+	private _noFolderId(): string | undefined {
+		return this.context.storageUri ? undefined : this.context.workspaceState.get<string>(IMAGES_FOLDER) || undefined;
+	}
+
+	/** Stamps this window's no-folder picture folder now, and every STAMP_EVERY_MS by the clock while the window is open. */
+	private _keepStamped(id: string): void {
+		if (this.stamping) {
+			return;
+		}
+		let stampedAt = 0;
+		const stamp = () => {
+			stampedAt = Date.now();
+			void this.noFolder.touch(id).then(undefined, () => undefined);
+		};
+		stamp();
+		this.stamping = setInterval(() => {
+			if (Date.now() - stampedAt >= STAMP_EVERY_MS) {
+				stamp();
+			}
+		}, STAMP_LOOK_MS);
+		this.stamping.unref?.();
+	}
+
 	dispose(): void {
+		clearInterval(this.stamping);
 		this.serversChanged.dispose();
 		for (const { controller } of this.running.values()) {
 			controller.abort();
@@ -340,13 +394,15 @@ export class PanelHost implements vscode.WebviewViewProvider, vscode.WebviewPane
 	private _html(webview: vscode.Webview): string {
 		const nonce = randomBytes(16).toString('base64');
 		const asset = (...path: string[]) => webview.asWebviewUri(vscode.Uri.joinPath(this.context.extensionUri, ...path));
-		// `default-src` does not cover where a form may post or what a <base> may point at.
+		// `default-src` does not cover where a form may post or what a <base> may point at. Pictures
+		// only from inside the page: the page shows none of its own, and `cspSource` would let an
+		// answer's picture be fetched from anywhere under *.vscode-cdn.net.
 		const csp = [
 			`default-src 'none'`,
 			`script-src 'nonce-${nonce}'`,
 			`style-src ${webview.cspSource}`,
 			`font-src ${webview.cspSource}`,
-			`img-src ${webview.cspSource} data:`,
+			`img-src data:`,
 			`form-action 'none'`,
 			`base-uri 'none'`
 		].join('; ');
@@ -416,7 +472,7 @@ export class PanelHost implements vscode.WebviewViewProvider, vscode.WebviewPane
 				const files = (chosen ?? []).map(uri => {
 					const id = newId();
 					// A file outside the workspace goes by its name alone: its folder would tell a vendor the user's home.
-					const label = vscode.workspace.getWorkspaceFolder(uri) ? vscode.workspace.asRelativePath(uri) : nodePath.basename(uri.path);
+					const label = shownPath(uri);
 					this.picked.set(id, { client, uri, label });
 					return { id, label };
 				});
@@ -564,7 +620,12 @@ export class PanelHost implements vscode.WebviewViewProvider, vscode.WebviewPane
 		const named = (ref: string): boolean => this.unsaved.has(ref)
 			|| [...this.running.values()].some(running => running.session.turns.some(turn => turn.images?.some(image => image.ref === ref)))
 			|| this.sessions.list().some(summary => this.sessions.get(summary.id)?.turns.some(turn => turn.images?.some(image => image.ref === ref)));
-		await this.images.sweep(named);
+		// A window with no folder that never kept a picture has no folder to sweep, and gets none from it.
+		if (this.context.storageUri || this._noFolderId()) {
+			await this.images.sweep(named);
+		}
+		// And the folders of windows with no folder that are gone: nothing else would ever delete them.
+		await this.noFolder.sweep(this._noFolderId());
 	}
 
 	/** A code block's Insert: in place of the selection, or at the cursor, of the file last worked in — an edit Undo takes back. */
@@ -1060,7 +1121,7 @@ export class PanelHost implements vscode.WebviewViewProvider, vscode.WebviewPane
 		}
 
 		const face = panelFace({
-			router: new ModelRouter(),
+			router: new ModelRouter(EDITION_REQUESTS),
 			provider: reachable.provider,
 			model: reachable.model,
 			systemPrompt: `${PROMPT}\n\n${MODE_RULES[mode]}${mode === 'ask' ? '' : ` ${EDIT_RULE}`}`,

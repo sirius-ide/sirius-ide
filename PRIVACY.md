@@ -35,9 +35,10 @@ this document. Their policies are the ones that apply to what you send them:
 | OpenAI | <https://openai.com/policies/privacy-policy> |
 | OpenRouter, Groq, DeepSeek, Mistral, xAI | see each provider's own policy |
 
-Requests to OpenRouter also carry two headers that name Sirius — its name and
-its GitHub address — which OpenRouter uses to tell one app's traffic from
-another's. They say nothing about you.
+Requests to OpenRouter also carry two headers that name Sirius — the
+product's name (Sirius IDE, or Sirius for VS Code) and its GitHub address —
+which OpenRouter uses to tell one app's traffic from another's. They say
+nothing about you.
 
 ## Nothing leaves your machine at all, if you want
 
@@ -105,7 +106,7 @@ elsewhere that you allowed.
   - from the file you are in, your selection — or, with none, up to 60 lines
     either side of the cursor — 6,000 characters at most, with the file's path
     and language, until you switch them off. The path is the one inside your
-    workspace; for a file outside it, the full path;
+    workspace; for a file outside it, its name alone;
   - the files you added: the text of each up to 100 KB — a larger one, or one
     that no longer fits, by name only;
   - the pictures you added, up to four with a message, 3.75 MB each and 6 MB
@@ -187,10 +188,13 @@ on your machine. Apart from your keys, none of it is encrypted:
   and deleting a conversation removes it.
 - **Pictures** that went with a message, as files in the extension's storage
   folder. Those no kept conversation uses any more are deleted when you delete
-  a conversation, and each time the panel is first shown in a window. One
-  exception: the pictures of a window with no folder open stay after that
-  window is gone, in `panel-images` in VS Code's global storage folder for the
-  extension. Sirius does not delete them.
+  a conversation, and each time the panel is first shown in a window. A window
+  with no folder open keeps its pictures in a folder of its own, in
+  `panel-images` in VS Code's global storage folder for the extension. When
+  that window has been closed for about 30 days, Sirius marks the folder the
+  next time the panel is first shown, or a conversation is deleted, in a window
+  of the same VS Code on that machine, and deletes it on such an occasion a
+  day or more later.
 - **Your choices** — the model, the mode, how hard it thinks, whether edits
   are accepted as they come — and the addresses you saved.
 - **A log**, under *Sirius* in the Output panel, which VS Code also writes to
@@ -220,9 +224,10 @@ on the computer you sit at.
 
 The panel is a page inside VS Code. It runs no script but the extension's own.
 Styles and fonts load only from `*.vscode-cdn.net`, the domain VS Code serves
-extensions' files through, pictures from there or from inside the page, and
-the page can send nothing anywhere else. A link in an answer opens in your
-browser only when you click it.
+extensions' files through, and pictures only from inside the page: a picture
+in an answer that is kept anywhere else is shown as a link to it, or by its
+description if it has one, never loaded. The page can send nothing anywhere
+else. A link in an answer opens in your browser only when you click it.
 
 ### What is the editor's, not Sirius's
 

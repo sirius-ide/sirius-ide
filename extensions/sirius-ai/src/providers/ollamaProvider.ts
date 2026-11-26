@@ -7,7 +7,10 @@
 import * as vscode from 'vscode';
 import { IAIProvider, SiriusModel, ChatRequest, ChatChunk, ChatMessage, ImagePart, ProviderType, ToolCallRequest, ToolDefinition, StopReason } from '../types';
 import { ConnectionCheck, checkEndpoint, closeOnAbort } from './connection';
-import { userSetting } from './userSetting';
+import { userNumber, userSetting } from './userSetting';
+
+/** A model larger than this is refused unless `sirius.ai.ollama.largeModelBytes` says otherwise. */
+const LARGE_MODEL_BYTES = 12_000_000_000;
 
 /** A tool call as Ollama reports it. Ollama assigns no id, so we synthesise one. */
 interface OllamaToolCall {
@@ -40,8 +43,11 @@ export class OllamaProvider implements IAIProvider {
 	readonly name = 'Ollama (Local)';
 	readonly models: SiriusModel[] = []; // Dynamically populated
 
-	/** @param endpointOverride a configured Ollama on another host; else the user's `sirius.ai.ollama.endpoint`. */
-	constructor(private readonly endpointOverride?: string) { }
+	/**
+	 * @param endpointOverride a configured Ollama on another host; else the user's `sirius.ai.ollama.endpoint`.
+	 * @param userSettingsOnly the size limit from the user's own settings alone (the VS Code edition, which declares no such setting).
+	 */
+	constructor(private readonly endpointOverride?: string, private readonly userSettingsOnly = false) { }
 
 	private getEndpoint(): string {
 		const endpoint = this.endpointOverride?.trim() || userSetting('sirius.ai.ollama', 'endpoint') || 'http://localhost:11434';
@@ -66,8 +72,9 @@ export class OllamaProvider implements IAIProvider {
 	 * instead; sirius.ai.ollama.largeModelBytes raises or (0) disables the gate.
 	 */
 	private _guardModelSize(model: string): void {
-		const limit = vscode.workspace.getConfiguration('sirius.ai.ollama')
-			.get<number>('largeModelBytes', 12_000_000_000);
+		const limit = this.userSettingsOnly
+			? userNumber('sirius.ai.ollama', 'largeModelBytes') ?? LARGE_MODEL_BYTES
+			: vscode.workspace.getConfiguration('sirius.ai.ollama').get<number>('largeModelBytes', LARGE_MODEL_BYTES);
 		const size = this._modelSizes.get(model);
 		if (limit > 0 && size !== undefined && size > limit) {
 			throw new Error(

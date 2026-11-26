@@ -34,6 +34,15 @@ const MAX_CONTEXT_CHARS = 200_000;
 /** Files offered for an @-mention, looked up for each query. */
 const SEARCHED = 200;
 
+/**
+ * A file's name as the panel shows it and a question carries it: its path inside the workspace, or,
+ * for a file outside it, its name alone — the folders above it would tell a vendor about the user's
+ * machine, the name of their home among them.
+ */
+export function shownPath(uri: vscode.Uri): string {
+	return vscode.workspace.getWorkspaceFolder(uri) ? vscode.workspace.asRelativePath(uri) : nodePath.basename(uri.path);
+}
+
 /** A text editor the panel can speak of: a file's, not one of the panel's own diffs or an output. */
 function usable(editor: vscode.TextEditor | undefined): editor is vscode.TextEditor {
 	const scheme = editor?.document.uri.scheme;
@@ -146,7 +155,7 @@ export class EditorTracker implements vscode.Disposable {
 		}
 		const selection = current.selection;
 		return {
-			path: vscode.workspace.asRelativePath(current.document.uri),
+			path: shownPath(current.document.uri),
 			...(selection.isEmpty ? {} : { selection: { start: selection.start.line + 1, end: selection.end.line + 1 } })
 		};
 	}
@@ -254,7 +263,7 @@ export async function carry(options: {
 	const open = options.editor;
 	if (open && !open.document.isClosed && (options.file || (options.selection && !open.selection.isEmpty))) {
 		const { document, selection } = open;
-		const path = vscode.workspace.asRelativePath(document.uri);
+		const path = shownPath(document.uri);
 		let snippet: string;
 		let where: string;
 		let label = path;
@@ -408,6 +417,88 @@ export class ImageStore {
 			if (name.endsWith('.bin') && !kept(ref)) {
 				await vscode.workspace.fs.delete(this._file(ref)).then(undefined, () => undefined);
 			}
+		}
+	}
+}
+
+/** The file in a no-folder window's picture folder whose time says the window was open then. */
+const STAMP = 'window-open';
+/** The file a sweep leaves in a folder whose stamp it found ORPHANED_MS old: a later sweep deletes the folder. */
+const MARK = 'found-unused';
+/** A no-folder window's picture folder whose stamp is older than this has no window any more. */
+const ORPHANED_MS = 30 * 24 * 60 * 60 * 1000;
+/** How long a folder stays marked before a sweep deletes it — time for a window still open to stamp it. */
+const MARKED_MS = 24 * 60 * 60 * 1000;
+/** A folder's name as `newId` makes them: only such a folder is ever deleted here. */
+const FOLDER_NAME = /^[0-9a-z]{8,24}$/;
+
+/**
+ * The pictures of windows with no folder open. Such a window has no storage of its own, so each
+ * keeps its pictures in a folder of its own under the extension's global storage, named in the
+ * window's state — which VS Code deletes once the window is gone, leaving a folder no window will
+ * name again. While a window is open it keeps the stamp in its folder fresh. A sweep that finds a
+ * stamp ORPHANED_MS old marks the folder, and a sweep MARKED_MS or more later deletes it if the
+ * stamp is still that old — so a window restored after a month away, or woken from a long sleep,
+ * has a day to stamp its folder before it can go. A folder found without a stamp gets one.
+ */
+export class NoFolderPictures {
+	constructor(private readonly root: vscode.Uri) { }
+
+	folder(id: string): vscode.Uri {
+		return vscode.Uri.joinPath(this.root, id);
+	}
+
+	/** Marks a window's folder as in use now, making it if need be. */
+	async touch(id: string): Promise<void> {
+		await vscode.workspace.fs.createDirectory(this.folder(id));
+		await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(this.folder(id), STAMP), Buffer.from(new Date().toISOString()));
+	}
+
+	/** Marks, or deletes, the folders whose stamp is ORPHANED_MS old — never `own`, the asking window's. */
+	async sweep(own: string | undefined): Promise<void> {
+		let entries: [string, vscode.FileType][];
+		try {
+			entries = await vscode.workspace.fs.readDirectory(this.root);
+		} catch {
+			return;
+		}
+		const quietly = () => undefined;
+		for (const [name, type] of entries) {
+			if (name === own || !(type & vscode.FileType.Directory) || !FOLDER_NAME.test(name)) {
+				continue;
+			}
+			const stamp = vscode.Uri.joinPath(this.folder(name), STAMP);
+			const mark = vscode.Uri.joinPath(this.folder(name), MARK);
+			const stamped = await this._time(stamp);
+			// No stamp, or one from the future (a clock set back): the month starts now.
+			if (stamped === undefined || stamped > Date.now() + MARKED_MS) {
+				await this.touch(name).then(undefined, quietly);
+				continue;
+			}
+			let marked = await this._time(mark);
+			if (marked !== undefined && marked > Date.now()) {
+				marked = undefined;
+			}
+			if (Date.now() - stamped <= ORPHANED_MS) {
+				// Stamped again since a sweep marked it: its window is open.
+				if (marked !== undefined) {
+					await vscode.workspace.fs.delete(mark).then(undefined, quietly);
+				}
+			} else if (marked === undefined || marked < stamped) {
+				// Not marked since its last stamp (or marked from the future): marked now.
+				await vscode.workspace.fs.writeFile(mark, Buffer.from(new Date().toISOString())).then(undefined, quietly);
+			} else if (Date.now() - marked >= MARKED_MS && await this._time(stamp) === stamped) {
+				await vscode.workspace.fs.delete(this.folder(name), { recursive: true, useTrash: false }).then(undefined, quietly);
+			}
+		}
+	}
+
+	/** A file's last change, or undefined when it is not there. */
+	private async _time(file: vscode.Uri): Promise<number | undefined> {
+		try {
+			return (await vscode.workspace.fs.stat(file)).mtime;
+		} catch {
+			return undefined;
 		}
 	}
 }

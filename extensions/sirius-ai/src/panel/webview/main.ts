@@ -292,9 +292,44 @@ marked.setOptions({ gfm: true, breaks: false });
  */
 const FORBIDDEN_TAGS = ['form', 'button', 'textarea', 'select', 'option', 'optgroup', 'datalist', 'output', 'dialog', 'style', 'map', 'area'];
 
+/** A picture the answer carries in itself. A picture from anywhere else would be fetched as the page shows it. */
+const CARRIED_PICTURE = /^data:image\//i;
+/** Attributes that make a page fetch what they name, beside an element's `src`. */
+const FETCHING = new Set(['srcset', 'poster', 'background']);
+
+// An answer may not make the page fetch anything. A picture shows only when the answer carries it
+// (a `data:` address); one from anywhere else becomes a link to it, which opens, as every link here
+// does, only on a click and through VS Code — or its description alone, if it is no web address or
+// already sits in a link (a badge: the link stays the one it was). The link is made in DOMPurify's
+// own document and sanitised in its turn, as the next node.
+DOMPurify.addHook('uponSanitizeElement', (node, data) => {
+	if (data.tagName !== 'img' || node.nodeType !== Node.ELEMENT_NODE) {
+		return;
+	}
+	const picture = node as Element;
+	const src = picture.getAttribute('src')?.trim() ?? '';
+	if (CARRIED_PICTURE.test(src)) {
+		return;
+	}
+	const description = picture.getAttribute('alt')?.trim() ?? '';
+	const document = picture.ownerDocument;
+	const inLink = !!picture.closest('a');
+	if (/^https?:\/\//i.test(src) && !inLink) {
+		const link = document.createElement('a');
+		link.setAttribute('href', src);
+		link.textContent = description || src;
+		picture.replaceWith(link);
+	} else {
+		// A link whose only content was the picture keeps something to click.
+		picture.replaceWith(document.createTextNode(description || (inLink ? 'picture' : '')));
+	}
+});
+
 // A model's classes would let it draw the panel's own parts — an error box asking for a key, a
-// message that looks like the user's. Only a code block's `language-*` stays.
-DOMPurify.addHook('uponSanitizeAttribute', (_node, attribute) => {
+// message that looks like the user's. Only a code block's `language-*` stays. And no attribute may
+// name something to fetch: a `srcset`, a `poster`, a `background`, the `src` of anything but a
+// picture the answer carries.
+DOMPurify.addHook('uponSanitizeAttribute', (node, attribute) => {
 	if (attribute.attrName === 'class') {
 		const kept = attribute.attrValue.split(/\s+/).filter(name => /^language-[\w#+.-]+$/.test(name));
 		if (kept.length) {
@@ -302,6 +337,8 @@ DOMPurify.addHook('uponSanitizeAttribute', (_node, attribute) => {
 		} else {
 			attribute.keepAttr = false;
 		}
+	} else if (FETCHING.has(attribute.attrName) || (attribute.attrName === 'src' && !(node.nodeName === 'IMG' && CARRIED_PICTURE.test(attribute.attrValue.trim())))) {
+		attribute.keepAttr = false;
 	}
 });
 
