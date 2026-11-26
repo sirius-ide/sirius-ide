@@ -26,7 +26,8 @@
 // request whose tool call has no result after it is refused with a 400; "null args" calls
 // sirius_list_directory, when offered, with the arguments `null`, and "odd ids" calls it under an
 // id as Kimi K2 names its calls, `functions.sirius_list_directory:0`. Each request's line carries
-// the first six characters of the key it was sent (`bearer`), so a probe can see whose key came.
+// the first six characters of the key it was sent (`bearer`), so a probe can see whose key came, and
+// a chat request's line how it was made (`shape`: max_tokens, temperature, stream).
 // Tab completion, on llama-server's shape: `POST /infill` at the server's root (not under /v1)
 // answers `{ content: "return a * b;" }` to the key; its line carries the stop strings asked for
 // (`stop`) and the last 40 characters of `input_prefix` (`prefixEnd`).
@@ -74,7 +75,7 @@ http.createServer(async (req, res) => {
 	const instructions = (body.messages ?? []).some(m => typeof m.content === 'string' && m.content.includes('STUB-INSTRUCTIONS'));
 	const asked = [...(body.messages ?? [])].reverse().find(m => m.role === 'user');
 	const infill = req.method === 'POST' && req.url === '/infill';
-	console.log(JSON.stringify({ method: req.method, url: req.url, authorized, bearer: (req.headers.authorization ?? '').replace(/^Bearer /, '').slice(0, 6), ...(tools.length ? { tools, instructions } : {}), ...(body.stream ? { streamUsage: body.stream_options?.include_usage === true } : {}), ...(typeof asked?.content === 'string' ? { ask: asked.content.slice(0, 80) } : {}), ...(infill ? { stop: body.stop ?? null, prefixEnd: String(body.input_prefix ?? '').slice(-40) } : {}) }));
+	console.log(JSON.stringify({ method: req.method, url: req.url, authorized, bearer: (req.headers.authorization ?? '').replace(/^Bearer /, '').slice(0, 6), ...(tools.length ? { tools, instructions } : {}), ...(body.stream ? { streamUsage: body.stream_options?.include_usage === true } : {}), ...(typeof asked?.content === 'string' ? { ask: asked.content.slice(0, 80) } : {}), ...(req.url === '/v1/chat/completions' ? { shape: { maxTokens: body.max_tokens ?? null, temperature: body.temperature ?? null, stream: body.stream ?? null } } : {}), ...(infill ? { stop: body.stop ?? null, prefixEnd: String(body.input_prefix ?? '').slice(-40) } : {}) }));
 	if (!authorized) {
 		res.writeHead(401, { 'content-type': 'application/json' });
 		res.end(JSON.stringify({ error: { message: 'invalid api key' } }));

@@ -17,7 +17,8 @@
 # Probes written for it: probes/panel.js — Sirius's panel: the walkthrough, setup, every provider
 # family, thinking, replay, modes and effort, tools and approvals, changes to files reviewed in the
 # diff editor, Copy, errors, Stop, Retry, the send key, conversations, a tab, a reload, the page's
-# security policy, the key at rest.
+# security policy, the key at rest; probes/no-folder.js — with SIRIUS_PROBE_NO_FOLDER=1, the pictures of a
+# window with no folder kept in a folder of its own, stamped as in use, again as it starts after a reload.
 
 set -euo pipefail
 APP=${1:?vscode dir, e.g. ~/.cache/sirius-verify/vscode-1.146.0/VSCode-linux-x64}

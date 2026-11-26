@@ -1,3 +1,7 @@
 {
-	"sirius.ai.groq.baseUrl": "http://127.0.0.1:11991/v1"
+	"sirius.ai.groq.baseUrl": "http://127.0.0.1:11991/v1",
+	"sirius.ai.maxTokens": 4097,
+	"sirius.ai.temperature": 0.31,
+	"sirius.ai.streamResponses": false,
+	"sirius.ai.ollama.largeModelBytes": 1
 }

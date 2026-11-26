@@ -22,7 +22,8 @@
 # a file is taken as an extension's id (siriuside.sirius-ai, or siriuside.sirius-ai@0.1.0 for one
 # version), which VS Code installs from the Marketplace itself: the released edition.
 # SIRIUS_PROBE_KEEP_LOGS=1 keeps VS Code's own logs beside the result (<result.json>.vscode-logs),
-# for a run nobody watched.
+# for a run nobody watched. SIRIUS_PROBE_NO_FOLDER=1 opens a window with no folder (probes/no-folder.js)
+# in place of the workspace.
 
 set -euo pipefail
 APP=${1:?vscode dir, e.g. ~/.cache/sirius-verify/vscode-1.146.0/VSCode-linux-x64}
@@ -83,6 +84,8 @@ node -e '
 ' "$WORK/user/User/settings.json" "${SIRIUS_PROBE_SETTINGS:-}"
 
 EDITION_ARGS=(--extensionDevelopmentPath="$EDITION")
+FOLDER=("$WORK/ws")
+[ -n "${SIRIUS_PROBE_NO_FOLDER:-}" ] && FOLDER=()
 if [ -n "${SIRIUS_PROBE_VSIX:-}" ]; then
 	INSTALL=$SIRIUS_PROBE_VSIX
 	[ -f "$INSTALL" ] && INSTALL=$(realpath "$INSTALL")
@@ -99,7 +102,7 @@ env -u WAYLAND_DISPLAY DBUS_SESSION_BUS_ADDRESS="$BUS" PATH="$WORK/bin:$PATH" SI
 	"$APP/bin/$BIN" --ozone-platform=x11 --user-data-dir="$WORK/user" --extensions-dir="$WORK/extensions" \
 	"${EDITION_ARGS[@]}" --extensionDevelopmentPath="$HERE/probe-ext" ${SIRIUS_PROBE_EXTRA_EXT:+--extensionDevelopmentPath="$SIRIUS_PROBE_EXTRA_EXT"} \
 	--no-sandbox --disable-gpu --disable-workspace-trust --use-inmemory-secretstorage \
-	--skip-welcome --skip-release-notes --remote-debugging-port="$PORT" "$WORK/ws" >"$OUT.app.log" 2>&1 &
+	--skip-welcome --skip-release-notes --remote-debugging-port="$PORT" "${FOLDER[@]}" >"$OUT.app.log" 2>&1 &
 
 for _ in $(seq 1 "$WAIT"); do
 	[ -s "$OUT" ] && break

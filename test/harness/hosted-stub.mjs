@@ -45,7 +45,10 @@
 // error box and a user's message drawn with the panel's own classes — beside a task list (the one
 // input markdown makes) and a code block; "a link please" answers with a link to example.com and a
 // mailto: link; "a file link please" with links to a workspace file at a line (linked.md#L3), to a
-// file outside the workspace (../outside.txt) and to a command: address that opens an editor.
+// file outside the workspace (../outside.txt) and to a command: address that opens an editor; "a
+// picture from <address>" with that address as a markdown picture, as an <img>, as a badge (a
+// picture in a link to example.com/ci), in a picture's srcset and in a video's poster, beside a
+// picture the answer carries (a data: GIF).
 // Slowness on demand: `GET /__slow?ms=<ms>&count=<n>` holds the next n answers to Anthropic's model
 // listing for that long, so a probe can watch a look for models while it is under way.
 // Usage, on Anthropic's stream: `message_start` carries the input counts (12 fresh, 30 written to
@@ -182,6 +185,9 @@ function ollamaAsk(body) {
 	return { text: typeof messages[at]?.content === 'string' ? messages[at].content : '', tools: (body.tools ?? []).map(t => t.function?.name), result: results[results.length - 1]?.content, rounds: results.length };
 }
 
+/** A 1×1 GIF, as an answer may carry a picture in itself. */
+const GIF = 'data:image/gif;base64,R0lGODlhAQABAAAAACw=';
+
 /** A hostile answer: each line would run code, post a key away or restyle the page if it got through. */
 const INJECT = [
 	'Before.',
@@ -255,6 +261,11 @@ function reply(ask) {
 	}
 	if (/\btry to inject\b/i.test(ask.text)) {
 		return { text: INJECT };
+	}
+	const picture = /\ba picture from (\S+)/i.exec(ask.text);
+	if (picture) {
+		const at = picture[1];
+		return { text: ['Before.', '', `![the remote picture](${at})`, '', `<img src="${at}" alt="raw"> [![badge](${at})](https://example.com/ci) <img src="${GIF}" srcset="${at} 2x" alt="carried"> <video poster="${at}"></video>`, '', 'After.'].join('\n') };
 	}
 	if (/\ba file link please\b/i.test(ask.text)) {
 		return { text: 'Open [linked.md](linked.md#L3), or [this one](../outside.txt), or [this](command:workbench.action.files.newUntitledFile).' };

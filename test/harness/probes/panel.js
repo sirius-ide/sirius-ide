@@ -8,6 +8,16 @@
 //   walkthrough — first, as after an install, before Sirius was ever opened: "Get started with
 //               Sirius" shows its six steps; its "Open Models and Keys" opens the panel on its
 //               Models and Keys; "Open Sirius" is then done and "Ask, Edit or Agent" is not.
+//   own settings — the user's own maxTokens and temperature, written into the profile's settings.json,
+//               are what VS Code reads for the user, beside the seed workspace's other values. Late in
+//               the run (before the reload), the user's own streamResponses: false makes Gemini's
+//               request unstreamed and a one-byte ollama.largeModelBytes refuses Ollama's model; both
+//               are then taken out again.
+//   no-folder pictures — the panel's first use sweeps the picture folders of windows with no folder:
+//               one stamped 40 days ago and marked two days ago goes; one stamped 40 days ago is
+//               marked, and so is one whose mark is older than its stamp; one marked six hours ago
+//               waits; one stamped again since its mark loses the mark; one stamped yesterday, one
+//               never stamped (it is given a stamp) and one not named as Sirius names them stay.
 //   start     — before any setup the panel says how to begin — or, when a local server such as
 //               Ollama answers, offers its models and says to ask.
 //   found later — Ollama's address set where nothing answers (so that, a real Ollama or not, no model
@@ -17,7 +27,8 @@
 //   setup     — on Models and Keys, an address (the stubs') and a key are saved for Anthropic,
 //               Gemini, OpenAI and llama.cpp, and an address for Ollama; each offers the stubs'
 //               models; no key ever reaches the webview's page; "Add a model" is then done. A model
-//               its vendor deprecated is marked so in the picker.
+//               its vendor deprecated is marked so in the picker. OpenRouter, with a key, is asked for
+//               its models (by the guard) and told the extension's name, "Sirius for VS Code".
 //   checking  — Check again while Anthropic's model listing is slow shows "Checking…"; Gemini's key
 //               removed meanwhile shows as gone once the look ends (the look under way had read it).
 //   completions — Tab completion is off at first (the status bar's Tab item says so, and a trigger
@@ -43,7 +54,9 @@
 //               (the OpenAI stub's log says which request carried stream_options). OpenAI at its own
 //               address (answered by the guard) is asked, and shows the guard's 7 in and 2 out. A
 //               Gemini answer stopped part-way shows no count: Gemini's chunks carry the prompt's
-//               count before the answer's.
+//               count before the answer's. Each request is made with the user's own settings — 12000
+//               tokens at 0.55, streamed — not the workspace's (Ollama's, too, is not refused for size);
+//               so is every request to Anthropic in the run (checked with the guard, at the end).
 //   thinking  — "slow: think about it": the thinking block shows while it streams, its text in
 //               pieces; when the answer comes it closes to "Thought for N second(s)"; a click opens
 //               it again with the reasoning; the answer is the stub's; its tokens are the stub's —
@@ -109,7 +122,8 @@
 //               words alone; a closed editor's file is no longer offered. "@READ" offers README.md
 //               first; Enter takes it, and the question carries it between nonce-named tags. A file
 //               outside the workspace chosen in VS Code's file picker (its simple dialog) goes with
-//               the question. A pasted image reaches Anthropic as an image and Ollama's text-only
+//               the question, by its name alone; so does that file open in an editor, its chip naming
+//               it so. A pasted image reaches Anthropic as an image and Ollama's text-only
 //               model as a note. The next question's history carries all of them as they went.
 //   copy      — a code block's Copy puts its code on the clipboard.
 //   code blocks — with blocks.txt open and the cursor on its second line, a block's Insert puts the
@@ -131,11 +145,15 @@
 //   tab       — Open in New Tab gives a second panel, a new conversation, with the same models; opened
 //               over greet.js in its group, hiding it, the panel still offers and sends greet.js.
 //   csp       — no page of the panel logged a content-security violation; one made on purpose is
-//               seen, so the check can see one.
+//               seen, so the check can see one; the page takes pictures only from itself (img-src data:).
 //   sanitising — an answer that tries to run code, post a key away, restyle the panel or draw its
 //               parts renders as text: no script, frame, form, field, button, stylesheet or image
 //               map, no handler, no javascript: address, no class but a code block's language-*,
 //               and nothing ran; a task list keeps its checkboxes, disabled; the composer is shown.
+//               An answer's pictures from elsewhere — the extension's own icon, at its *.vscode-cdn.net
+//               address, as a markdown picture, an <img>, a srcset and a video's poster — fetch
+//               nothing and become links to it, a badge's (a picture in a link) its link's text; the
+//               picture the answer carries (data:) stays.
 //   links     — a person's click (a trusted one, through CDP) on a link goes out through VS Code
 //               once: it asks first (the site is not a trusted one), nothing opens before Open, and
 //               then the system's opener — the harness's, which only records it — gets it once; a
@@ -177,6 +195,28 @@ const STUBLOG = process.env.SIRIUS_PROBE_STUBLOG;
 const OPENED = process.env.SIRIUS_PROBE_OPENED;
 const KEY = 'good-key';
 const GROQ_KEY = 'groqke-for-the-probe';
+const OPENROUTER_KEY = 'orkey-for-the-probe';
+/**
+ * The user's own request settings, written into the profile's settings.json as a user would (the
+ * edition declares none of them). The seed workspace's settings.json asks for others — 4097 tokens
+ * at 0.31, no streaming, no Ollama model over a byte — which must not apply.
+ */
+const OWN_SETTINGS = { 'sirius.ai.maxTokens': 12000, 'sirius.ai.temperature': 0.55 };
+const OWN_REQUESTS = { maxTokens: 12000, temperature: 0.55, stream: true };
+/** Where windows with no folder keep their pictures, in the extension's global storage. */
+const NO_FOLDER_PICTURES = PROFILE ? path.join(PROFILE, 'User', 'globalStorage', 'siriuside.sirius-ai', 'panel-images') : undefined;
+/**
+ * Picture folders of windows with no folder, put there before the panel is first used, each as
+ * [stamp's age, mark's age] in days (null: none). A sweep marks a folder whose stamp is 30 days old
+ * and deletes it a day after, if its stamp is still that old: `gone` (marked two days ago) is
+ * deleted; `marked` is marked now and kept; `remarked` (its mark older than its stamp) is marked
+ * again; `waiting` (marked six hours ago) is kept as it is; `revived` (stamped again since its mark)
+ * loses its mark; `fresh` is left alone; `unstamped` is given a stamp; `foreign`, not named as Sirius
+ * names them, is never touched. SWEPT_FOLDERS: each as [there, stamped, the mark's age in hours].
+ */
+const SEEDED_FOLDERS = { gone: ['probegone0001', 40, 2], marked: ['probemarked01', 40, null], remarked: ['proberemark01', 40, 45], waiting: ['probewaiting1', 40, 0.25], revived: ['proberevived1', 1, 2], fresh: ['probefresh001', 1, null], unstamped: ['probeunstamp1', null, null], foreign: ['Not-Sirius', 40, 2] };
+const SWEPT_FOLDERS = { gone: [false, false, null], marked: [true, true, 0], remarked: [true, true, 0], waiting: [true, true, 6], revived: [true, true, null], fresh: [true, true, null], unstamped: [true, true, null], foreign: [true, true, 48] };
+const DAY_MS = 24 * 60 * 60 * 1000;
 const EXTENSION = 'siriuside.sirius-ai';
 const MODEL = 'anthropic/claude-stub-adaptive';
 const OTHERS = { gemini: 'gemini/gemini-stub-flash', openai: 'openai/stub-model', llamacpp: 'llamacpp/stub-model', ollama: 'ollama/stub-coder:1b' };
@@ -277,8 +317,12 @@ function guardVendors() {
 		}
 		let body;
 		try { body = typeof init?.body === 'string' ? JSON.parse(init.body) : undefined; } catch { /* not JSON */ }
-		const call = { host: url.hostname, path: url.pathname, method: init?.method ?? 'GET', streamOptions: body?.stream_options ?? null, answered: false };
+		const call = { host: url.hostname, path: url.pathname, method: init?.method ?? 'GET', streamOptions: body?.stream_options ?? null, title: new Headers(init?.headers).get('x-title'), answered: false };
 		vendorCalls.push(call);
+		if (url.hostname === 'openrouter.ai' && url.pathname === '/api/v1/models') {
+			call.answered = true;
+			return new Response(JSON.stringify({ object: 'list', data: [{ id: 'stub-router', object: 'model' }] }), { status: 200, headers: { 'content-type': 'application/json' } });
+		}
 		if (url.hostname === 'api.groq.com' && url.pathname === '/openai/v1/models') {
 			call.answered = true;
 			return new Response(JSON.stringify({ object: 'list', data: [{ id: 'stub-groq', object: 'model' }] }), { status: 200, headers: { 'content-type': 'application/json' } });
@@ -393,6 +437,35 @@ exports.run = async function (vscode) {
 	}
 	const save = () => { if (OUT) { fs.writeFileSync(`${OUT}.partial.json`, JSON.stringify({ ok: failures.length === 0, failures, ...result }, null, 1)); } };
 	guardVendors();
+
+	if (!reloaded) {
+		// ── own settings: the user's request settings, as a user writes them ──────
+		log('own settings: maxTokens and temperature in the profile\'s settings.json');
+		const userSettings = path.join(PROFILE ?? '', 'User', 'settings.json');
+		if (PROFILE) {
+			fs.writeFileSync(userSettings, JSON.stringify({ ...JSON.parse(fs.readFileSync(userSettings, 'utf8')), ...OWN_SETTINGS }, null, '\t') + '\n');
+		}
+		const seenAs = () => { const inspected = vscode.workspace.getConfiguration('sirius.ai').inspect('maxTokens'); return { user: inspected?.globalValue, workspace: inspected?.workspaceValue }; };
+		for (let i = 0; i < 50 && seenAs().user !== OWN_SETTINGS['sirius.ai.maxTokens']; i++) { await sleep(200); }
+		result.ownSettings = seenAs();
+		check(js(result.ownSettings) === js({ user: 12000, workspace: 4097 }), `own settings: VS Code does not read the user's 12000 and the workspace's 4097 for sirius.ai.maxTokens (${js(result.ownSettings)})`);
+
+		// ── no-folder pictures: folders of windows with no folder, before the panel's first use ──
+		if (NO_FOLDER_PICTURES) {
+			for (const [name, stampDays, markDays] of Object.values(SEEDED_FOLDERS)) {
+				const dir = path.join(NO_FOLDER_PICTURES, name);
+				fs.mkdirSync(dir, { recursive: true });
+				fs.writeFileSync(path.join(dir, `${'0'.repeat(64)}.bin`), 'a picture');
+				for (const [file, days] of [['window-open', stampDays], ['found-unused', markDays]]) {
+					if (days !== null) {
+						fs.writeFileSync(path.join(dir, file), 'seeded');
+						const at = (Date.now() - days * DAY_MS) / 1000;
+						fs.utimesSync(path.join(dir, file), at, at);
+					}
+				}
+			}
+		}
+	}
 
 	// ── walkthrough: before Sirius is opened, as after an install ─────────────
 	const win = await connectWindow(vscode.env.appRoot);
@@ -556,6 +629,20 @@ exports.run = async function (vscode) {
 	check(done.includes('Open Sirius'), `walkthrough: "Open Sirius" is not done once Sirius is open (${js(done)})`);
 	check(!done.includes('Ask, Edit or Agent'), `walkthrough: "Ask, Edit or Agent" is done before any question was asked (${js(done)})`);
 
+	// ── no-folder pictures: the panel's first use swept them ───────────────────
+	log('no-folder pictures: the first sweep');
+	// Each folder as [there, stamped, the mark's age in hours].
+	const here = file => !!NO_FOLDER_PICTURES && fs.existsSync(path.join(NO_FOLDER_PICTURES, file));
+	const markAge = name => here(path.join(name, 'found-unused')) ? Math.round((Date.now() - fs.statSync(path.join(NO_FOLDER_PICTURES, name, 'found-unused')).mtimeMs) / 3600000) : null;
+	const folders = () => Object.fromEntries(Object.entries(SEEDED_FOLDERS).map(([kind, [name]]) => [kind, [here(name), here(path.join(name, 'window-open')), markAge(name)]]));
+	let swept = folders();
+	for (let i = 0; i < 50 && js(swept) !== js(SWEPT_FOLDERS); i++) {
+		await sleep(200);
+		swept = folders();
+	}
+	result.noFolderPictures = swept;
+	check(js(swept) === js(SWEPT_FOLDERS), `no-folder pictures: the panel's first sweep did not leave the folders as [there, stamped, the mark's age in hours] ${js(SWEPT_FOLDERS)} (${js(swept)})`);
+
 	// ── start ─────────────────────────────────────────────────────────────────
 	log('start');
 	await panel.evaluate(click('button[title="Back to the conversation"]'));
@@ -593,7 +680,7 @@ exports.run = async function (vscode) {
 	log('setup: the stubs\' addresses and a key for Anthropic, Gemini, OpenAI and llama.cpp; Ollama\'s address');
 	await panel.evaluate(click('button[title="Models and keys"]'));
 	await until(s => 'anthropic' in s.providers);
-	for (const [provider, address, key] of [['anthropic', HOSTED, KEY], ['gemini', HOSTED, KEY], ['openai', OPENAI, KEY], ['llamacpp', OPENAI, KEY], ['ollama', HOSTED, undefined], ['groq', undefined, GROQ_KEY]]) {
+	for (const [provider, address, key] of [['anthropic', HOSTED, KEY], ['gemini', HOSTED, KEY], ['openai', OPENAI, KEY], ['llamacpp', OPENAI, KEY], ['ollama', HOSTED, undefined], ['groq', undefined, GROQ_KEY], ['openrouter', undefined, OPENROUTER_KEY]]) {
 		if (address) {
 			await panel.evaluate(fill(provider, 'input[type="text"]', address, 'Save address'));
 			await sleep(500);
@@ -604,7 +691,7 @@ exports.run = async function (vscode) {
 			await sleep(500);
 		}
 	}
-	const PROVIDERS = ['anthropic', 'gemini', 'openai', 'llamacpp', 'ollama', 'groq'];
+	const PROVIDERS = ['anthropic', 'gemini', 'openai', 'llamacpp', 'ollama', 'groq', 'openrouter'];
 	const ready = await until(s => PROVIDERS.every(p => /\d+ models?/.test(s.providers[p] ?? '')));
 	result.setup = { providers: Object.fromEntries(PROVIDERS.map(p => [p, ready.providers[p]])), keyInPage: await panel.evaluate(`document.documentElement.outerHTML.includes(${js(KEY)})`) };
 	for (const provider of PROVIDERS) {
@@ -615,6 +702,8 @@ exports.run = async function (vscode) {
 	result.addresses = groqAt;
 	check(groqAt.workspace.length === 0, `addresses: Groq's key went to the address the workspace's settings named (${js(groqAt)})`);
 	check(groqAt.own.includes('/openai/v1/models'), `addresses: Groq was not asked at its own address (${js(groqAt)})`);
+	result.openrouter = vendorCalls.filter(call => call.host === 'openrouter.ai').map(call => ({ path: call.path, title: call.title }));
+	check(result.openrouter.length > 0 && result.openrouter.every(call => call.title === 'Sirius for VS Code'), `setup: OpenRouter was not told the extension's name, "Sirius for VS Code" (${js(result.openrouter)})`);
 	for (let i = 0; i < 40; i++) {
 		done = (await win.evaluate(WALKTHROUGH)).filter(s => s.done).map(s => s.title);
 		if (done.includes('Add a model')) { break; }
@@ -768,7 +857,12 @@ exports.run = async function (vscode) {
 		const answer = await ask(`a question for ${provider}`);
 		const seen = (await stubRequests()).slice(from).filter(r => r.method === 'POST');
 		const openai = openaiRequests().filter(r => r.ask === `a question for ${provider}`);
-		result.providers[provider] = { text: answer?.text, meta: answer?.meta, stub: seen.map(r => ({ path: r.path.split('?')[0], keyHeader: r.keyHeader, authorized: r.authorized })), openai };
+		// How the request was made: its length, its temperature, whether it streamed.
+		const chat = seen.find(r => /:(stream)?[gG]enerateContent$|^\/api\/chat$/.test(r.path.split('?')[0]));
+		const shape = provider === 'gemini' ? chat && { maxTokens: chat.body?.generationConfig?.maxOutputTokens, temperature: chat.body?.generationConfig?.temperature, stream: /:streamGenerateContent$/.test(chat.path.split('?')[0]) }
+			: provider === 'ollama' ? chat && { maxTokens: chat.body?.options?.num_predict, temperature: chat.body?.options?.temperature, stream: chat.body?.stream }
+				: openai[0]?.shape;
+		result.providers[provider] = { text: answer?.text, meta: answer?.meta, stub: seen.map(r => ({ path: r.path.split('?')[0], keyHeader: r.keyHeader, authorized: r.authorized })), openai, shape: shape ?? null };
 		check(answer && answer.text.includes(`pong a question for ${provider}`), `providers: ${provider} did not answer through the panel (${js(answer)})`);
 		if (provider === 'openai') {
 			check(!/\d+ in/.test(answer?.meta ?? ''), `providers: OpenAI at another address than its own shows a token count it was not asked for (${js(answer?.meta)})`);
@@ -791,6 +885,8 @@ exports.run = async function (vscode) {
 	}
 	check(result.providers.gemini?.stub.some(r => /:streamGenerateContent$/.test(r.path) && r.keyHeader === 'x-goog-api-key' && r.authorized), `providers: Gemini's request did not carry its key in x-goog-api-key (${js(result.providers.gemini?.stub)})`);
 	check(result.providers.ollama?.stub.some(r => r.path === '/api/chat'), `providers: Ollama's request did not reach /api/chat (${js(result.providers.ollama?.stub)})`);
+	const made = Object.fromEntries(Object.keys(OTHERS).map(provider => [provider, result.providers[provider]?.shape ?? null]));
+	check(Object.values(made).every(shape => js(shape) === js(OWN_REQUESTS)), `providers: a request was not made with the user's own settings — ${js(OWN_REQUESTS)} — but the workspace's, or none was made (${js(made)})`);
 
 	log('providers: a Gemini answer stopped part-way');
 	await panel.evaluate(choose('footer select[title="Model"]', OTHERS.gemini));
@@ -1464,6 +1560,27 @@ exports.run = async function (vscode) {
 	await vscode.workspace.getConfiguration().update('files.simpleDialog.enable', undefined, vscode.ConfigurationTarget.Global);
 	result.context.picked = { dialog: dialogInput, chips: attachedChip.chips, bubble: c5?.attached, carried: c5Text.includes('A note kept outside the workspace'), folderSent: c5Text.includes(path.dirname(outside)) };
 	check(dialogInput && !!chipNamed(attachedChip, 'outside-note.txt') && result.context.picked.carried && !result.context.picked.folderSent && js(c5?.attached) === js(['outside-note.txt']), `context: a file chosen in VS Code's file picker, outside the workspace, did not go with the question by its name alone (${js(result.context.picked)})`);
+
+	log('context: that file open in an editor');
+	await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(vscode.Uri.file(outside)), { preview: false });
+	const outsideOpen = await until(s => s.chips.length > 0 && s.chips.some(c => c.text.endsWith('outside-note.txt')), 5000);
+	const fileChip = outsideOpen.chips.find(c => c.text.endsWith('outside-note.txt'));
+	// The file chip's choice carries from file to file: switched off for greet.js above, it is switched on here and back after.
+	if (fileChip && !fileChip.on) {
+		await panel.evaluate(clickText('footer .chips .chip-label', fileChip.text));
+		await until(s => s.chips.some(c => c.text === fileChip.text && c.on), 3000);
+	}
+	from = (await stubRequests()).length;
+	await ask('context five, open: and the note I have open?');
+	const c5Open = { attached: await bubble() };
+	const c5OpenText = lastUserText((await anthropicSince(from))[0]);
+	if (fileChip && !fileChip.on) {
+		await panel.evaluate(clickText('footer .chips .chip-label', fileChip.text));
+		await until(s => s.chips.some(c => c.text === fileChip.text && !c.on), 3000);
+	}
+	await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+	result.context.openOutside = { chip: fileChip?.text ?? null, bubble: c5Open.attached, named: c5OpenText.includes('"outside-note.txt" open'), folderSent: c5OpenText.includes(path.dirname(outside)) };
+	check(result.context.openOutside.chip === 'outside-note.txt' && result.context.openOutside.named && !result.context.openOutside.folderSent && js(c5Open.attached) === js(['outside-note.txt']), `context: a file outside the workspace, open in an editor, did not go with the question by its name alone (${js(result.context.openOutside)})`);
 	save();
 
 	log('context: a pasted image, to a model that can see and to one that cannot');
@@ -1754,9 +1871,11 @@ exports.run = async function (vscode) {
 		provoked = pageLog.find(e => /Content Security Policy/i.test(e.text) && e.text.includes('csp-check.png'));
 		if (!provoked) { await sleep(100); }
 	}
-	result.csp = { entries: pageLog.length + tabLog.length, violations, provoked: provoked?.text?.slice(0, 160) ?? null };
+	const policy = await panel.evaluate(`document.querySelector('meta[http-equiv="Content-Security-Policy"]')?.content ?? ''`);
+	result.csp = { entries: pageLog.length + tabLog.length, violations, provoked: provoked?.text?.slice(0, 160) ?? null, imgSrc: /(?:^|;)\s*img-src ([^;]*)/.exec(policy)?.[1]?.trim() ?? null };
 	check(violations.length === 0, `csp: the panel's pages logged content-security violations (${js(violations.slice(0, 3))})`);
 	check(!!provoked, 'csp: a violation made on purpose was not seen, so the check cannot see one');
+	check(result.csp.imgSrc === 'data:', `csp: the page may take pictures from elsewhere than itself (img-src ${js(result.csp.imgSrc)})`);
 	save();
 
 	// ── sanitising ────────────────────────────────────────────────────────────
@@ -1791,6 +1910,27 @@ exports.run = async function (vscode) {
 	check(js(result.sanitising.classes) === js(['language-ts']), `sanitising: the answer's classes are not just its code block's language-ts — it could draw the panel's own parts (${js(result.sanitising.classes)})`);
 	check(result.sanitising.title.after === titleBefore, `sanitising: code from the answer ran (the page's title became ${js(result.sanitising.title.after)})`);
 	check(hostile?.retry && result.sanitising.composer, 'sanitising: the panel\'s own controls are gone after the answer');
+
+	log('sanitising: an answer\'s pictures from elsewhere');
+	// The extension's own icon, at the *.vscode-cdn.net address VS Code serves the extension's files
+	// through: an answer's picture from there loads with nothing leaving this machine.
+	const pictureAt = await panel.evaluate(`document.querySelector('link[rel="stylesheet"][href*="panel.css"]')?.href.replace(/panel\\.css([?#].*)?$/, 'icon.png') ?? null`);
+	await ask(`a picture from ${pictureAt}`);
+	await sleep(1500);
+	result.sanitising.pictures = await panel.evaluate(`(() => {
+		const md = [...document.querySelectorAll('.turn')].pop()?.querySelector('.markdown');
+		const all = md ? [...md.querySelectorAll('*')] : [];
+		return {
+			at: ${js(pictureAt)},
+			fetching: all.flatMap(e => ['src', 'srcset', 'poster', 'background'].filter(n => e.hasAttribute(n) && !/^data:/i.test(e.getAttribute(n).trim())).map(n => e.tagName.toLowerCase() + '.' + n)),
+			loaded: [...(md?.querySelectorAll('img') ?? [])].filter(i => !/^data:/i.test(i.currentSrc || i.src) && i.complete && i.naturalWidth > 0).length,
+			links: [...(md?.querySelectorAll('a') ?? [])].map(a => [a.textContent, a.getAttribute('href') === ${js(pictureAt)} ? 'the picture' : a.getAttribute('href')]),
+			carried: [...(md?.querySelectorAll('img') ?? [])].map(i => i.getAttribute('alt'))
+		};
+	})()`);
+	const pictures = result.sanitising.pictures;
+	check(/vscode-cdn\.net\/.*icon\.png$/.test(pictureAt ?? '') && pictures?.fetching?.length === 0 && pictures?.loaded === 0, `sanitising: an answer's picture from elsewhere was fetched, or could be (${js(pictures)})`);
+	check(js(pictures?.links) === js([['the remote picture', 'the picture'], ['raw', 'the picture'], ['badge', 'https://example.com/ci']]) && js(pictures?.carried) === js(['carried']), `sanitising: an answer's pictures from elsewhere did not become links to them — a badge's, its link's text — beside the picture the answer carries (${js(pictures)})`);
 	save();
 
 	// ── links ─────────────────────────────────────────────────────────────────
@@ -1862,7 +2002,45 @@ exports.run = async function (vscode) {
 	result.guard = vendorCalls;
 	const unanswered = vendorCalls.filter(call => !call.answered);
 	check(unanswered.length === 0, `guard: the panel called a vendor's API the probe did not mean it to (${js(unanswered)})`);
-	check(vendorCalls.length > 0 && vendorCalls.every(call => call.host === 'api.openai.com' || (call.host === 'api.groq.com' && call.path === '/openai/v1/models')), `guard: the vendor calls are not just OpenAI's and Groq's, at their own addresses, as this probe asked (${js(vendorCalls)})`);
+	check(vendorCalls.length > 0 && vendorCalls.every(call => call.host === 'api.openai.com' || (call.host === 'api.groq.com' && call.path === '/openai/v1/models') || (call.host === 'openrouter.ai' && call.path === '/api/v1/models')), `guard: the vendor calls are not just OpenAI's, Groq's and OpenRouter's, at their own addresses, as this probe asked (${js(vendorCalls)})`);
+	// Every question to Anthropic in the run, the commit message's too, with the user's own settings.
+	const anthropicShapes = (await stubRequests()).filter(r => r.vendor === 'anthropic' && r.method === 'POST' && r.path.split('?')[0] === '/v1/messages').map(r => js({ maxTokens: r.body?.max_tokens, stream: r.body?.stream === true }));
+	result.anthropicRequests = { count: anthropicShapes.length, shapes: [...new Set(anthropicShapes)] };
+	check(anthropicShapes.length > 0 && result.anthropicRequests.shapes.length === 1 && result.anthropicRequests.shapes[0] === js({ maxTokens: 12000, stream: true }), `guard: a request to Anthropic was not made with the user's own settings — 12000 tokens, streamed (${js(result.anthropicRequests)})`);
+	save();
+
+	// ── own settings, continued: the user's streaming switch and Ollama's limit ─
+	log('own settings: no streaming and a one-byte Ollama limit in the user\'s own settings');
+	const userFile = path.join(PROFILE ?? '', 'User', 'settings.json');
+	const userSet = changes => {
+		if (PROFILE) {
+			const current = JSON.parse(fs.readFileSync(userFile, 'utf8'));
+			for (const [name, value] of Object.entries(changes)) {
+				if (value === undefined) { delete current[name]; } else { current[name] = value; }
+			}
+			fs.writeFileSync(userFile, JSON.stringify(current, null, '\t') + '\n');
+		}
+	};
+	const ownStream = () => vscode.workspace.getConfiguration('sirius.ai').inspect('streamResponses')?.globalValue;
+	userSet({ 'sirius.ai.streamResponses': false, 'sirius.ai.ollama.largeModelBytes': 1 });
+	for (let i = 0; i < 50 && ownStream() !== false; i++) { await sleep(200); }
+	await panel.evaluate(choose('footer select[title="Model"]', OTHERS.gemini));
+	await sleep(300);
+	from = (await stubRequests()).length;
+	const unstreamed = await ask('own settings: gemini unstreamed');
+	const unstreamedPath = (await stubRequests()).slice(from).find(r => r.vendor === 'gemini' && r.method === 'POST')?.path.split('?')[0] ?? null;
+	await panel.evaluate(choose('footer select[title="Model"]', OTHERS.ollama));
+	await sleep(300);
+	from = (await stubRequests()).length;
+	const tooLarge = await ask('own settings: ollama over the limit');
+	const ollamaAsked = (await stubRequests()).slice(from).some(r => r.path === '/api/chat');
+	userSet({ 'sirius.ai.streamResponses': undefined, 'sirius.ai.ollama.largeModelBytes': undefined });
+	for (let i = 0; i < 50 && ownStream() !== undefined; i++) { await sleep(200); }
+	await panel.evaluate(choose('footer select[title="Model"]', MODEL));
+	await sleep(300);
+	result.ownSettings.later = { seen: ownStream() === undefined, gemini: { path: unstreamedPath, text: unstreamed?.text?.slice(0, 40) }, ollama: { asked: ollamaAsked, error: (tooLarge?.error || tooLarge?.text || '').slice(0, 90) } };
+	check(/:generateContent$/.test(unstreamedPath ?? '') && /pong/.test(unstreamed?.text ?? ''), `own settings: the user's own streamResponses: false was not honoured — Gemini's request streamed, or was not answered (${js(result.ownSettings.later)})`);
+	check(!ollamaAsked && /larger than the configured safety limit/.test(result.ownSettings.later.ollama.error), `own settings: the user's own one-byte Ollama limit did not refuse the model (${js(result.ownSettings.later)})`);
 	save();
 
 	// ── reload ────────────────────────────────────────────────────────────────
