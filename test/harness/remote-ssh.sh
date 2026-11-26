@@ -28,7 +28,7 @@ HOST=sirius-probe
 WORK=$(mktemp -d)
 
 cleanup() {
-	kill "${SHOT:-0}" 2>/dev/null || true
+	[ -z "${SHOT:-}" ] || kill "$SHOT" 2>/dev/null || true
 	"$CONTAINER" rm -f "$NAME" >/dev/null 2>&1 || true
 	rm -rf "$WORK"
 }

@@ -33,7 +33,8 @@ reap() {
 	for _ in 1 2 3 4 5 6 7 8 9 10; do [ -z "$(app_pids)" ] && return 0; sleep 0.5; done
 	app_pids | while read -r p; do kill -9 "$p" 2>/dev/null; done
 }
-cleanup() { reap; sleep 1; kill "${XP:-0}" 2>/dev/null || true; rm -rf "$WORK" "$APP/resources/app/extensions/sirius-probe"; }
+# Only the Xvfb this run started: with no pid to name, `kill 0` would end the whole process group — the caller too.
+cleanup() { reap; sleep 1; [ -z "${XP:-}" ] || kill "$XP" 2>/dev/null || true; rm -rf "$WORK" "$APP/resources/app/extensions/sirius-probe"; }
 trap cleanup EXIT
 
 rm -f "$OUT"

@@ -12,6 +12,8 @@
 # SIRIUS_PROBE_PACKAGED=1 packages the edition instead (extensions/sirius-ai/vscode-edition/package.sh:
 # the build, the stable-API gate, `vsce package`; its tools installed first) into <result>.vsix, and the
 # run installs that package as a user would rather than loading the folder as a development extension.
+# SIRIUS_PROBE_VSIX=<file or extension id> builds nothing and installs that: a package made elsewhere
+# (CI probes the very file it publishes), or the released edition from the Marketplace (the canary).
 # Probes written for it: probes/panel.js — Sirius's panel: the walkthrough, setup, every provider
 # family, thinking, replay, modes and effort, tools and approvals, changes to files reviewed in the
 # diff editor, Copy, errors, Stop, Retry, the send key, conversations, a tab, a reload, the page's
@@ -30,7 +32,9 @@ cat > "$USERDIR/mcp.json" <<JSON
 { "servers": { "sirius-stub": { "type": "stdio", "command": "$(command -v node)", "args": ["$HERE/mcp-stub.mjs"] } } }
 JSON
 
-if [ -n "${SIRIUS_PROBE_PACKAGED:-}" ]; then
+if [ -n "${SIRIUS_PROBE_VSIX:-}" ]; then
+	export SIRIUS_PROBE_VSIX
+elif [ -n "${SIRIUS_PROBE_PACKAGED:-}" ]; then
 	"$ROOT/extensions/sirius-ai/vscode-edition/package.sh" "${OUT%.json}.vsix" >"${OUT%.json}.package.log" 2>&1 \
 		|| { echo "packaging failed: $(tail -20 "${OUT%.json}.package.log")" >&2; exit 1; }
 	export SIRIUS_PROBE_VSIX="${OUT%.json}.vsix"

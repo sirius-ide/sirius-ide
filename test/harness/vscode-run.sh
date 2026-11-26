@@ -3,8 +3,8 @@
 # Licensed under the MIT License. See License.txt in the project root for license information.
 # Run a probe inside stock VS Code with Sirius's VS Code edition, against a fresh profile:
 #   test/harness/vscode-run.sh <vscode-dir> <edition-dir> <probe-script.js> <result.json> [wait, in 2 s steps]
-# <vscode-dir> is an unpacked Microsoft build (…/VSCode-linux-x64) — or a Sirius IDE app, for
-# probes/in-ide.js — left untouched: the edition
+# <vscode-dir> is an unpacked Microsoft build (…/VSCode-linux-x64; get-vscode.sh fetches one), stable
+# or Insiders — or a Sirius IDE app, for probes/in-ide.js — left untouched: the edition
 # (extensions/sirius-ai/dist/edition, from `node esbuild-edition.mts`) and the probe extension both
 # load as development extensions. The window's debugging port is open (SIRIUS_PROBE_CDP_PORT,
 # default 9341) so a probe can read the window and the panel's webview over CDP.
@@ -18,20 +18,27 @@
 # SIRIUS_PROBE_USER=<dir> into the profile's User folder (an mcp.json) before the app starts;
 # SIRIUS_PROBE_EXTRA_EXT=<dir> loads one more development extension (probe-tools-ext).
 # SIRIUS_PROBE_VSIX=<file> installs that package into the run's extensions folder — the edition as a
-# user gets it — instead of loading <edition-dir> as a development extension.
+# user gets it — instead of loading <edition-dir> as a development extension; anything that is not
+# a file is taken as an extension's id (siriuside.sirius-ai, or siriuside.sirius-ai@0.1.0 for one
+# version), which VS Code installs from the Marketplace itself: the released edition.
+# SIRIUS_PROBE_KEEP_LOGS=1 keeps VS Code's own logs beside the result (<result.json>.vscode-logs),
+# for a run nobody watched.
 
 set -euo pipefail
 APP=${1:?vscode dir, e.g. ~/.cache/sirius-verify/vscode-1.146.0/VSCode-linux-x64}
-EDITION=$(realpath "${2:?edition dir, e.g. extensions/sirius-ai/dist/edition}")
+# The edition's folder must be there to be loaded; with a package to install it is not looked at.
+EDITION=$(realpath ${SIRIUS_PROBE_VSIX:+-m} "${2:?edition dir, e.g. extensions/sirius-ai/dist/edition}")
 PROBE=$(realpath "${3:?probe script}")
 OUT=$(realpath -m "${4:?result path}")
 WAIT=${5:-90}
 PORT=${SIRIUS_PROBE_CDP_PORT:-9341}
 HERE=$(cd "$(dirname "$0")" && pwd)
 WORK=$(mktemp -d)
-# Stock VS Code's launcher, or Sirius IDE's (a probe of the edition inside the IDE: probes/in-ide.js).
+# Stock VS Code's launcher, stable's or Insiders', or Sirius IDE's (a probe of the edition inside
+# the IDE: probes/in-ide.js).
 BIN=code
-[ -x "$APP/bin/code" ] || BIN=sirius
+[ -x "$APP/bin/$BIN" ] || BIN=code-insiders
+[ -x "$APP/bin/$BIN" ] || BIN=sirius
 
 app_pids() { ps -eo pid,args --no-headers | awk -v a="$APP/" '$2 ~ "^"a {print $1}'; }
 reap() {
@@ -39,7 +46,15 @@ reap() {
 	for _ in 1 2 3 4 5 6 7 8 9 10; do [ -z "$(app_pids)" ] && return 0; sleep 0.5; done
 	app_pids | while read -r p; do kill -9 "$p" 2>/dev/null; done
 }
-cleanup() { reap; sleep 1; kill "${XP:-0}" "${BUSPID:-0}" 2>/dev/null || true; rm -rf "$WORK"; }
+# Only what this run started: with no pid to name, `kill 0` would end the whole process group — the caller too.
+cleanup() {
+	reap; sleep 1
+	for pid in "${XP:-}" "${BUSPID:-}"; do [ -z "$pid" ] || kill "$pid" 2>/dev/null || true; done
+	if [ -n "${SIRIUS_PROBE_KEEP_LOGS:-}" ] && [ -d "$WORK/user/logs" ]; then
+		rm -rf "$OUT.vscode-logs"; cp -r "$WORK/user/logs" "$OUT.vscode-logs" || true
+	fi
+	rm -rf "$WORK"
+}
 trap cleanup EXIT
 
 if curl -s -o /dev/null "http://127.0.0.1:$PORT/json/version"; then
@@ -69,8 +84,10 @@ node -e '
 
 EDITION_ARGS=(--extensionDevelopmentPath="$EDITION")
 if [ -n "${SIRIUS_PROBE_VSIX:-}" ]; then
-	"$APP/bin/$BIN" --user-data-dir="$WORK/user" --extensions-dir="$WORK/extensions" --install-extension "$(realpath "$SIRIUS_PROBE_VSIX")" >"$OUT.install.log" 2>&1 \
-		|| { echo "the .vsix did not install: $(cat "$OUT.install.log")" >&2; exit 1; }
+	INSTALL=$SIRIUS_PROBE_VSIX
+	[ -f "$INSTALL" ] && INSTALL=$(realpath "$INSTALL")
+	"$APP/bin/$BIN" --user-data-dir="$WORK/user" --extensions-dir="$WORK/extensions" --install-extension "$INSTALL" >"$OUT.install.log" 2>&1 \
+		|| { echo "$INSTALL did not install: $(cat "$OUT.install.log")" >&2; exit 1; }
 	EDITION_ARGS=()
 fi
 
